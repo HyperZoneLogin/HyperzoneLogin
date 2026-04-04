@@ -14,13 +14,13 @@ object ExtraUuidUtils {
             return OfflineUUIDType.ZERO
         }
         return when {
-            HyperZoneLoginMain.getConfig().uuidMatch.offline && holderUUID == getNormalOfflineUUID(name) -> OfflineUUIDType.OFFLINE
-            HyperZoneLoginMain.getConfig().uuidMatch.pcl2.enable && PCL2UUIDUtil.isPCL2UUID(
+            HyperZoneLoginMain.getOfflineMatchConfig().uuidMatch.offline && holderUUID == getNormalOfflineUUID(name) -> OfflineUUIDType.OFFLINE
+            HyperZoneLoginMain.getOfflineMatchConfig().uuidMatch.pcl2.enable && PCL2UUIDUtil.isPCL2UUID(
                 holderUUID,
                 name
             ) -> OfflineUUIDType.PCL
 
-            HyperZoneLoginMain.getConfig().uuidMatch.zero && holderUUID == zero -> OfflineUUIDType.ZERO
+            HyperZoneLoginMain.getOfflineMatchConfig().uuidMatch.zero && holderUUID == zero -> OfflineUUIDType.ZERO
 
             else -> OfflineUUIDType.UNKNOWN
         }

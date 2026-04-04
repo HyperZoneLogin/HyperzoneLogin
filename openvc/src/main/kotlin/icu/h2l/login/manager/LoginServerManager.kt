@@ -4,6 +4,6 @@ import icu.h2l.login.HyperZoneLoginMain
 
 class LoginServerManager {
     fun shouldOfflineHost(hostName: String): Boolean {
-        return HyperZoneLoginMain.getConfig().hostMatch.start.any { it.startsWith(hostName) }
+        return HyperZoneLoginMain.getOfflineMatchConfig().hostMatch.start.any { it.startsWith(hostName) }
     }
 } 

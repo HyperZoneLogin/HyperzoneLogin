@@ -127,8 +127,8 @@ object PCL2UUIDUtil {
     fun isPCL2UUID(
         uuid: UUID,
         name: String,
-        hashMatch: Boolean = HyperZoneLoginMain.getConfig().uuidMatch.pcl2.hash,
-        slimMatch: Boolean = HyperZoneLoginMain.getConfig().uuidMatch.pcl2.slim
+        hashMatch: Boolean = HyperZoneLoginMain.getOfflineMatchConfig().uuidMatch.pcl2.hash,
+        slimMatch: Boolean = HyperZoneLoginMain.getOfflineMatchConfig().uuidMatch.pcl2.slim
     ): Boolean {
         if (!hashMatch) return hasPCL2Info(uuid, name)
 

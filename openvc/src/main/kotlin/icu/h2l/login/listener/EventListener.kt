@@ -7,11 +7,11 @@ import com.velocitypowered.proxy.connection.client.InitialInboundConnection
 import icu.h2l.api.connection.getInitialChannel
 import icu.h2l.api.event.connection.OnlineAuthEvent
 import icu.h2l.api.event.connection.OpenPreLoginEvent
+import icu.h2l.api.util.RemapUtils
 import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.manager.HyperZonePlayerManager
 import icu.h2l.login.type.OfflineUUIDType
 import icu.h2l.login.util.ExtraUuidUtils
-import icu.h2l.api.util.RemapUtils
 import icu.h2l.login.util.info
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
@@ -28,12 +28,15 @@ class EventListener {
         val uuid = event.uuid
         val name = event.userName
         val host = event.host
-        val offlineUUIDType = ExtraUuidUtils.matchType(uuid, name)
+
+        if (!HyperZoneLoginMain.getOfflineMatchConfig().enable) return
 
         val offlineHost = HyperZoneLoginMain.getInstance().loginServerManager.shouldOfflineHost(host)
         if (offlineHost) {
             info { "匹配到离线 host 玩家: $name" }
         }
+        val offlineUUIDType = ExtraUuidUtils.matchType(uuid, name)
+
         if (offlineUUIDType != OfflineUUIDType.UNKNOWN || offlineHost) {
             event.isOnline = false
         } else {
@@ -62,8 +65,7 @@ class EventListener {
 
         if (!incomingName.startsWith(EXPECTED_NAME_PREFIX)) {
             disconnectWithError(
-                "GameProfile 名称校验失败：$incomingName (期望前缀 $EXPECTED_NAME_PREFIX)，疑似插件冲突"
-                ,
+                "GameProfile 名称校验失败：$incomingName (期望前缀 $EXPECTED_NAME_PREFIX)，疑似插件冲突",
                 PLUGIN_CONFLICT_MESSAGE
             )
             return
@@ -72,8 +74,7 @@ class EventListener {
         val expectedUuid = RemapUtils.genUUID(incomingName, REMAP_PREFIX)
         if (incomingProfile.id != expectedUuid) {
             disconnectWithError(
-                "GameProfile UUID 校验失败：name=$incomingName actual=${incomingProfile.id} expected=$expectedUuid，疑似插件冲突"
-                ,
+                "GameProfile UUID 校验失败：name=$incomingName actual=${incomingProfile.id} expected=$expectedUuid，疑似插件冲突",
                 PLUGIN_CONFLICT_MESSAGE
             )
             return

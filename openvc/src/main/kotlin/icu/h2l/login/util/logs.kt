@@ -17,7 +17,7 @@ private object OpenVcLoggerBridge : HyperZoneLogger {
     }
 
     override fun debug(message: String) {
-        val debugEnabled = runCatching { HyperZoneLoginMain.getConfig().advanced.debug }.getOrDefault(false)
+        val debugEnabled = runCatching { HyperZoneLoginMain.getOfflineMatchConfig().advanced.debug }.getOrDefault(false)
         if (debugEnabled) {
             info("$DEBUG_MESSAGE_PREFIX$message")
         }

@@ -67,7 +67,7 @@ class HyperZoneLoginMain @Inject constructor(
         fun getInstance(): HyperZoneLoginMain = instance
 
         @JvmStatic
-        fun getConfig(): OfflineMatchConfig = offlineMatchConfig
+        fun getOfflineMatchConfig(): OfflineMatchConfig = offlineMatchConfig
         
         @JvmStatic
         fun getDatabaseConfig(): DatabaseSourceConfig = databaseSourceConfig
