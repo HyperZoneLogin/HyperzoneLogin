@@ -23,8 +23,8 @@ import icu.h2l.login.config.RemapConfig
 import icu.h2l.login.database.DatabaseConfig
 import icu.h2l.login.database.DatabaseHelper
 import icu.h2l.login.inject.network.VelocityNetworkModule
-import icu.h2l.login.limbo.VServerAuth
-import icu.h2l.login.limbo.command.ExitLimboCommand
+import icu.h2l.login.vServer.limbo.LimboVServerAuth
+import icu.h2l.login.vServer.limbo.command.ExitLimboCommand
 import icu.h2l.login.listener.EventListener
 import icu.h2l.login.manager.HyperChatCommandManagerImpl
 import icu.h2l.login.manager.HyperZonePlayerManager
@@ -46,7 +46,7 @@ class HyperZoneLoginMain @Inject constructor(
     private val injector: Injector
 ) : HyperZoneVServerProvider, HyperZonePlayerAccessorProvider, HyperChatCommandManagerProvider {
     lateinit var loginServerManager: LoginServerManager
-    var limboServerManager: VServerAuth? = null
+    var limboServerManager: LimboVServerAuth? = null
     lateinit var databaseManager: icu.h2l.login.manager.DatabaseManager
     lateinit var databaseHelper: DatabaseHelper
     override val serverAdapter: HyperZoneVServerAdapter?
@@ -96,7 +96,7 @@ class HyperZoneLoginMain @Inject constructor(
         val limboPluginPresent = server.pluginManager.getPlugin("limboapi").isPresent
         if (limboPluginPresent) {
             try {
-                val limbo = VServerAuth(server)
+                val limbo = LimboVServerAuth(server)
                 limbo.load()
                 limboServerManager = limbo
                 // bind adapter (not the third-party Limbo type)

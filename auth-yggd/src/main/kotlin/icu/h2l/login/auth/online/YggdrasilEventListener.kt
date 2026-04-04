@@ -3,7 +3,7 @@ package icu.h2l.login.auth.online
 import com.velocitypowered.api.event.Subscribe
 import com.velocitypowered.api.event.connection.DisconnectEvent
 import icu.h2l.api.event.connection.OnlineAuthEvent
-import icu.h2l.api.event.vServer.VServerEvent
+import icu.h2l.api.event.vServer.VServerJoinEvent
 import icu.h2l.api.log.debug
 import icu.h2l.api.player.getChannel
 import io.netty.channel.Channel
@@ -31,7 +31,7 @@ class YggdrasilEventListener(
     }
 
     @Subscribe
-    fun onLimboSpawn(event: VServerEvent) {
+    fun onLimboSpawn(event: VServerJoinEvent) {
         if (!event.proxyPlayer.isOnlineMode) return
         if (event.hyperZonePlayer.isVerified()) return
 

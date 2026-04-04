@@ -1,4 +1,4 @@
-package icu.h2l.login.limbo.command
+package icu.h2l.login.vServer.limbo.command
 
 import com.velocitypowered.api.command.SimpleCommand
 import com.velocitypowered.api.proxy.Player
