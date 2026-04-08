@@ -95,6 +95,24 @@ class ToBackendPacketReplacer(
         channel.pipeline().remove(this)
     }
 
+    private fun shouldBypassForLoginServer(): Boolean {
+        val loginServerName = HyperZoneLoginMain.getMiscConfig().fallbackAuthServer.trim()
+        if (loginServerName.isBlank()) {
+            return false
+        }
+
+        val connectedServerName = player.connectedServer
+            ?.server
+            ?.serverInfo
+            ?.name
+        if (connectedServerName.equals(loginServerName, ignoreCase = true)) {
+            return true
+        }
+
+        val targetServerName = velocityServerConnection.server.serverInfo.name
+        return targetServerName.equals(loginServerName, ignoreCase = true)
+    }
+
     private fun genLoginPluginResponse(
         msg: LoginPluginResponsePacket
     ): LoginPluginResponsePacket {
@@ -227,6 +245,12 @@ class ToBackendPacketReplacer(
     override fun write(ctx: ChannelHandlerContext, msg: Any?, promise: ChannelPromise?) {
         try {
             initFields(ctx)
+
+            if (shouldBypassForLoginServer()) {
+                retire()
+                super.write(ctx, msg, promise)
+                return
+            }
 
 //        println("W: $msg")
             val getMsg = replaceMessage(msg)

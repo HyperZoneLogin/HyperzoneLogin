@@ -70,33 +70,6 @@ class EventListener {
             )
             return
         }
-
-//        新玩家在此阶段正常找不到profile
-        val hyperZonePlayer = HyperZonePlayerManager.getByChannel(event.connection.getNettyChannel())
-
-//        对新玩家不处理皮肤流程
-        if(hyperZonePlayer.canRegister()) return
-
-        val baseProfile = hyperZonePlayer.getGameProfile()
-        val applyEvent = ProfileSkinApplyEvent(hyperZonePlayer, baseProfile)
-        runCatching {
-            HyperZoneLoginMain.getInstance().proxy.eventManager.fire(applyEvent).join()
-        }.onFailure { throwable ->
-            error(throwable) { "Profile skin apply event failed: ${throwable.message}" }
-        }
-
-        val textures = applyEvent.textures
-        event.gameProfile = if (textures == null) {
-            baseProfile
-        } else {
-            GameProfile(
-                baseProfile.id,
-                baseProfile.name,
-                baseProfile.properties
-                    .filterNot { it.name.equals("textures", ignoreCase = true) }
-                    .toMutableList()
-                    .apply { add(textures.toProperty()) }
-            )
-        }
+//        这里是错误的额外处理位置，不要替换任何profile在这里
     }
 }
