@@ -24,8 +24,10 @@ fun InboundConnection.disconnectWithMessage(userMessage: Component) {
 
     if (this is InitialInboundConnection) {
         this.disconnect(userMessage)
+        return
     } else if (this is LoginInboundConnection) {
         this.getDelegate().disconnect(userMessage)
+        return
     }
     throw IllegalStateException("未知InboundConnection类型${this.javaClass}")
 }

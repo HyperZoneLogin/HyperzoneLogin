@@ -33,7 +33,7 @@ class HyperZoneLoginCommand : SimpleCommand {
 
             val proxyPlayer = sender
             val hyperZonePlayer = HyperZonePlayerManager.getByPlayer(proxyPlayer)
-            val profile = hyperZonePlayer.getProfile()
+            val profile = hyperZonePlayer.getDBProfile()
 
             sender.sendPlainMessage("§e[ProxyPlayer] name=${proxyPlayer.username} uuid=${proxyPlayer.uniqueId}")
             sender.sendPlainMessage("§e[HyperZonePlayer] verified=${hyperZonePlayer.isVerified()} canRegister=${hyperZonePlayer.canRegister()}")

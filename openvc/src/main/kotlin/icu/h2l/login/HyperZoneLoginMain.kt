@@ -23,6 +23,7 @@ import icu.h2l.login.config.MiscConfig
 import icu.h2l.login.database.DatabaseConfig
 import icu.h2l.login.database.DatabaseHelper
 import icu.h2l.login.inject.network.VelocityNetworkModule
+import icu.h2l.login.vServer.backend.BackendAuthHoldListener
 import icu.h2l.login.vServer.limbo.LimboVServerAuth
 import icu.h2l.login.vServer.limbo.command.ExitLimboCommand
 import icu.h2l.login.listener.EventListener
@@ -45,6 +46,7 @@ class HyperZoneLoginMain @Inject constructor(
     private val injector: Injector
 ) : HyperZoneVServerProvider, HyperZonePlayerAccessorProvider, HyperChatCommandManagerProvider {
     var limboServerManager: LimboVServerAuth? = null
+    var backendAuthHoldListener: BackendAuthHoldListener? = null
     lateinit var databaseManager: icu.h2l.login.manager.DatabaseManager
     lateinit var databaseHelper: DatabaseHelper
     override val serverAdapter: HyperZoneVServerAdapter?
@@ -95,8 +97,10 @@ class HyperZoneLoginMain @Inject constructor(
                 val limbo = LimboVServerAuth(server)
                 limbo.load()
                 limboServerManager = limbo
+                backendAuthHoldListener = null
                 // bind adapter (not the third-party Limbo type)
                 HyperChatCommandManagerImpl.bindLimbo(proxy, limbo)
+                HyperChatCommandManagerImpl.setProxyFallbackCommandsEnabled(false)
                 proxy.eventManager.register(this, limbo)
             } catch (t: Throwable) {
                 logger.warn("Limbo plugin detected but initialization failed: ${t.message}")
@@ -104,7 +108,18 @@ class HyperZoneLoginMain @Inject constructor(
         } else {
             // No limbo present; bind null adapter so command registration is a no-op
             HyperChatCommandManagerImpl.bindLimbo(proxy, null)
-            logger.info("Limbo not present; running without Limbo integration")
+            val configuredFallback = miscConfig.fallbackAuthServer.trim()
+            if (configuredFallback.isNotBlank()) {
+                val backendHold = BackendAuthHoldListener(server)
+                backendAuthHoldListener = backendHold
+                HyperChatCommandManagerImpl.setProxyFallbackCommandsEnabled(true)
+                proxy.eventManager.register(this, backendHold)
+                logger.info("Limbo not present; using backend auth hold server '$configuredFallback'")
+            } else {
+                backendAuthHoldListener = null
+                HyperChatCommandManagerImpl.setProxyFallbackCommandsEnabled(false)
+                logger.info("Limbo not present; running without Limbo integration or backend auth hold")
+            }
         }
 
         chatCommandManager.register(
@@ -150,6 +165,8 @@ class HyperZoneLoginMain @Inject constructor(
      */
     fun triggerLimboAuthForPlayer(player: com.velocitypowered.api.proxy.Player) {
         limboServerManager?.authPlayer(player)
+            ?: backendAuthHoldListener?.authPlayer(player)
+            ?: player.sendPlainMessage("§c当前未启用可用的认证等待流程")
     }
 
     private fun logInternalTestWarning() {

@@ -1,6 +1,5 @@
 package icu.h2l.api.player
 
-import com.velocitypowered.api.proxy.Player
 import com.velocitypowered.api.util.GameProfile
 import icu.h2l.api.db.Profile
 import net.kyori.adventure.text.Component
@@ -38,11 +37,11 @@ interface HyperZonePlayer {
     fun register(userName: String? = null, uuid: UUID? = null): Profile
 
     /**
-     * 获取当前玩家对应的 Profile。
+     * 获取当前玩家数据库中对应的 Profile。如果是第一次加入游戏，是获取不到的。只有已注册用户才有。
      *
      * @return Profile，不存在时返回 null
      */
-    fun getProfile(): Profile?
+    fun getDBProfile(): Profile?
 
     /**
      * 当前玩家是否已完成验证。

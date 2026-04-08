@@ -33,7 +33,11 @@ class EventListener {
 
     @Subscribe
     fun onOnlineAuth(event: OnlineAuthEvent) {
+        val hyperZonePlayer = HyperZonePlayerManager.getByChannel(event.channel) as? icu.h2l.login.player.OpenVcHyperZonePlayer
+        hyperZonePlayer?.recordOnlineAuthIdentity(event.userName, event.userUUID)
+
         if (!HyperZoneLoginMain.getMiscConfig().enableReplaceGameProfile) return
+//        进行档案强制性替换
         event.gameProfile = RemapUtils.randomProfile()
     }
 
@@ -57,6 +61,7 @@ class EventListener {
             return
         }
 
+//        我们在前一阶段把档案做了强制替换
         val expectedUuid = RemapUtils.genUUID(incomingName, REMAP_PREFIX)
         if (incomingProfile.id != expectedUuid) {
             disconnectWithError(
@@ -66,15 +71,12 @@ class EventListener {
             return
         }
 
+//        新玩家在此阶段正常找不到profile
         val hyperZonePlayer = HyperZonePlayerManager.getByChannel(event.connection.getNettyChannel())
-        val resolvedProfile = hyperZonePlayer.getProfile()
-        if (resolvedProfile == null) {
-            disconnectWithError(
-                "玩家 ${event.gameProfile.name} 在 GameProfileRequest 阶段未找到 Profile，已拒绝连接",
-                "登录失败：未找到你的档案信息，请联系管理员。"
-            )
-            return
-        }
+
+//        对新玩家不处理皮肤流程
+        if(hyperZonePlayer.canRegister()) return
+
         val baseProfile = hyperZonePlayer.getGameProfile()
         val applyEvent = ProfileSkinApplyEvent(hyperZonePlayer, baseProfile)
         runCatching {

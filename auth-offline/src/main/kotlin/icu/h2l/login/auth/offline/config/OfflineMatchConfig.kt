@@ -7,7 +7,7 @@ import org.spongepowered.configurate.objectmapping.meta.Comment
 class OfflineMatchConfig {
 
     @Comment("是否允许进行匹配")
-    val enable = false
+    val enable = true
 
     @Comment("UUID匹配设定")
     val uuidMatch = UUIDMatch()

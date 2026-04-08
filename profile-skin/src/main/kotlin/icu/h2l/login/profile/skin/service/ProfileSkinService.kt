@@ -41,7 +41,7 @@ class ProfileSkinService(
     fun onPreprocess(event: ProfileSkinPreprocessEvent) {
         if (!config.enabled) return
 
-        val profileId = event.hyperZonePlayer.getProfile()?.id ?: return
+        val profileId = event.hyperZonePlayer.getDBProfile()?.id ?: return
         val upstreamTextures = event.textures ?: extractTextures(event.authenticatedProfile)
         val source = (event.source ?: extractSkinSource(upstreamTextures))?.normalized()
         val sourceHash = source?.let(::sourceHash)
@@ -81,7 +81,7 @@ class ProfileSkinService(
     fun onApply(event: ProfileSkinApplyEvent) {
         if (!config.enabled) return
 
-        val profileId = event.hyperZonePlayer.getProfile()?.id ?: return
+        val profileId = event.hyperZonePlayer.getDBProfile()?.id ?: return
         repository.findByProfileId(profileId)?.let { cached ->
             event.textures = cached.textures
             return

@@ -49,7 +49,7 @@ class OfflineAuthService(
             return Result(false, "§c尚未完成验证，无法绑定")
         }
 
-        val profile = hyperZonePlayer.getProfile() ?: return Result(false, "§c未找到档案，无法绑定")
+        val profile = hyperZonePlayer.getDBProfile() ?: return Result(false, "§c未找到档案，无法绑定")
         if (repository.getByProfileId(profile.id) != null || repository.getByName(normalizedName) != null) {
             return Result(false, "§c已绑定，无需重复绑定")
         }

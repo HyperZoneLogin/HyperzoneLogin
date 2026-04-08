@@ -319,7 +319,7 @@ class YggdrasilAuthModule(
 
         val hyperZonePlayer = playerAccessor.getByPlayer(player)
 
-        val playerProfile = hyperZonePlayer.getProfile()
+        val playerProfile = hyperZonePlayer.getDBProfile()
             ?: return YggdrasilAuthResult.Failed("第一批次验证失败：未获取到玩家 Profile")
 
         val entryProfileId = entryDatabaseHelper.findEntryByNameAndUuid(
