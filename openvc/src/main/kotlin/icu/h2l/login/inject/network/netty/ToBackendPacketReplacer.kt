@@ -18,7 +18,6 @@ import com.velocitypowered.proxy.protocol.ProtocolUtils
 import com.velocitypowered.proxy.protocol.packet.HandshakePacket
 import com.velocitypowered.proxy.protocol.packet.LoginPluginResponsePacket
 import com.velocitypowered.proxy.protocol.packet.ServerLoginPacket
-import icu.h2l.api.event.profile.ProfileSkinApplyEvent
 import icu.h2l.api.log.debug
 import icu.h2l.api.log.error
 import icu.h2l.api.player.HyperZonePlayer
@@ -26,6 +25,7 @@ import icu.h2l.api.profile.skin.ProfileSkinTextures
 import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.inject.network.ChatSessionUpdatePacketIdResolver
 import icu.h2l.login.manager.HyperZonePlayerManager
+import icu.h2l.login.player.ForwardingGameProfileSupport
 import icu.h2l.login.player.OpenVcHyperZonePlayer
 import io.netty.buffer.ByteBuf
 import io.netty.channel.Channel
@@ -279,38 +279,15 @@ class ToBackendPacketReplacer(
     }
 
     fun getGameProfile(): GameProfile {
-        val baseProfile = resolveForwardingBaseProfile()
+        val loginServerTarget = isLoginServerTarget()
+        val baseProfile = ForwardingGameProfileSupport.resolveBaseProfile(hyperPlayer, loginServerTarget)
 //        这里不处理，别人看不见我们的皮肤
         debug {
-            "[ProfileSkinFlow] apply start: player=${hyperPlayer.userName}, dbProfile=${hyperPlayer.getDBProfile()?.id ?: "<none>"}, baseSource=${resolveForwardingBaseProfileSource()}, base=${describeProfile(baseProfile)}, temporary=${describeProfile(hyperPlayer.getTemporaryForwardingProfile())}, initial=${describeProfile(hyperPlayer.getInitialGameProfile())}, target=${velocityServerConnection.server.serverInfo.name}"
+            "[ProfileSkinFlow] apply start: player=${hyperPlayer.userName}, dbProfile=${hyperPlayer.getDBProfile()?.id ?: "<none>"}, baseSource=${ForwardingGameProfileSupport.resolveBaseProfileSource(hyperPlayer, loginServerTarget)}, base=${describeProfile(baseProfile)}, temporary=${describeProfile(hyperPlayer.getTemporaryForwardingProfile())}, initial=${describeProfile(hyperPlayer.getInitialGameProfile())}, target=${velocityServerConnection.server.serverInfo.name}"
         }
-        val event = ProfileSkinApplyEvent(hyperPlayer, baseProfile)
-        runCatching {
-            HyperZoneLoginMain.getInstance().proxy.eventManager.fire(event).join()
-        }.onSuccess {
-            debug {
-                "[ProfileSkinFlow] apply event completed: player=${hyperPlayer.userName}, textures=${describeTextures(event.textures)}"
-            }
-        }.onFailure { throwable ->
-            error(throwable) { "Profile skin apply event failed: ${throwable.message}" }
-        }
-
-        val textures = event.textures ?: run {
-            debug {
-                "[ProfileSkinFlow] apply result: no textures available, using base profile for player=${hyperPlayer.userName}"
-            }
-            return baseProfile
-        }
-        val finalProfile = GameProfile(
-            baseProfile.id,
-            baseProfile.name,
-            baseProfile.properties
-                .filterNot { it.name.equals("textures", ignoreCase = true) }
-                .toMutableList()
-                .apply { add(textures.toProperty()) }
-        )
+        val finalProfile = ForwardingGameProfileSupport.resolveProfile(hyperPlayer, loginServerTarget)
         debug {
-            "[ProfileSkinFlow] apply result: merged final=${describeProfile(finalProfile)}, textures=${describeTextures(textures)}"
+            "[ProfileSkinFlow] apply result: merged final=${describeProfile(finalProfile)}, source=${ForwardingGameProfileSupport.resolveBaseProfileSource(hyperPlayer, loginServerTarget)}"
         }
         return finalProfile
     }
@@ -327,9 +304,10 @@ class ToBackendPacketReplacer(
 
 
     private fun genServerLogin(): ServerLoginPacket {
-        val loginProfile = resolveForwardingBaseProfile()
+        val loginServerTarget = isLoginServerTarget()
+        val loginProfile = ForwardingGameProfileSupport.resolveBaseProfile(hyperPlayer, loginServerTarget)
         debug {
-            "[ProfileSkinFlow] server login identity: target=${velocityServerConnection.server.serverInfo.name}, baseSource=${resolveForwardingBaseProfileSource()}, profile=${describeProfile(loginProfile)}, identifiedKey=${player.identifiedKey != null}"
+            "[ProfileSkinFlow] server login identity: target=${velocityServerConnection.server.serverInfo.name}, baseSource=${ForwardingGameProfileSupport.resolveBaseProfileSource(hyperPlayer, loginServerTarget)}, profile=${describeProfile(loginProfile)}, identifiedKey=${player.identifiedKey != null}"
         }
         if (player.identifiedKey == null
             && player.protocolVersion.noLessThan(ProtocolVersion.MINECRAFT_1_19_3)
@@ -392,22 +370,6 @@ class ToBackendPacketReplacer(
         return "id=${profile.id}, name=${profile.name}, properties=${profile.properties.size}, textures=${describeTextures(textures)}"
     }
 
-    private fun resolveForwardingBaseProfile(): GameProfile {
-        if (isLoginServerTarget()) {
-            hyperPlayer.getTemporaryForwardingProfile()?.let { temporaryProfile ->
-                return temporaryProfile
-            }
-        }
-        return hyperPlayer.getGameProfile()
-    }
-
-    private fun resolveForwardingBaseProfileSource(): String {
-        return if (isLoginServerTarget() && hyperPlayer.getTemporaryForwardingProfile() != null) {
-            "temporaryForwardingProfile"
-        } else {
-            "playerGameProfile"
-        }
-    }
 
     private fun describeTextures(textures: ProfileSkinTextures?): String {
         if (textures == null) {

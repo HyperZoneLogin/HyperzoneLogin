@@ -7,6 +7,7 @@ import com.velocitypowered.proxy.network.ConnectionManager
 import com.velocitypowered.proxy.network.Endpoint
 import icu.h2l.login.inject.network.netty.NettyLoginSessionHandler
 import icu.h2l.login.inject.network.netty.SeverChannelAcceptAdapter
+import icu.h2l.login.inject.network.netty.ServerLoginSuccessPacketReplacer
 import icu.h2l.login.inject.network.netty.ToBackendPacketReplacer
 import icu.h2l.login.inject.network.netty.ViaChannelInitializer
 import io.netty.channel.Channel
@@ -57,6 +58,7 @@ class VelocityNetworkInjectorImpl(
                         channel,
                     )
                 )
+                channel.pipeline().addLast("h2l_login_success_profile", ServerLoginSuccessPacketReplacer(channel))
             }
         })
     }
