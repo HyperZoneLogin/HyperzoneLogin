@@ -71,7 +71,7 @@ class EventListener {
             return
         }
 
-//        这里不做自己看不见自己皮肤
+//        这里不做自己看不见自己皮肤，假设我们可以在VC的tablist添加一个虚拟的玩家来使得我们能够显示
         runCatching {
             val hyperPlayer = HyperZonePlayerManager.getByChannel(event.connection.getNettyChannel())
             ProfileSkinApplySupport.apply(hyperPlayer)

@@ -280,6 +280,7 @@ class ToBackendPacketReplacer(
 
     fun getGameProfile(): GameProfile {
         val baseProfile = resolveForwardingBaseProfile()
+//        这里不处理，别人看不见我们的皮肤
         debug {
             "[ProfileSkinFlow] apply start: player=${hyperPlayer.userName}, dbProfile=${hyperPlayer.getDBProfile()?.id ?: "<none>"}, baseSource=${resolveForwardingBaseProfileSource()}, base=${describeProfile(baseProfile)}, temporary=${describeProfile(hyperPlayer.getTemporaryForwardingProfile())}, initial=${describeProfile(hyperPlayer.getInitialGameProfile())}, target=${velocityServerConnection.server.serverInfo.name}"
         }
