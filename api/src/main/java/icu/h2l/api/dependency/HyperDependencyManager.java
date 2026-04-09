@@ -37,10 +37,11 @@ public final class HyperDependencyManager {
     private final Path cacheDirectory;
     private final HyperDependencyClassPathAppender classPathAppender;
     private final Collection<HyperDependencyRepository> repositories;
+    private final HyperDependencyProgressListener progressListener;
     private final Map<HyperDependency, Path> loaded = new LinkedHashMap<>();
 
     public HyperDependencyManager(Path cacheDirectory, HyperDependencyClassPathAppender classPathAppender) {
-        this(cacheDirectory, classPathAppender, HyperDependencyRepository.DEFAULT_REPOSITORIES);
+        this(cacheDirectory, classPathAppender, HyperDependencyRepository.DEFAULT_REPOSITORIES, HyperDependencyProgressListener.NONE);
     }
 
     public HyperDependencyManager(
@@ -48,9 +49,19 @@ public final class HyperDependencyManager {
         HyperDependencyClassPathAppender classPathAppender,
         Collection<HyperDependencyRepository> repositories
     ) {
+        this(cacheDirectory, classPathAppender, repositories, HyperDependencyProgressListener.NONE);
+    }
+
+    public HyperDependencyManager(
+        Path cacheDirectory,
+        HyperDependencyClassPathAppender classPathAppender,
+        Collection<HyperDependencyRepository> repositories,
+        HyperDependencyProgressListener progressListener
+    ) {
         this.cacheDirectory = Objects.requireNonNull(cacheDirectory, "cacheDirectory");
         this.classPathAppender = Objects.requireNonNull(classPathAppender, "classPathAppender");
         this.repositories = Objects.requireNonNull(repositories, "repositories");
+        this.progressListener = Objects.requireNonNull(progressListener, "progressListener");
     }
 
     public synchronized void loadDependencies(Collection<HyperDependency> dependencies) throws HyperDependencyDownloadException {
@@ -68,12 +79,14 @@ public final class HyperDependencyManager {
         Path file = downloadDependency(dependency);
         this.classPathAppender.addJarToClasspath(file);
         this.loaded.put(dependency, file);
+        this.progressListener.onDependencyLoaded(dependency, file);
     }
 
     private Path downloadDependency(HyperDependency dependency) throws HyperDependencyDownloadException {
         Path file = this.cacheDirectory.resolve(dependency.cacheFileName());
 
         if (Files.exists(file) && checksumMatches(file, dependency)) {
+            this.progressListener.onUsingCache(dependency, file);
             return file;
         }
 
@@ -86,9 +99,12 @@ public final class HyperDependencyManager {
         HyperDependencyDownloadException lastError = null;
         for (HyperDependencyRepository repository : this.repositories) {
             try {
+                this.progressListener.onDownloadStart(dependency, repository, file);
                 repository.download(dependency, file);
+                this.progressListener.onDownloadSuccess(dependency, repository, file);
                 return file;
             } catch (HyperDependencyDownloadException e) {
+                this.progressListener.onDownloadFailure(dependency, repository, e);
                 lastError = e;
             }
         }

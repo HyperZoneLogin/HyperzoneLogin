@@ -54,6 +54,10 @@ public enum HyperDependencyRepository {
         this.baseUrl = baseUrl;
     }
 
+    public String getBaseUrl() {
+        return this.baseUrl;
+    }
+
     private InputStream openStream(HyperDependency dependency) throws IOException {
         URL dependencyUrl = URI.create(this.baseUrl + dependency.getMavenRepoPath()).toURL();
         URLConnection connection = dependencyUrl.openConnection();

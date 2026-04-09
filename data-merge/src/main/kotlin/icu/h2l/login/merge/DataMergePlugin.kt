@@ -29,6 +29,8 @@ import com.velocitypowered.api.plugin.annotation.DataDirectory
 import com.velocitypowered.api.proxy.ProxyServer
 import icu.h2l.api.HyperZoneApiProvider
 import icu.h2l.api.dependency.HyperDependencyManager
+import icu.h2l.api.dependency.HyperDependencyProgressListener
+import icu.h2l.api.dependency.HyperDependencyRepository
 import icu.h2l.api.dependency.HyperRuntimeLibraries
 import icu.h2l.api.dependency.VelocityHyperDependencyClassPathAppender
 import java.nio.file.Path
@@ -48,7 +50,33 @@ class DataMergePlugin @Inject constructor(
                 val cacheDirectory = HyperZoneApiProvider.getOrNull()?.dataDirectory?.resolve("libs") ?: dataDirectory.resolve("libs")
                 HyperDependencyManager(
                     cacheDirectory,
-                    VelocityHyperDependencyClassPathAppender(server, this)
+                    VelocityHyperDependencyClassPathAppender(server, this),
+                    HyperDependencyRepository.DEFAULT_REPOSITORIES,
+                    object : HyperDependencyProgressListener {
+                        override fun onDownloadStart(
+                            dependency: icu.h2l.api.dependency.HyperDependency,
+                            repository: HyperDependencyRepository,
+                            targetPath: Path
+                        ) {
+                            logger.info("正在下载运行库: ${dependency.id()} <- ${repository.baseUrl}")
+                        }
+
+                        override fun onDownloadSuccess(
+                            dependency: icu.h2l.api.dependency.HyperDependency,
+                            repository: HyperDependencyRepository,
+                            targetPath: Path
+                        ) {
+                            logger.info("运行库下载完成: ${dependency.id()}")
+                        }
+
+                        override fun onDownloadFailure(
+                            dependency: icu.h2l.api.dependency.HyperDependency,
+                            repository: HyperDependencyRepository,
+                            exception: Exception
+                        ) {
+                            logger.warning("运行库下载失败: ${dependency.id()} <- ${repository.baseUrl} (${exception.message})")
+                        }
+                    }
                 ).loadDependencies(HyperRuntimeLibraries.DATA_MERGE_PRIVATE)
                 api.registerModule(MergeSubModule())
             } catch (t: Throwable) {

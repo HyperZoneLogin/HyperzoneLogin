@@ -31,6 +31,8 @@ import icu.h2l.api.HyperZoneApiProvider;
 import icu.h2l.api.command.HyperChatCommandManager;
 import icu.h2l.api.db.HyperZoneDatabaseManager;
 import icu.h2l.api.dependency.HyperDependencyManager;
+import icu.h2l.api.dependency.HyperDependencyProgressListener;
+import icu.h2l.api.dependency.HyperDependencyRepository;
 import icu.h2l.api.dependency.HyperRuntimeLibraries;
 import icu.h2l.api.dependency.VelocityHyperDependencyClassPathAppender;
 import icu.h2l.api.module.HyperSubModule;
@@ -107,7 +109,24 @@ public final class HyperZoneLoginBootstrap implements HyperZoneApi {
         try {
             new HyperDependencyManager(
                 this.dataDirectory.resolve("libs"),
-                new VelocityHyperDependencyClassPathAppender(this.proxy, this)
+                new VelocityHyperDependencyClassPathAppender(this.proxy, this),
+                HyperDependencyRepository.DEFAULT_REPOSITORIES,
+                new HyperDependencyProgressListener() {
+                    @Override
+                    public void onDownloadStart(icu.h2l.api.dependency.HyperDependency dependency, HyperDependencyRepository repository, Path targetPath) {
+                        logger.info("正在下载运行库: {} <- {}", dependency.id(), repository.getBaseUrl());
+                    }
+
+                    @Override
+                    public void onDownloadSuccess(icu.h2l.api.dependency.HyperDependency dependency, HyperDependencyRepository repository, Path targetPath) {
+                        logger.info("运行库下载完成: {}", dependency.id());
+                    }
+
+                    @Override
+                    public void onDownloadFailure(icu.h2l.api.dependency.HyperDependency dependency, HyperDependencyRepository repository, Exception exception) {
+                        logger.warn("运行库下载失败: {} <- {} ({})", dependency.id(), repository.getBaseUrl(), exception.getMessage());
+                    }
+                }
             ).loadDependencies(HyperRuntimeLibraries.SHARED);
             this.logger.info("核心运行库已完成动态加载");
         } catch (Exception e) {
