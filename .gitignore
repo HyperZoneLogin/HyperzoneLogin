@@ -3,6 +3,7 @@ ref/
 /.idea/
 build/
 bin/
+.kotlin
 
 target/
 pom.xml.tag

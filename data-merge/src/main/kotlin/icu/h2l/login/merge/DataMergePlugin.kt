@@ -28,10 +28,10 @@ import com.velocitypowered.api.plugin.Plugin
 import com.velocitypowered.api.plugin.annotation.DataDirectory
 import com.velocitypowered.api.proxy.ProxyServer
 import icu.h2l.api.HyperZoneApiProvider
+import icu.h2l.api.dependency.HyperDependencyManifest
 import icu.h2l.api.dependency.HyperDependencyManager
 import icu.h2l.api.dependency.HyperDependencyProgressListener
 import icu.h2l.api.dependency.HyperDependencyRepository
-import icu.h2l.api.dependency.HyperRuntimeLibraries
 import icu.h2l.api.dependency.VelocityHyperDependencyClassPathAppender
 import java.nio.file.Path
 
@@ -77,7 +77,7 @@ class DataMergePlugin @Inject constructor(
                             logger.warning("运行库下载失败: ${dependency.id()} <- ${repository.baseUrl} (${exception.message})")
                         }
                     }
-                ).loadDependencies(HyperRuntimeLibraries.DATA_MERGE_PRIVATE)
+                ).loadDependencies(HyperDependencyManifest.readFrom(this::class.java.classLoader))
                 api.registerModule(MergeSubModule())
             } catch (t: Throwable) {
                 logger.warning("Failed to register MergeSubModule: ${t.message}")

@@ -19,36 +19,12 @@
  *
  */
 
-import icu.h2l.gradle.needPackageCompileOnly
+package icu.h2l.gradle
 
-plugins {
-    alias(libs.plugins.kotlin)
-    id("icu.h2l.runtime-dependencies")
-}
+import org.gradle.kotlin.dsl.DependencyHandlerScope
 
-dependencies {
-    // Build as a standalone Velocity plugin; reference API at compile time only
-    compileOnly(project(":api"))
-    // The auth modules are separate plugins; keep compileOnly if you reference them
-    compileOnly(project(":auth-yggd"))
-    compileOnly(project(":auth-offline"))
-
-    compileOnly(libs.velocityApi)
-
-    needPackageCompileOnly(libs.h2)
-
-    compileOnly(libs.exposedCore)
-    compileOnly(libs.exposedJdbc)
-
-    compileOnly(libs.configurateHocon)
-    compileOnly(libs.configurateExtraKotlin)
-
-    testImplementation(platform(libs.junitBom))
-    testImplementation(libs.junitJupiter)
-    testRuntimeOnly(libs.junitPlatformLauncher)
-}
-
-tasks.test {
-    useJUnitPlatform()
+fun DependencyHandlerScope.needPackageCompileOnly(dependencyNotation: Any) {
+    add("compileOnly", dependencyNotation)
+    add("needPackage", dependencyNotation)
 }
 

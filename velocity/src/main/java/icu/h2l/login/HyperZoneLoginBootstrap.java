@@ -30,15 +30,18 @@ import icu.h2l.api.HyperZoneApi;
 import icu.h2l.api.HyperZoneApiProvider;
 import icu.h2l.api.command.HyperChatCommandManager;
 import icu.h2l.api.db.HyperZoneDatabaseManager;
+import icu.h2l.api.dependency.HyperDependency;
+import icu.h2l.api.dependency.HyperDependencyManifest;
 import icu.h2l.api.dependency.HyperDependencyManager;
 import icu.h2l.api.dependency.HyperDependencyProgressListener;
 import icu.h2l.api.dependency.HyperDependencyRepository;
-import icu.h2l.api.dependency.HyperRuntimeLibraries;
 import icu.h2l.api.dependency.VelocityHyperDependencyClassPathAppender;
 import icu.h2l.api.module.HyperSubModule;
 import icu.h2l.api.player.HyperZonePlayerAccessor;
 import icu.h2l.api.vServer.HyperZoneVServerAdapter;
+import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 
 public final class HyperZoneLoginBootstrap implements HyperZoneApi {
@@ -107,6 +110,7 @@ public final class HyperZoneLoginBootstrap implements HyperZoneApi {
 
     private void loadRuntimeLibraries() {
         try {
+            List<HyperDependency> dependencies = readRuntimeDependencies();
             new HyperDependencyManager(
                 this.dataDirectory.resolve("libs"),
                 new VelocityHyperDependencyClassPathAppender(this.proxy, this),
@@ -127,11 +131,19 @@ public final class HyperZoneLoginBootstrap implements HyperZoneApi {
                         logger.warn("运行库下载失败: {} <- {} ({})", dependency.id(), repository.getBaseUrl(), exception.getMessage());
                     }
                 }
-            ).loadDependencies(HyperRuntimeLibraries.SHARED);
+            ).loadDependencies(dependencies);
             this.logger.info("核心运行库已完成动态加载");
         } catch (Exception e) {
             throw new IllegalStateException("无法加载 HyperZoneLogin 核心运行库", e);
         }
+    }
+
+    private List<HyperDependency> readRuntimeDependencies() throws IOException {
+        List<HyperDependency> dependencies = HyperDependencyManifest.readFrom(getClass().getClassLoader());
+        if (dependencies.isEmpty()) {
+            throw new IllegalStateException("插件 jar 内未找到构建生成的运行库清单: " + HyperDependencyManifest.RESOURCE_PATH);
+        }
+        return dependencies;
     }
 }
 

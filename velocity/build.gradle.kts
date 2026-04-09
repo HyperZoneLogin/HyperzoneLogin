@@ -19,6 +19,7 @@
  *
  */
 
+import icu.h2l.gradle.needPackageCompileOnly
 import org.gradle.api.artifacts.MinimalExternalModuleDependency
 import org.gradle.api.provider.Provider
 
@@ -30,6 +31,7 @@ fun moduleId(dependency: Provider<MinimalExternalModuleDependency>): String {
 plugins {
     alias(libs.plugins.kotlin)
     alias(libs.plugins.shadow)
+    id("icu.h2l.runtime-dependencies")
 }
 
 dependencies {
@@ -40,21 +42,21 @@ dependencies {
 //    implementation(project(":vcinjector"))
 
 // Exposed ORM / runtime-loaded libraries
-    compileOnly(libs.exposedCore)
-    compileOnly(libs.exposedJdbc)
+    needPackageCompileOnly(libs.exposedCore)
+    needPackageCompileOnly(libs.exposedJdbc)
 // Database drivers / runtime-loaded libraries
-    compileOnly(libs.sqliteJdbc)
-    compileOnly(libs.mysql)
-    compileOnly(libs.mariadb)
-    compileOnly(libs.hikari)
+    needPackageCompileOnly(libs.sqliteJdbc)
+    needPackageCompileOnly(libs.mysql)
+    needPackageCompileOnly(libs.mariadb)
+    needPackageCompileOnly(libs.hikari)
 //    VC
     compileOnly(libs.velocityApi)
     compileOnly(libs.velocityProxy) // From Elytrium Repo.
 //    limbo
     compileOnly(libs.limboApi)
 
-    compileOnly(libs.configurateExtraKotlin)
-    compileOnly(libs.configurateHocon)
+    needPackageCompileOnly(libs.configurateExtraKotlin)
+    needPackageCompileOnly(libs.configurateHocon)
     compileOnly(libs.nettyAll)
     compileOnly(libs.gson)
     compileOnly(libs.log4jApi)
