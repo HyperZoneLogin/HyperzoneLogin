@@ -1,35 +1,15 @@
 import org.gradle.api.tasks.Sync
 import org.gradle.jvm.tasks.Jar
 
-buildscript {
-    repositories {
-        exclusiveContent {
-            forRepository {
-                maven("https://plugins.gradle.org/m2/")
-            }
-            filter {
-                includeGroup("com.github.johnrengelman")
-                includeGroup("com.github.johnrengelman.shadow")
-            }
-        }
-
-        maven("https://maven.aliyun.com/repository/central")
-        maven("https://mirrors.cloud.tencent.com/nexus/repository/maven-public/")
-        mavenCentral()
-    }
-    dependencies {
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.3.20")
-        classpath("com.github.johnrengelman:shadow:8.1.1")
-    }
-}
-
 plugins {
     base
+    alias(libs.plugins.kotlin) apply false
+    alias(libs.plugins.shadow) apply false
 }
 
 subprojects {
-    group = "icu.h2l.login"
-    version = "1.0-SNAPSHOT"
+    group = rootProject.group
+    version = rootProject.version
 
     repositories {
         maven("https://maven.aliyun.com/repository/central")

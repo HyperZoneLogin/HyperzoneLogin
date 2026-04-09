@@ -1,33 +1,25 @@
-import org.gradle.jvm.tasks.Jar
 import org.gradle.api.publish.maven.MavenPublication
+import org.gradle.jvm.tasks.Jar
 
 plugins {
-    id("org.jetbrains.kotlin.jvm")
+    alias(libs.plugins.kotlin)
     id("maven-publish")
-}
-
-
-group = "icu.h2l.login"
-version = "1.0.0-SNAPSHOT"
-
-repositories {
-    mavenCentral()
 }
 
 dependencies {
 //    VC
-    compileOnly("com.velocitypowered:velocity-api:3.5.0-SNAPSHOT")
-    compileOnly("com.velocitypowered:velocity-proxy:3.5.0-SNAPSHOT")
+    compileOnly(libs.velocityApi)
+    compileOnly(libs.velocityProxy)
 // Limbo is optional; implementations may provide a bridge adapter. Do not
 // require the limbo API here at compile time.
     // Netty is needed by API types (connection/player extensions) but only at compile time
-    compileOnly("io.netty:netty-all:4.2.5.Final")
+    compileOnly(libs.nettyAll)
 // Exposed ORM
-    implementation("org.jetbrains.exposed:exposed-core:0.58.0")
+    implementation(libs.exposedCore)
 
-    testImplementation(platform("org.junit:junit-bom:5.10.0"))
-    testImplementation("org.junit.jupiter:junit-jupiter")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testImplementation(platform(libs.junitBom))
+    testImplementation(libs.junitJupiter)
+    testRuntimeOnly(libs.junitPlatformLauncher)
 }
 
 tasks.test {
@@ -38,14 +30,14 @@ tasks.test {
 // Use `./gradlew :api:publishToMavenLocal` to publish.
 publishing {
     publications {
-        create<org.gradle.api.publish.maven.MavenPublication>("mavenJava") {
+        create<MavenPublication>("mavenJava") {
             groupId = project.group.toString()
             artifactId = "api"
             version = project.version.toString()
             from(components["java"])
 
             // include sources JAR for better IDE support when consumed from mavenLocal
-            val sourcesJar = tasks.register("sourcesJar", org.gradle.jvm.tasks.Jar::class) {
+            val sourcesJar = tasks.register("sourcesJar", Jar::class) {
                 archiveClassifier.set("sources")
                 from(sourceSets.main.get().allSource)
             }

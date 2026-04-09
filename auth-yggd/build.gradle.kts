@@ -1,12 +1,5 @@
 plugins {
-    id("org.jetbrains.kotlin.jvm")
-}
-
-group = "icu.h2l.login"
-version = "1.0.0-SNAPSHOT"
-
-repositories {
-    mavenCentral()
+    alias(libs.plugins.kotlin)
 }
 
 dependencies {
@@ -15,18 +8,18 @@ dependencies {
     // Direct reference to the main plugin to call its API without reflection
     compileOnly(project(":velocity"))
 //    VC
-    compileOnly("com.velocitypowered:velocity-api:3.5.0-SNAPSHOT")
-    compileOnly("com.velocitypowered:velocity-proxy:3.5.0-SNAPSHOT") // From Elytrium Repo.
-    compileOnly("io.netty:netty-all:4.2.5.Final")
+    compileOnly(libs.velocityApi)
+    compileOnly(libs.velocityProxy) // From Elytrium Repo.
+    compileOnly(libs.nettyAll)
 // Exposed ORM
-    compileOnly("org.jetbrains.exposed:exposed-core:0.58.0")
+    compileOnly(libs.exposedCore)
 //    config
-    compileOnly("org.spongepowered:configurate-hocon:4.2.0")
-    compileOnly("org.spongepowered:configurate-extra-kotlin:4.2.0")
+    compileOnly(libs.configurateHocon)
+    compileOnly(libs.configurateExtraKotlin)
 
-    testImplementation(platform("org.junit:junit-bom:5.10.0"))
-    testImplementation("org.junit.jupiter:junit-jupiter")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testImplementation(platform(libs.junitBom))
+    testImplementation(libs.junitJupiter)
+    testRuntimeOnly(libs.junitPlatformLauncher)
 }
 
 tasks.test {

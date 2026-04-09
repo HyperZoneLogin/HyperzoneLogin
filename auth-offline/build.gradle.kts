@@ -1,12 +1,5 @@
 plugins {
-    id("org.jetbrains.kotlin.jvm")
-}
-
-group = "icu.h2l.login"
-version = "1.0.0-SNAPSHOT"
-
-repositories {
-    mavenCentral()
+    alias(libs.plugins.kotlin)
 }
 
 dependencies {
@@ -18,18 +11,18 @@ dependencies {
     // (e.g. HyperZoneLoginMain.getInstance().registerModule(...)) without reflection.
     compileOnly(project(":velocity"))
 //    VC
-    compileOnly("com.velocitypowered:velocity-api:3.5.0-SNAPSHOT")
+    compileOnly(libs.velocityApi)
     // Exposed ORM
-    compileOnly("org.jetbrains.exposed:exposed-core:0.58.0")
+    compileOnly(libs.exposedCore)
 //    config
-    compileOnly("org.spongepowered:configurate-hocon:4.2.0")
-    compileOnly("org.spongepowered:configurate-extra-kotlin:4.2.0")
+    compileOnly(libs.configurateHocon)
+    compileOnly(libs.configurateExtraKotlin)
 //    limbo
-    compileOnly("net.elytrium.limboapi:api:1.1.26")
+    compileOnly(libs.limboApi)
 
-    testImplementation(platform("org.junit:junit-bom:5.10.0"))
-    testImplementation("org.junit.jupiter:junit-jupiter")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testImplementation(platform(libs.junitBom))
+    testImplementation(libs.junitJupiter)
+    testRuntimeOnly(libs.junitPlatformLauncher)
 }
 
 tasks.test {

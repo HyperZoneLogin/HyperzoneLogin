@@ -1,12 +1,5 @@
 plugins {
-    id("org.jetbrains.kotlin.jvm")
-}
-
-group = "icu.h2l.login"
-version = "1.0.0-SNAPSHOT"
-
-repositories {
-    mavenCentral()
+    alias(libs.plugins.kotlin)
 }
 
 dependencies {
@@ -18,17 +11,17 @@ dependencies {
     compileOnly(project(":auth-yggd"))
     compileOnly(project(":auth-offline"))
 
-    compileOnly("com.velocitypowered:velocity-api:3.5.0-SNAPSHOT")
+    compileOnly(libs.velocityApi)
 
-    compileOnly("org.jetbrains.exposed:exposed-core:0.58.0")
-    compileOnly("org.jetbrains.exposed:exposed-jdbc:0.58.0")
+    compileOnly(libs.exposedCore)
+    compileOnly(libs.exposedJdbc)
 
-    compileOnly("org.spongepowered:configurate-hocon:4.2.0")
-    compileOnly("org.spongepowered:configurate-extra-kotlin:4.2.0")
+    compileOnly(libs.configurateHocon)
+    compileOnly(libs.configurateExtraKotlin)
 
-    testImplementation(platform("org.junit:junit-bom:5.10.0"))
-    testImplementation("org.junit.jupiter:junit-jupiter")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testImplementation(platform(libs.junitBom))
+    testImplementation(libs.junitJupiter)
+    testRuntimeOnly(libs.junitPlatformLauncher)
 }
 
 tasks.test {
