@@ -53,7 +53,7 @@ class OfflineAuthService(
         val hyperZonePlayer = playerAccessor.getByPlayer(player)
         val username = hyperZonePlayer.userName
         val normalizedName = username.lowercase()
-        if (!hyperZonePlayer.canRegister()) {
+        if (!hyperZonePlayer.canResolveOrCreateProfile()) {
             return Result(false, "§c其他渠道已注册，如有需要，请进行绑定")
         }
 
@@ -65,7 +65,7 @@ class OfflineAuthService(
             return it
         }
 
-        val profile = hyperZonePlayer.register()
+        val profile = hyperZonePlayer.resolveOrCreateProfile()
         val hash = hashPassword(password)
         val created = repository.create(
             name = normalizedName,
@@ -116,12 +116,11 @@ class OfflineAuthService(
 
     fun login(player: Player, password: String, totpCode: String? = null): Result {
         val hyperPlayer = playerAccessor.getByPlayer(player)
-        if (hyperPlayer.isVerified()) {
+        if (!hyperPlayer.isInWaitingArea()) {
             return Result(false, OfflineAuthMessages.ALREADY_LOGGED_IN)
         }
 
-        val username = hyperPlayer.userName
-        val entry = repository.getByName(username.lowercase()) ?: return Result(false, "§c尚未注册")
+        val entry = resolveEntryByPlayer(player) ?: return Result(false, "§c尚未注册")
 
         val now = System.currentTimeMillis()
         val blockedUntil = entry.loginBlockedUntil
@@ -185,6 +184,7 @@ class OfflineAuthService(
             }
         }
 
+        ensureAttachedProfile(player, entry)?.let { return it }
         hyperPlayer.overVerify()
         issueSession(entry.profileId, player)
         return Result(true, OfflineAuthMessages.LOGIN_SUCCESS)
@@ -249,11 +249,12 @@ class OfflineAuthService(
     }
 
     fun changePassword(player: Player, oldPassword: String, newPassword: String): Result {
-        val username = playerAccessor.getByPlayer(player).userName
-        val entry = repository.getByName(username.lowercase()) ?: return Result(false, "§c尚未注册")
+        val entry = resolveEntryByPlayer(player) ?: return Result(false, "§c尚未注册")
         if (!verifyPassword(oldPassword, entry)) {
             return Result(false, OfflineAuthMessages.OLD_PASSWORD_WRONG)
         }
+
+        val username = playerAccessor.getByPlayer(player).userName
 
         validatePassword(username, newPassword)?.let {
             return it
@@ -273,7 +274,7 @@ class OfflineAuthService(
 
     fun logout(player: Player): Result {
         val hyperPlayer = playerAccessor.getByPlayer(player)
-        if (!hyperPlayer.isVerified()) {
+        if (hyperPlayer.isInWaitingArea()) {
             return Result(false, OfflineAuthMessages.NOT_LOGGED_IN)
         }
 
@@ -283,8 +284,7 @@ class OfflineAuthService(
     }
 
     fun unregister(player: Player, password: String): Result {
-        val username = playerAccessor.getByPlayer(player).userName
-        val entry = repository.getByName(username.lowercase()) ?: return Result(false, "§c尚未注册")
+        val entry = resolveEntryByPlayer(player) ?: return Result(false, "§c尚未注册")
         if (!verifyPassword(password, entry)) {
             return Result(false, OfflineAuthMessages.PASSWORD_WRONG)
         }
@@ -435,7 +435,7 @@ class OfflineAuthService(
 
         val hyperPlayer = playerAccessor.getByPlayer(player)
         val username = hyperPlayer.userName
-        val entry = repository.getByName(username.lowercase()) ?: return Result(false, OfflineAuthMessages.UNREGISTERED)
+        val entry = resolveEntryByPlayer(player) ?: return Result(false, OfflineAuthMessages.UNREGISTERED)
         val verifiedUntil = entry.resetPasswordVerifiedUntil
         val now = System.currentTimeMillis()
         if (verifiedUntil == null || verifiedUntil < now) {
@@ -452,22 +452,23 @@ class OfflineAuthService(
             return Result(false, "§c密码重置失败，请稍后再试")
         }
 
+        ensureAttachedProfile(player, entry)?.let { return it }
         hyperPlayer.overVerify()
         return Result(true, "${OfflineAuthMessages.PASSWORD_CHANGED} §7已自动通过本次认证")
     }
 
     fun getJoinPrompts(player: Player): List<String> {
         val hyperPlayer = playerAccessor.getByPlayer(player)
-        if (hyperPlayer.isVerified()) {
+        if (!hyperPlayer.isInWaitingArea()) {
             return emptyList()
         }
 
-        val entry = repository.getByName(hyperPlayer.userName.lowercase())
+        val entry = resolveEntryByPlayer(player)
         val prompts = ArrayList<String>()
 
         if (entry == null) {
             prompts += OfflineAuthMessages.REGISTER_REQUEST
-            if (!hyperPlayer.canRegister()) {
+            if (!hyperPlayer.canResolveOrCreateProfile()) {
                 prompts += "§8[§6玩家系统§8] §e检测到你已有档案，可使用 /bind <密码> <再次输入密码> 绑定离线密码"
             }
             return prompts
@@ -505,11 +506,11 @@ class OfflineAuthService(
         }
 
         val hyperPlayer = playerAccessor.getByPlayer(player)
-        if (hyperPlayer.isVerified()) {
+        if (!hyperPlayer.isInWaitingArea()) {
             return SessionCheckResult(true)
         }
 
-        val entry = repository.getByName(hyperPlayer.userName.lowercase()) ?: return null
+        val entry = resolveEntryByPlayer(player) ?: return null
         if (isTotpEnabled(entry) && !OfflineAuthConfigLoader.getConfig().totp.allowSessionBypass) {
             repository.clearSession(entry.profileId)
             publishAuthFailure(
@@ -538,8 +539,21 @@ class OfflineAuthService(
             return SessionCheckResult(false, OfflineAuthMessages.SESSION_INVALID)
         }
 
+        ensureAttachedProfile(player, entry)?.let { failed ->
+            return SessionCheckResult(false, failed.message)
+        }
         hyperPlayer.overVerify()
         return SessionCheckResult(true, OfflineAuthMessages.SESSION_AUTO_LOGIN)
+    }
+
+    private fun ensureAttachedProfile(player: Player, entry: OfflineAuthEntry): Result? {
+        val hyperPlayer = playerAccessor.getByPlayer(player)
+        val attached = hyperPlayer.attachProfile(entry.profileId)
+        return if (attached != null) {
+            null
+        } else {
+            Result(false, "§c未找到已绑定的游戏档案，无法完成本次认证")
+        }
     }
 
     private fun verifyPassword(password: String, entry: OfflineAuthEntry): Boolean {
@@ -587,9 +601,18 @@ class OfflineAuthService(
         return null
     }
 
-    private fun resolveEntryByPlayer(player: Player): OfflineAuthEntry? {
-        val username = playerAccessor.getByPlayer(player).userName
-        return repository.getByName(username.lowercase())
+    private fun resolveEntryByPlayer(player: Player, allowNameFallback: Boolean = true): OfflineAuthEntry? {
+        val hyperPlayer = playerAccessor.getByPlayer(player)
+        val profileId = hyperPlayer.getDBProfile()?.id
+        if (profileId != null) {
+            repository.getByProfileId(profileId)?.let { return it }
+        }
+
+        if (!allowNameFallback) {
+            return null
+        }
+
+        return repository.getByName(hyperPlayer.userName.lowercase())
     }
 
     private fun normalizeEmail(email: String): String? {

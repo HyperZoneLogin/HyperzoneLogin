@@ -42,11 +42,10 @@ import com.velocitypowered.proxy.protocol.packet.ServerLoginPacket
 import icu.h2l.api.log.debug
 import icu.h2l.api.log.error
 import icu.h2l.api.player.HyperZonePlayer
-import icu.h2l.api.profile.skin.ProfileSkinTextures
 import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.inject.network.ChatSessionUpdatePacketIdResolver
 import icu.h2l.login.manager.HyperZonePlayerManager
-import icu.h2l.login.player.ForwardingGameProfileSupport
+import icu.h2l.login.player.ProfileSkinApplySupport
 import icu.h2l.login.player.VelocityHyperZonePlayer
 import io.netty.buffer.ByteBuf
 import io.netty.channel.Channel
@@ -75,13 +74,6 @@ class ToBackendPacketReplacer(
         msg: Any?
     ): Any? {
         val offlinePlayer = (hyperPlayer as? VelocityHyperZonePlayer)?.isOnlinePlayer() == false
-        val loginServerTarget = isLoginServerTarget()
-
-        if (msg is HandshakePacket || msg is ServerLoginPacket || msg is LoginPluginResponsePacket) {
-            debug {
-                "[ProfileSkinFlow] outbound packet=${msg.javaClass.simpleName}, replaceEnabled=${HyperZoneLoginMain.getMiscConfig().enableReplaceGameProfile}, loginServerTarget=$loginServerTarget, offlinePlayer=$offlinePlayer, killChatSession=${HyperZoneLoginMain.getMiscConfig().killChatSession}, target=${velocityServerConnection.server.serverInfo.name}, connected=${player.connectedServer?.server?.serverInfo?.name ?: "<none>"}"
-            }
-        }
 
 //        离线没有这部分逻辑
 //        偷吃点东西 chat_session_update "AdaptivePoolingAllocator$AdaptiveByteBuf(ridx: 0, widx: 323, cap: 323)"，
@@ -92,7 +84,7 @@ class ToBackendPacketReplacer(
                 packetID?.let {
                     if (ChatSessionUpdatePacketIdResolver.isChatSessionUpdate(player.protocolVersion, it)) {
 //                        吃掉就结束了
-                        retire("chat session update packet consumed")
+                        retire()
                         return null
                     }
                 }
@@ -102,13 +94,7 @@ class ToBackendPacketReplacer(
 
         if (!HyperZoneLoginMain.getMiscConfig().enableReplaceGameProfile) {
             if (msg is LoginPluginResponsePacket && (!HyperZoneLoginMain.getMiscConfig().killChatSession || offlinePlayer)) {
-                retire(
-                    if (offlinePlayer) {
-                        "offline player login plugin response passthrough"
-                    } else {
-                        "login plugin response handled without chat session stripping"
-                    }
-                )
+                retire()
             }
             return msg
         }
@@ -123,13 +109,7 @@ class ToBackendPacketReplacer(
         if (msg is LoginPluginResponsePacket) {
 //            如果不需要吃ChatSession，或者离线玩家不会发该包，正常这里就是最后一个关键包
             if (!HyperZoneLoginMain.getMiscConfig().killChatSession || offlinePlayer)
-                retire(
-                    if (offlinePlayer) {
-                        "offline player login plugin response handled"
-                    } else {
-                        "login plugin response handled without chat session stripping"
-                    }
-                )
+                retire()
             return genLoginPluginResponse(msg)
         }
         return msg
@@ -146,20 +126,7 @@ class ToBackendPacketReplacer(
         }.getOrNull()
     }
 
-    private fun retire(reason: String) {
-        val targetServerName = if (::velocityServerConnection.isInitialized) {
-            velocityServerConnection.server.serverInfo.name
-        } else {
-            "<uninitialized>"
-        }
-        val connectedServerName = if (::player.isInitialized) {
-            player.connectedServer?.server?.serverInfo?.name ?: "<none>"
-        } else {
-            "<uninitialized>"
-        }
-        debug {
-            "[ToBackendPacketReplacer] retire: reason=$reason, target=$targetServerName, connected=$connectedServerName, channel=$channel"
-        }
+    private fun retire() {
         channel.pipeline().remove(this)
     }
 
@@ -179,10 +146,7 @@ class ToBackendPacketReplacer(
         if (config.playerInfoForwardingMode == PlayerInfoForwarding.MODERN) {
             val buf = msg.content()
             val requestedForwardingVersion = resolveRequestedForwardingVersion(buf)
-            val forwardedProfile = getGameProfile()
-            debug {
-                "[ProfileSkinFlow] modern forwarding payload: requestedVersion=$requestedForwardingVersion, protocol=${player.protocolVersion}, forwardingMode=${config.playerInfoForwardingMode}, profile=${describeProfile(forwardedProfile)}, identifiedKey=${player.identifiedKey != null}, target=${velocityServerConnection.server.serverInfo.name}"
-            }
+            val forwardedProfile = resolveForwardingGameProfile()
             val forwardingData = PlayerDataForwarding.createForwardingData(
                 config.forwardingSecret,
                 getPlayerRemoteAddressAsString(),
@@ -222,10 +186,6 @@ class ToBackendPacketReplacer(
         duplicate.skipBytes(MODERN_FORWARDING_SIGNATURE_LENGTH)
         return runCatching {
             ProtocolUtils.readVarInt(duplicate)
-        }.onSuccess { actualVersion ->
-            debug {
-                "[ProfileSkinFlow] modern forwarding version parsed: actualVersion=$actualVersion, readableBytes=$readableBytes, target=${velocityServerConnection.server.serverInfo.name}"
-            }
         }.onFailure { throwable ->
             debug {
                 "[ProfileSkinFlow] modern forwarding version decode failed, fallback=${PlayerDataForwarding.MODERN_DEFAULT}, readableBytes=$readableBytes, target=${velocityServerConnection.server.serverInfo.name}, reason=${throwable.message}"
@@ -267,16 +227,6 @@ class ToBackendPacketReplacer(
         handshake.port = player.virtualHost
             .orElseGet(Supplier { fillAddr })
             .port
-
-        debug {
-            val legacyProfileDescription = if (forwardingMode == PlayerInfoForwarding.LEGACY || forwardingMode == PlayerInfoForwarding.BUNGEEGUARD) {
-                describeProfile(getGameProfile())
-            } else {
-                "n/a"
-            }
-            "[ProfileSkinFlow] handshake forwarding: mode=$forwardingMode, host=${handshake.serverAddress}, port=${handshake.port}, playerVhost=$playerVhost, legacyProfile=$legacyProfileDescription, target=${velocityServerConnection.server.serverInfo.name}"
-        }
-
         return handshake
     }
 
@@ -285,7 +235,7 @@ class ToBackendPacketReplacer(
             player.virtualHost.orElseGet(Supplier { fillAddr })
                 .hostString,
             getPlayerRemoteAddressAsString(),
-            getGameProfile()
+            resolveForwardingGameProfile()
         )
     }
 
@@ -294,23 +244,20 @@ class ToBackendPacketReplacer(
             player.virtualHost.orElseGet(Supplier { fillAddr })
                 .hostString,
             getPlayerRemoteAddressAsString(),
-            getGameProfile(),
+            resolveForwardingGameProfile(),
             forwardingSecret
         )
     }
 
-    fun getGameProfile(): GameProfile {
+    fun resolveForwardingGameProfile(): GameProfile {
         val loginServerTarget = isLoginServerTarget()
-        val baseProfile = ForwardingGameProfileSupport.resolveBaseProfile(hyperPlayer, loginServerTarget)
-//        这里不处理，别人看不见我们的皮肤
-        debug {
-            "[ProfileSkinFlow] apply start: player=${hyperPlayer.userName}, dbProfile=${hyperPlayer.getDBProfile()?.id ?: "<none>"}, baseSource=${ForwardingGameProfileSupport.resolveBaseProfileSource(hyperPlayer, loginServerTarget)}, base=${describeProfile(baseProfile)}, temporary=${describeProfile(hyperPlayer.getTemporaryForwardingProfile())}, initial=${describeProfile(hyperPlayer.getInitialGameProfile())}, target=${velocityServerConnection.server.serverInfo.name}"
+        if (loginServerTarget || hyperPlayer.isInWaitingArea()) {
+            return hyperPlayer.getTemporaryGameProfile()
         }
-        val finalProfile = ForwardingGameProfileSupport.resolveProfile(hyperPlayer, loginServerTarget)
-        debug {
-            "[ProfileSkinFlow] apply result: merged final=${describeProfile(finalProfile)}, source=${ForwardingGameProfileSupport.resolveBaseProfileSource(hyperPlayer, loginServerTarget)}"
+
+        return requireNotNull(ProfileSkinApplySupport.apply(hyperPlayer)) {
+            "Formal profile is unavailable while resolving forwarding game profile for player=${hyperPlayer.userName}"
         }
-        return finalProfile
     }
 
     fun getPlayerRemoteAddressAsString(): String {
@@ -326,9 +273,11 @@ class ToBackendPacketReplacer(
 
     private fun genServerLogin(): ServerLoginPacket {
         val loginServerTarget = isLoginServerTarget()
-        val loginProfile = ForwardingGameProfileSupport.resolveBaseProfile(hyperPlayer, loginServerTarget)
-        debug {
-            "[ProfileSkinFlow] server login identity: target=${velocityServerConnection.server.serverInfo.name}, baseSource=${ForwardingGameProfileSupport.resolveBaseProfileSource(hyperPlayer, loginServerTarget)}, profile=${describeProfile(loginProfile)}, identifiedKey=${player.identifiedKey != null}"
+        val isInWaitingArea = hyperPlayer.isInWaitingArea()
+        val loginProfile = if (loginServerTarget || isInWaitingArea) {
+            hyperPlayer.getTemporaryGameProfile()
+        } else {
+            hyperPlayer.getAttachedGameProfile()
         }
         if (player.identifiedKey == null
             && player.protocolVersion.noLessThan(ProtocolVersion.MINECRAFT_1_19_3)
@@ -383,26 +332,4 @@ class ToBackendPacketReplacer(
         config = (server.configuration as VelocityConfiguration)
     }
 
-    private fun describeProfile(profile: GameProfile?): String {
-        if (profile == null) {
-            return "null"
-        }
-        val textures = profile.properties.firstOrNull { it.name.equals("textures", ignoreCase = true) }
-        return "id=${profile.id}, name=${profile.name}, properties=${profile.properties.size}, textures=${describeTextures(textures)}"
-    }
-
-
-    private fun describeTextures(textures: ProfileSkinTextures?): String {
-        if (textures == null) {
-            return "none"
-        }
-        return "present(valueLength=${textures.value.length}, signed=${textures.isSigned})"
-    }
-
-    private fun describeTextures(textures: GameProfile.Property?): String {
-        if (textures == null) {
-            return "none"
-        }
-        return "present(valueLength=${textures.value.length}, signed=${!textures.signature.isNullOrBlank()})"
-    }
 }

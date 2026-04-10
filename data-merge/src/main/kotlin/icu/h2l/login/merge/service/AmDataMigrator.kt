@@ -33,7 +33,6 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.UUID
-import icu.h2l.api.util.RemapUtils
 
 class AmDataMigrator(
     private val dataDirectory: Path,
@@ -281,7 +280,7 @@ class AmDataMigrator(
     }
 
     private fun generateProfileId(username: String): UUID {
-        return RemapUtils.genProfileUUID(username)
+        return UUID.randomUUID()
     }
 
     companion object {

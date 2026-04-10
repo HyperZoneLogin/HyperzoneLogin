@@ -29,7 +29,6 @@ import org.jetbrains.exposed.sql.*
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.*
-import icu.h2l.api.util.RemapUtils
 
 class MlDataMigrator(
     private val dataDirectory: Path,
@@ -213,6 +212,6 @@ class MlDataMigrator(
     }
 
     private fun generateProfileId(profileName: String): UUID {
-        return RemapUtils.genProfileUUID(profileName)
+        return UUID.randomUUID()
     }
 }

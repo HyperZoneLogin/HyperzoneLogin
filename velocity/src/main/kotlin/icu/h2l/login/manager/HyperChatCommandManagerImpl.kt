@@ -82,7 +82,7 @@ object HyperChatCommandManagerImpl : HyperChatCommandManager {
             }.getOrNull()
         }
         if (!input.startsWith("/")) {
-            if (hyperPlayer != null && !hyperPlayer.isVerified()) {
+            if (hyperPlayer != null && hyperPlayer.isInWaitingArea()) {
                 source.sendMessage(Component.text("§c您需要先通过验证才能聊天！"))
                 return true
             }
@@ -97,7 +97,7 @@ object HyperChatCommandManagerImpl : HyperChatCommandManager {
         val args = if (parts.size > 1) parts.drop(1).toTypedArray() else emptyArray()
 
         val registration = commands[label] ?: run {
-            if (hyperPlayer != null && !hyperPlayer.isVerified()) {
+            if (hyperPlayer != null && hyperPlayer.isInWaitingArea()) {
                 source.sendMessage(Component.text("§e认证阶段仅可使用 /login、/register、/bind、/changepassword、/email 等认证命令"))
                 return true
             }

@@ -200,10 +200,18 @@ class YggdrasilAuthModule(
     ) {
         try {
             if (result is YggdrasilAuthResult.Success) {
+                val profileResolveError = ensureProfileForSuccessfulAuth(handler, result)
+                if (profileResolveError != null) {
+                    val failedResult = YggdrasilAuthResult.Failed(profileResolveError)
+                    publishAuthFailure(player, username, failedResult)
+                    handler.sendMessage(Component.text(profileResolveError))
+                    info { "玩家 $username Yggdrasil 验证成功，但 Profile 解析失败：$profileResolveError" }
+                    return
+                }
+
                 info { "玩家 $username 通过 Yggdrasil 验证，Entry: ${result.entryId}" }
-                handler.setInitialGameProfile(result.profile)
                 fireProfileSkinPreprocessEvent(handler, result)
-                if (!handler.isVerified()) {
+                if (handler.isInWaitingArea()) {
                     handler.overVerify()
                     debug { "玩家 $username 调用验证完成接口成功，Entry: ${result.entryId}"  }
                 }
@@ -221,6 +229,32 @@ class YggdrasilAuthModule(
             debug { "玩家 $username Yggdrasil 验证失败原因: $failureReason" }
         } finally {
             clearTransientStateAfterDispatch(player)
+        }
+    }
+
+    private fun ensureProfileForSuccessfulAuth(
+        handler: HyperZonePlayer,
+        result: YggdrasilAuthResult.Success
+    ): String? {
+        if (handler.getDBProfile() != null) {
+            return null
+        }
+
+        val trustedName = result.profile.name
+        val trustedUuid = result.profile.id
+        val profileId = entryDatabaseHelper.findEntryByNameAndUuid(
+            entryId = result.entryId,
+            name = trustedName,
+            uuid = trustedUuid
+        ) ?: return "认证成功，但未找到可信 Entry 绑定"
+
+        val attached = handler.attachProfile(profileId)
+            ?: return "认证成功，但绑定 Profile 失败: $profileId"
+
+        return if (attached.id == profileId) {
+            null
+        } else {
+            "认证成功，但玩家 Profile 绑定结果异常"
         }
     }
 
@@ -329,8 +363,8 @@ class YggdrasilAuthModule(
     ): YggdrasilAuthResult = runBlocking {
         debug { "开始对玩家 $username (UUID: $uuid) 进行Yggdrasil验证" }
 
-        // 第一批次：从数据库查找已有记录
-        val knownEntries = findEntriesInDatabase(username, uuid)
+        // 第一批次：仅根据连接早期拿到的客户端标识筛选候选 Entry，真正确认绑定仍以后续可信认证结果为准。
+        val knownEntries = findCandidateEntriesByClientIdentity(username, uuid)
 
         if (knownEntries.isNotEmpty()) {
             debug { "玩家 $username 在数据库中找到 ${knownEntries.size} 个Entry记录" }
@@ -350,7 +384,7 @@ class YggdrasilAuthModule(
                     }
                     return@runBlocking firstBatchResult
                 } else {
-                    notifyFirstBatchFailure(player, username, firstBatchResult)
+                    notifyFirstBatchFailure(player, firstBatchResult)
                 }
             }
         }
@@ -372,23 +406,23 @@ class YggdrasilAuthModule(
 
         val hyperZonePlayer = playerAccessor.getByPlayer(player)
 
-        val playerProfile = hyperZonePlayer.getDBProfile()
-            ?: return YggdrasilAuthResult.Failed("第一批次验证失败：未获取到玩家 Profile")
+        val entryProfileId = findBoundProfileIdByAuthenticatedEntry(success)
+            ?: return YggdrasilAuthResult.Failed("第一批次验证失败：未获取到 Entry Profile")
 
-        val entryProfileId = entryDatabaseHelper.findEntryByNameAndUuid(
-            entryId = success.entryId,
-            name = username,
-            uuid = uuid
-        ) ?: return YggdrasilAuthResult.Failed("第一批次验证失败：未获取到 Entry Profile")
+        val playerProfile = hyperZonePlayer.attachProfile(entryProfileId)
+            ?: return YggdrasilAuthResult.Failed("第一批次验证失败：无法绑定玩家 Profile")
 
-        if (playerProfile.id == entryProfileId) {
-            return null
+        if (playerProfile.id != entryProfileId) {
+            return YggdrasilAuthResult.Failed("第一批次验证失败：玩家 Profile 与 Entry Profile 不一致")
         }
 
-        return YggdrasilAuthResult.Failed("第一批次验证失败：玩家 Profile 与 Entry Profile 不一致")
+        debug {
+            "[YggdrasilFlow] 第一批次已绑定 Profile: user=$username requestUuid=$uuid authenticatedName=${success.profile.name} authenticatedUuid=${success.profile.id} pid=$entryProfileId"
+        }
+        return null
     }
 
-    private fun notifyFirstBatchFailure(player: Player, username: String, result: YggdrasilAuthResult) {
+    private fun notifyFirstBatchFailure(player: Player, result: YggdrasilAuthResult) {
         val handler = limboHandlers[player] ?: return
 
         val message = when (result) {
@@ -409,8 +443,8 @@ class YggdrasilAuthModule(
     ): YggdrasilAuthResult {
         val handler = playerAccessor.getByPlayer(player)
 
-        if (!handler.canRegister()) {
-            debug { "玩家 ${context.username} 不可注册，终止第二批次验证" }
+        if (!handler.canResolveOrCreateProfile()) {
+            debug { "玩家 ${context.username} 不允许再解析/创建 Profile，终止第二批次验证" }
             return YggdrasilAuthResult.Failed("Player already registered")
         }
 
@@ -430,9 +464,14 @@ class YggdrasilAuthModule(
         )
 
         if (secondBatchResult is YggdrasilAuthResult.Success) {
-            val registeredProfile = handler.register()
-            val entryName = secondBatchResult.profile.name ?: context.username
-            val entryUuid = secondBatchResult.profile.id ?: context.uuid
+            val entryName = secondBatchResult.profile.name
+            val entryUuid = secondBatchResult.profile.id
+
+            val registeredProfile = try {
+                handler.resolveOrCreateProfile(entryName, entryUuid)
+            } catch (ex: IllegalStateException) {
+                return YggdrasilAuthResult.Failed(ex.message ?: "创建 Profile 失败")
+            }
 
             val bound = entryDatabaseHelper.createEntry(
                 entryId = secondBatchResult.entryId,
@@ -450,13 +489,17 @@ class YggdrasilAuthModule(
     }
 
     /**
-     * 从数据库中查找玩家相关的Entry记录
-     * 
-     * @param username 玩家用户名
-     * @param uuid 玩家UUID
-     * @return Entry ID列表
+     * 使用远端认证成功后返回的可信身份，确认 Entry 绑定到的 Profile。
      */
-    private fun findEntriesInDatabase(username: String, uuid: UUID): List<String> {
+    private fun findBoundProfileIdByAuthenticatedEntry(success: YggdrasilAuthResult.Success): UUID? {
+        return entryDatabaseHelper.findEntryByNameAndUuid(
+            entryId = success.entryId,
+            name = success.profile.name,
+            uuid = success.profile.id
+        )
+    }
+
+    private fun findCandidateEntriesByClientIdentity(username: String, uuid: UUID): List<String> {
         val foundEntries = mutableSetOf<String>()
 
         // 获取所有已注册的Entry表
@@ -467,7 +510,8 @@ class YggdrasilAuthModule(
                 val entryTable = entryTableManager.getEntryTable(entryConfig.id.lowercase())
 
                 if (entryTable != null) {
-                    // 查询是否有匹配的记录（通过用户名或UUID）
+                    // 这里只做候选 Entry 发现，属于弱匹配；真正的绑定确认必须在远端认证成功后
+                    // 使用可信返回的 name/uuid 再反查 Entry -> profileId。
                     val hasRecord =
                         entryTable.selectAll().where { (entryTable.name eq username) or (entryTable.uuid eq uuid) }
                             .count() > 0
@@ -591,7 +635,7 @@ class YggdrasilAuthModule(
             is YggdrasilAuthResult.NoEntriesConfigured -> "No Yggdrasil providers configured"
             is YggdrasilAuthResult.Success -> return
         }
-        val providerId = (result as? YggdrasilAuthResult.Success)?.entryId
+        val providerId: String? = null
         val throwableSummary = (result as? YggdrasilAuthResult.Failed)?.statusCode?.let { "HTTP $it" }
 
         proxy.eventManager.fire(

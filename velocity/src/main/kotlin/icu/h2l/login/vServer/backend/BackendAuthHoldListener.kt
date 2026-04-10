@@ -96,7 +96,7 @@ class BackendAuthHoldListener(
         val hyperPlayer = getHyperPlayer(player) ?: return
         hyperPlayer.update(player)
 
-        if (hyperPlayer.isVerified()) return
+        if (!hyperPlayer.isInWaitingArea()) return
 
         val authServer = resolveAuthServer() ?: run {
             player.disconnect(Component.text("§c认证等待服务器未配置正确，请联系管理员"))

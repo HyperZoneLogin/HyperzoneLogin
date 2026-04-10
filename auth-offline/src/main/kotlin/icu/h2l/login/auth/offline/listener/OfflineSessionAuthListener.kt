@@ -34,7 +34,7 @@ class OfflineSessionAuthListener(
         if (event.proxyPlayer.isOnlineMode) {
             return
         }
-        if (event.hyperZonePlayer.isVerified()) {
+        if (!event.hyperZonePlayer.isInWaitingArea()) {
             event.pass = true
             return
         }

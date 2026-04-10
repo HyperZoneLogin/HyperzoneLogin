@@ -23,16 +23,21 @@ package icu.h2l.login.player
 
 import com.velocitypowered.api.util.GameProfile
 import icu.h2l.api.event.profile.ProfileSkinApplyEvent
+import icu.h2l.api.log.debug
 import icu.h2l.api.log.error
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.login.HyperZoneLoginMain
 
 object ProfileSkinApplySupport {
-    fun apply(hyperZonePlayer: HyperZonePlayer): GameProfile {
-        return apply(hyperZonePlayer, hyperZonePlayer.getGameProfile())
-    }
-
-    fun apply(hyperZonePlayer: HyperZonePlayer, baseProfile: GameProfile): GameProfile {
+    fun apply(hyperZonePlayer: HyperZonePlayer): GameProfile? {
+        val baseProfile = runCatching {
+            hyperZonePlayer.getAttachedGameProfile()
+        }.getOrElse { throwable ->
+            debug {
+                "[ProfileSkinFlow] apply aborted: player=${hyperZonePlayer.userName}, reason=${throwable.message ?: throwable.javaClass.simpleName}, waitingArea=${hyperZonePlayer.isInWaitingArea()}, attachedProfile=${hyperZonePlayer.hasAttachedProfile()}"
+            }
+            return null
+        }
         val event = ProfileSkinApplyEvent(hyperZonePlayer, baseProfile)
 
         runCatching {

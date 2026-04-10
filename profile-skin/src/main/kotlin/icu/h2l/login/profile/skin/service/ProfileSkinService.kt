@@ -49,6 +49,7 @@ import java.time.Duration
 import java.util.Base64
 import java.util.UUID
 import javax.imageio.ImageIO
+import net.kyori.adventure.text.Component
 
 class ProfileSkinService(
     private val config: ProfileSkinConfig,
@@ -79,10 +80,6 @@ class ProfileSkinService(
         val shouldForceRestoreSignedTextures = upstreamTextures?.isSigned == true && !trustedSignedEntry
         val shouldAttemptRestore = source != null && (shouldForceRestoreSignedTextures || config.restoreUnsignedTextures)
 
-        debug {
-            "[ProfileSkinFlow] preprocess start: profile=$profileId, player=${event.hyperZonePlayer.userName}, entry=${event.entryId}, server=${event.serverUrl}, upstream=${describeTextures(upstreamTextures)}, source=${describeSource(source)}, sourceHash=${shortHash(sourceHash)}, preferSigned=${config.preferUpstreamSignedTextures}, trustedSignedEntry=$trustedSignedEntry, restoreUnsigned=${config.restoreUnsignedTextures}"
-        }
-
         if (shouldTrustSignedTextures) {
             logSaveResult(
                 repository.save(profileId, source, upstreamTextures, sourceHash),
@@ -92,9 +89,6 @@ class ProfileSkinService(
                 "trusted signed upstream"
             )
             event.textures = upstreamTextures
-            debug {
-                "[ProfileSkinFlow] preprocess selected signed upstream textures: profile=$profileId, source=${describeSource(source)}, textures=${describeTextures(upstreamTextures)}"
-            }
             return
         }
 
@@ -114,14 +108,7 @@ class ProfileSkinService(
                     "source cache hit"
                 )
                 event.textures = cached.textures
-                debug {
-                    "[ProfileSkinFlow] preprocess source cache hit: profile=$profileId, sourceHash=${shortHash(sourceHash)}, cachedProfile=${cached.profileId}, textures=${describeTextures(cached.textures)}"
-                }
                 return
-            }
-
-            debug {
-                "[ProfileSkinFlow] preprocess source cache miss, restoring via MineSkin: profile=$profileId, source=${describeSource(source)}, sourceHash=${shortHash(sourceHash)}"
             }
 
             runCatching {
@@ -135,16 +122,9 @@ class ProfileSkinService(
                     "restored textures"
                 )
                 event.textures = restored
-                debug {
-                    "[ProfileSkinFlow] preprocess MineSkin restore success: profile=$profileId, source=${describeSource(source)}, textures=${describeTextures(restored)}"
-                }
                 return
             }.onFailure { throwable ->
                 error(throwable) { "Profile skin restore failed for profile=$profileId: ${throwable.message}" }
-            }
-        } else {
-            debug {
-                "[ProfileSkinFlow] preprocess restore skipped: profile=$profileId, reason=${describeRestoreSkipReason(source, shouldForceRestoreSignedTextures)}, upstream=${describeTextures(upstreamTextures)}"
             }
         }
 
@@ -157,9 +137,6 @@ class ProfileSkinService(
                 "upstream fallback"
             )
             event.textures = upstreamTextures
-            debug {
-                "[ProfileSkinFlow] preprocess fallback to upstream textures: profile=$profileId, textures=${describeTextures(upstreamTextures)}, source=${describeSource(source)}"
-            }
         } else {
             debug {
                 "[ProfileSkinFlow] preprocess finished without textures: profile=$profileId, source=${describeSource(source)}"
@@ -173,45 +150,14 @@ class ProfileSkinService(
 
         val profileId = event.hyperZonePlayer.getDBProfile()?.id ?: run {
             debug {
-                "[ProfileSkinFlow] apply listener skip: no DB profile, player=${event.hyperZonePlayer.userName}"
+                "[ProfileSkinFlow] apply listener failed: no attached DB profile, player=${event.hyperZonePlayer.userName}, base=${describeProfile(event.baseProfile)}"
             }
+            event.hyperZonePlayer.sendMessage(Component.text("§c皮肤修复失败，需要重新进入游戏"))
             return
-        }
-        debug {
-            "[ProfileSkinFlow] apply listener start: profile=$profileId, player=${event.hyperZonePlayer.userName}, base=${describeProfile(event.baseProfile)}"
         }
         repository.findByProfileId(profileId)?.let { cached ->
             event.textures = cached.textures
-            debug {
-                "[ProfileSkinFlow] apply listener cache hit: profile=$profileId, sourceHash=${shortHash(cached.sourceHash)}, textures=${describeTextures(cached.textures)}"
-            }
             return
-        }
-
-        debug {
-            "[ProfileSkinFlow] apply listener cache miss: profile=$profileId, allowInitialFallback=${config.allowInitialProfileFallback}"
-        }
-
-        if (!config.allowInitialProfileFallback) {
-            debug {
-                "[ProfileSkinFlow] apply listener fallback disabled: profile=$profileId"
-            }
-            return
-        }
-
-        val initialProfile = event.hyperZonePlayer.getInitialGameProfile()
-        val initialTextures = extractTextures(initialProfile)
-        val baseTextures = extractTextures(event.baseProfile)
-        val fallbackTextures = initialTextures ?: baseTextures
-        if (fallbackTextures != null) {
-            event.textures = fallbackTextures
-            debug {
-                "[ProfileSkinFlow] apply listener fallback selected: profile=$profileId, source=${if (initialTextures != null) "initialGameProfile" else "baseProfile"}, initial=${describeProfile(initialProfile)}, base=${describeProfile(event.baseProfile)}, textures=${describeTextures(fallbackTextures)}"
-            }
-        } else {
-            debug {
-                "[ProfileSkinFlow] apply listener no fallback textures: profile=$profileId, initial=${describeProfile(initialProfile)}, base=${describeProfile(event.baseProfile)}"
-            }
         }
     }
 
@@ -408,11 +354,7 @@ class ProfileSkinService(
         source: ProfileSkinSource?,
         sourceHash: String?,
         reason: String
-    ) {
-        debug {
-            "[ProfileSkinFlow] preprocess cache save: profile=$profileId, result=$result, reason=$reason, source=${describeSource(source)}, sourceHash=${shortHash(sourceHash)}"
-        }
-    }
+    ) = Unit
 }
 
 

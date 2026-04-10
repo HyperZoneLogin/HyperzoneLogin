@@ -54,7 +54,7 @@ class YggdrasilEventListener(
     @Subscribe
     fun onLimboSpawn(event: VServerJoinEvent) {
         if (!event.proxyPlayer.isOnlineMode) return
-        if (event.hyperZonePlayer.isVerified()) return
+        if (!event.hyperZonePlayer.isInWaitingArea()) return
 
         val channel = event.proxyPlayer.getChannel()
         val pending = pendingContexts.remove(channel)

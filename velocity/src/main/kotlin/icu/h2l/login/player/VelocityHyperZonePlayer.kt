@@ -24,6 +24,7 @@ package icu.h2l.login.player
 import com.velocitypowered.api.proxy.Player
 import com.velocitypowered.api.util.GameProfile
 import icu.h2l.api.db.Profile
+import icu.h2l.api.event.profile.ProfileResolveEvent
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.util.RemapUtils
 import icu.h2l.login.HyperZoneLoginMain
@@ -34,6 +35,17 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
+/**
+ * `HyperZonePlayer` 的 Velocity 实现。
+ *
+ * 这里维护三组彼此独立但互相关联的状态：
+ * 1. 连接/等待区状态：玩家是否仍在 Limbo 或后端认证等待服；
+ * 2. 认证状态：子模块是否已经认可本次登录；
+ * 3. Profile 状态：是否已经 attach 到正式游戏档案。
+ *
+ * 只有“认证通过 + 已 attach Profile”两个条件都满足时，
+ * 玩家才允许离开等待区并使用正式游戏身份进入游戏区。
+ */
 class VelocityHyperZonePlayer(
 //    最开始客户端传入的，不可信
     override var userName: String,
@@ -43,40 +55,50 @@ class VelocityHyperZonePlayer(
 
     private var proxyPlayer: Player? = null
 
+    /**
+     * 当前玩家 attach 到的游戏档案ID。
+     *
+     * null 表示 profile 链路尚未完成，玩家仍必须停留在等待区。
+     */
     @Volatile
     var profileId: UUID? = null
 
+    /**
+     * 认证链路状态，仅表示子模块是否认可本次登录。
+     *
+     * 该状态不代表一定能进入游戏区；还需要 profileId 已 attach。
+     */
     private val isVerifiedState = AtomicBoolean(false)
+
+    /**
+     * 玩家是否已经生成过可直接发送消息的实体。
+     */
     private val hasSpawned = AtomicBoolean(false)
+
+    /**
+     * 玩家进入可收消息阶段前缓存的提示消息。
+     */
     private val messageQueue = ConcurrentLinkedQueue<Component>()
     private val authJoinAnnounced = AtomicBoolean(false)
     private val authHoldServerName = AtomicReference<String?>(null)
     private val postAuthTargetServerName = AtomicReference<String?>(null)
-    private val onlineAuthName = AtomicReference<String?>(null)
-    private val onlineAuthUuid = AtomicReference<UUID?>(null)
     private val onlineState = AtomicBoolean(isOnline)
 
+    /**
+     * Limbo / 等待区玩家实体，仅在等待区存在。
+     */
     @Volatile
     private var limboPlayer: LimboPlayer? = null
 
+    /**
+     * 等待区转发用的临时档案。
+     *
+     * 当玩家仍在等待区时，应优先使用该档案而不是正式游戏档案。
+     */
     @Volatile
-    private var initialGameProfile: GameProfile? = null
-
-    @Volatile
-    private var temporaryForwardingProfile: GameProfile? = null
+    private var temporaryGameProfile: GameProfile? = null
 
     private val databaseHelper = HyperZoneLoginMain.getInstance().databaseHelper
-
-    init {
-        profileId = databaseHelper
-            .getProfileByNameOrUuid(userName, uuid)
-            ?.id
-        profileId?.let { _ ->
-            val profile = getDBProfile()
-            userName = profile!!.name
-            uuid = profile.uuid
-        }
-    }
 
     fun update(player: Player) {
         proxyPlayer = player
@@ -99,33 +121,60 @@ class VelocityHyperZonePlayer(
         }
     }
 
-    override fun canRegister(): Boolean {
+    override fun hasAttachedProfile(): Boolean {
+        return profileId != null
+    }
+
+    override fun canResolveOrCreateProfile(): Boolean {
         return profileId == null
     }
 
-    override fun register(userName: String?, uuid: UUID?): Profile {
+    override fun resolveOrCreateProfile(userName: String?, uuid: UUID?): Profile {
+        val existingProfile = getDBProfile()
+        if (existingProfile != null) {
+            return existingProfile
+        }
+
         val resolvedName = userName ?: this.userName
         val remapPrefix = HyperZoneLoginMain.getRemapConfig().prefix
         val resolvedUuid = uuid ?: RemapUtils.genUUID(resolvedName, remapPrefix)
 
-        val existing = databaseHelper.getProfileByNameOrUuid(resolvedName, resolvedUuid)
-        if (existing != null) {
-            throw IllegalStateException("玩家 $resolvedName 已存在 Profile，无法重复注册")
-        }
-
-        val profile = Profile(
-            id = RemapUtils.genProfileUUID(resolvedName),
-            name = resolvedName,
-            uuid = resolvedUuid
+        val event = ProfileResolveEvent(
+            hyperZonePlayer = this,
+            trustedName = resolvedName,
+            trustedUuid = resolvedUuid,
+            allowCreate = true
         )
+        HyperZoneLoginMain.getInstance().proxy.eventManager.fire(event).join()
 
-        val created = databaseHelper.createProfile(profile.id, profile.name, profile.uuid)
-        if (!created) {
-            throw IllegalStateException("玩家 ${userName} 注册失败，数据库写入失败")
+        val profile = event.profile
+            ?: throw IllegalStateException(event.deniedReason ?: "玩家 $resolvedName 注册失败，未能解析 Profile")
+
+        if (!event.isResolved) {
+            throw IllegalStateException(event.deniedReason ?: "玩家 $resolvedName 注册失败，Profile 解析未完成")
         }
 
         profileId = profile.id
+        this.userName = profile.name
+        this.uuid = profile.uuid
+        return profile
+    }
 
+    override fun attachProfile(profileId: UUID): Profile? {
+        val event = ProfileResolveEvent(
+            hyperZonePlayer = this,
+            profileIdHint = profileId
+        )
+        HyperZoneLoginMain.getInstance().proxy.eventManager.fire(event).join()
+
+        if (!event.isResolved) {
+            return null
+        }
+
+        val profile = event.profile ?: return null
+        this.profileId = profile.id
+        this.userName = profile.name
+        this.uuid = profile.uuid
         return profile
     }
 
@@ -191,43 +240,29 @@ class VelocityHyperZonePlayer(
         messageQueue.offer(message)
     }
 
-    override fun getGameProfile(): GameProfile {
+    override fun getTemporaryGameProfile(): GameProfile {
+        return temporaryGameProfile
+            ?: throw IllegalStateException("玩家 $userName 尚未生成临时档案，无法在等待区使用可信身份")
+    }
+
+    override fun getAttachedGameProfile(): GameProfile {
         if (!HyperZoneLoginMain.getMiscConfig().enableReplaceGameProfile) {
 //            不开就可以从玩家获取
             return proxyPlayer!!.gameProfile
         }
+
         val resolvedProfile = getDBProfile()
-        val fallbackName = onlineAuthName.get()
-            ?: initialGameProfile?.name
-            ?: proxyPlayer?.gameProfile?.name
-            ?: userName
-        val fallbackUuid = uuid
-        val resolvedProperties = ArrayList(
-            initialGameProfile?.properties
-                ?: proxyPlayer?.gameProfile?.properties
-                ?: emptyList()
-        )
+            ?: throw IllegalStateException("玩家 $userName 尚未 attach Profile，无法获取正式游戏档案")
         return GameProfile(
-            resolvedProfile?.uuid ?: fallbackUuid,
-            resolvedProfile?.name ?: fallbackName,
-            resolvedProperties
+            resolvedProfile.uuid,
+            resolvedProfile.name,
+            emptyList()
         )
     }
 
-    override fun getInitialGameProfile(): GameProfile? {
-        return initialGameProfile
-    }
 
-    override fun setInitialGameProfile(profile: GameProfile?) {
-        initialGameProfile = profile
-    }
-
-    override fun getTemporaryForwardingProfile(): GameProfile? {
-        return temporaryForwardingProfile
-    }
-
-    override fun setTemporaryForwardingProfile(profile: GameProfile?) {
-        temporaryForwardingProfile = profile
+    override fun setTemporaryGameProfile(profile: GameProfile?) {
+        temporaryGameProfile = profile
     }
 
     fun isOnlinePlayer(): Boolean {
@@ -238,14 +273,6 @@ class VelocityHyperZonePlayer(
         onlineState.set(isOnline)
     }
 
-    fun getOnlineAuthName(): String? {
-        return onlineAuthName.get()
-    }
-
-    fun getOnlineAuthUuid(): UUID? {
-        return onlineAuthUuid.get()
-    }
-
     fun beginBackendAuthHold(authServerName: String, targetServerName: String?) {
         authHoldServerName.set(authServerName)
         postAuthTargetServerName.set(targetServerName?.takeUnless { it.isBlank() })
@@ -253,7 +280,7 @@ class VelocityHyperZonePlayer(
     }
 
     fun isInBackendAuthHold(): Boolean {
-        return !isVerified() && !authHoldServerName.get().isNullOrBlank()
+        return isInWaitingArea() && !authHoldServerName.get().isNullOrBlank()
     }
 
     fun getBackendAuthHoldServerName(): String? {

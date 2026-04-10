@@ -24,7 +24,6 @@ package icu.h2l.login.database
 import icu.h2l.api.db.Profile
 import icu.h2l.api.log.warn
 import icu.h2l.login.manager.DatabaseManager
-import icu.h2l.api.util.RemapUtils
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.or
 import org.jetbrains.exposed.sql.selectAll
@@ -38,6 +37,12 @@ import java.util.concurrent.ConcurrentHashMap
 class DatabaseHelper(
     private val manager: DatabaseManager
 ) {
+    data class ProfileResolutionResult(
+        val profile: Profile? = null,
+        val created: Boolean = false,
+        val reason: String? = null
+    )
+
 
     private val profileTable = manager.getProfileTable()
 
@@ -60,6 +65,36 @@ class DatabaseHelper(
     private fun loadProfileById(profileId: UUID): Profile? {
         return manager.executeTransaction {
             profileTable.selectAll().where { profileTable.id eq profileId }
+                .limit(1)
+                .map {
+                    Profile(
+                        id = it[profileTable.id],
+                        name = it[profileTable.name],
+                        uuid = it[profileTable.uuid]
+                    )
+                }
+                .firstOrNull()
+        }
+    }
+
+    private fun loadProfileByName(name: String): Profile? {
+        return manager.executeTransaction {
+            profileTable.selectAll().where { profileTable.name eq name }
+                .limit(1)
+                .map {
+                    Profile(
+                        id = it[profileTable.id],
+                        name = it[profileTable.name],
+                        uuid = it[profileTable.uuid]
+                    )
+                }
+                .firstOrNull()
+        }
+    }
+
+    private fun loadProfileByUuid(uuid: UUID): Profile? {
+        return manager.executeTransaction {
+            profileTable.selectAll().where { profileTable.uuid eq uuid }
                 .limit(1)
                 .map {
                     Profile(
@@ -107,15 +142,6 @@ class DatabaseHelper(
      * @return 档案信息，如果不存在返回 null
      */
     fun getProfileByNameOrUuid(name: String, uuid: UUID): Profile? {
-        val profileId = RemapUtils.genProfileUUID(name)
-        profileCacheById[profileId]?.let { return it }
-
-        val loadedById = loadProfileById(profileId)
-        if (loadedById != null) {
-            cacheProfile(loadedById)
-            return loadedById
-        }
-
         profileCacheByName[name.lowercase()]?.let {
             warn { "Profile 命中 name/uuid 回退逻辑: name=$name uuid=$uuid" }
             return it
@@ -130,7 +156,23 @@ class DatabaseHelper(
         cacheProfile(loaded)
         return loaded
     }
-    
+
+    fun getProfileByName(name: String): Profile? {
+        profileCacheByName[name.lowercase()]?.let { return it }
+
+        val loaded = loadProfileByName(name) ?: return null
+        cacheProfile(loaded)
+        return loaded
+    }
+
+    fun getProfileByUuid(uuid: UUID): Profile? {
+        profileCacheByUuid[uuid]?.let { return it }
+
+        val loaded = loadProfileByUuid(uuid) ?: return null
+        cacheProfile(loaded)
+        return loaded
+    }
+
     /**
      * 创建新的游戏档案
      * 
@@ -155,7 +197,59 @@ class DatabaseHelper(
             false
         }
     }
-    
+
+    fun resolveTrustedProfile(name: String, uuid: UUID): ProfileResolutionResult {
+        val existingByUuid = getProfileByUuid(uuid)
+        val existingByName = getProfileByName(name)
+
+        if (existingByUuid != null && existingByName != null && existingByUuid.id != existingByName.id) {
+            return ProfileResolutionResult(
+                reason = "名称 $name 已被其他 Profile 占用，且 UUID 已映射到 ${existingByUuid.id}"
+            )
+        }
+
+        if (existingByUuid != null) {
+            if (existingByUuid.name != name) {
+                val updated = updateProfileName(existingByUuid.id, name)
+                if (!updated) {
+                    return ProfileResolutionResult(reason = "更新 Profile 名称失败")
+                }
+            }
+            return ProfileResolutionResult(profile = getProfile(existingByUuid.id) ?: existingByUuid)
+        }
+
+        if (existingByName != null) {
+            return if (existingByName.uuid == uuid) {
+                ProfileResolutionResult(profile = existingByName)
+            } else {
+                ProfileResolutionResult(reason = "名称 $name 已被其他 UUID 占用")
+            }
+        }
+
+        return ProfileResolutionResult()
+    }
+
+    fun resolveOrCreateTrustedProfile(name: String, uuid: UUID): ProfileResolutionResult {
+        val resolved = resolveTrustedProfile(name, uuid)
+        if (resolved.profile != null || resolved.reason != null) {
+            return resolved
+        }
+
+        repeat(3) {
+            val profileId = UUID.randomUUID()
+            if (!createProfile(profileId, name, uuid)) {
+                return@repeat
+            }
+
+            return ProfileResolutionResult(
+                profile = getProfile(profileId) ?: Profile(profileId, name, uuid),
+                created = true
+            )
+        }
+
+        return ProfileResolutionResult(reason = "创建 Profile 失败")
+    }
+
     /**
      * 更新档案名称
      * 

@@ -37,8 +37,8 @@ class ExitLimboCommand : HyperChatCommandExecutor {
         }
 
         val hyperZonePlayer = HyperZonePlayerManager.getByPlayer(source)
-        if (!hyperZonePlayer.isVerified()) {
-            source.sendPlainMessage("§c尚未完成认证，无法退出")
+        if (hyperZonePlayer.isInWaitingArea()) {
+            source.sendPlainMessage("§c你仍处于等待区：尚未完成认证或尚未绑定游戏档案")
             return
         }
 

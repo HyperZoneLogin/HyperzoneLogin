@@ -38,8 +38,6 @@ class ProfileSkinConfig {
     @Comment("当上游 textures 没有签名时，是否尝试通过 MineSkin 修复")
     var restoreUnsignedTextures: Boolean = true
 
-    @Comment("应用阶段若数据库中没有缓存，是否回退到认证时拿到的初始 profile textures")
-    var allowInitialProfileFallback: Boolean = true
 
     @Comment("MineSkin 修复配置")
     var mineSkin: MineSkinConfig = MineSkinConfig()

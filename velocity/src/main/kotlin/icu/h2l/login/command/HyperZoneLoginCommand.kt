@@ -96,7 +96,9 @@ class HyperZoneLoginCommand {
         val profile = hyperZonePlayer.getDBProfile()
 
         sender.sendPlainMessage("§e[ProxyPlayer] name=${proxyPlayer.username} uuid=${proxyPlayer.uniqueId}")
-        sender.sendPlainMessage("§e[HyperZonePlayer] verified=${hyperZonePlayer.isVerified()} canRegister=${hyperZonePlayer.canRegister()}")
+        sender.sendPlainMessage(
+            "§e[HyperZonePlayer] verified=${hyperZonePlayer.isVerified()} attachedProfile=${hyperZonePlayer.hasAttachedProfile()} waitingArea=${hyperZonePlayer.isInWaitingArea()} canResolveOrCreateProfile=${hyperZonePlayer.canResolveOrCreateProfile()}"
+        )
         if (profile != null) {
             sender.sendPlainMessage("§e[Profile] id=${profile.id} name=${profile.name} uuid=${profile.uuid}")
         } else {
