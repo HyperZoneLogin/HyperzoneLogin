@@ -19,22 +19,22 @@
  *
  */
 
-pluginManagement {
-    repositories {
-        maven("https://maven.aliyun.com/repository/central")
-        maven("https://mirrors.cloud.tencent.com/nexus/repository/maven-public/")
-        maven("https://plugins.gradle.org/m2/")
-        gradlePluginPortal()
-        mavenCentral()
-    }
+plugins {
+    alias(libs.plugins.kotlin)
 }
 
-rootProject.name = "HyperzoneLogin"
+dependencies {
+    compileOnly(project(":api"))
+    compileOnly(libs.velocityApi)
+    compileOnly(libs.configurateHocon)
+    compileOnly(libs.configurateExtraKotlin)
 
-include("velocity")
-include("api")
-include("auth-yggd")
-include("auth-offline")
-include("safe")
-include("data-merge")
-include("profile-skin")
+    testImplementation(platform(libs.junitBom))
+    testImplementation(libs.junitJupiter)
+    testRuntimeOnly(libs.junitPlatformLauncher)
+}
+
+tasks.test {
+    useJUnitPlatform()
+}
+

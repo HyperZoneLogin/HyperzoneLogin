@@ -189,9 +189,15 @@ class NettyLoginSessionHandler(
                     val holderUuid: UUID? = login.holderUuid
                     val userName: String = login.getUsername()
                     val host = if (inbound.rawVirtualHost.isPresent) inbound.rawVirtualHost.get() else ""
+                    val remoteAddress = mcConnection.remoteAddress as InetSocketAddress
+                    val playerIp = remoteAddress.hostString
 
-                    val openPreLoginEvent = OpenPreLoginEvent(holderUuid!!, userName, host, mcConnection.channel)
+                    val openPreLoginEvent = OpenPreLoginEvent(holderUuid!!, userName, host, playerIp, mcConnection.channel)
                     injector.proxy.eventManager.fire(openPreLoginEvent).thenRun {
+                        if (!openPreLoginEvent.allow) {
+                            inbound.disconnect(openPreLoginEvent.disconnectMessage)
+                            return@thenRun
+                        }
                         onlineMode = openPreLoginEvent.isOnline
                         if (openPreLoginEvent.isOnline) {
                             val request: EncryptionRequestPacket = generateEncryptionRequest()

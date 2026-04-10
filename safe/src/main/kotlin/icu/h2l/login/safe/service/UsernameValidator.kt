@@ -19,22 +19,29 @@
  *
  */
 
-pluginManagement {
-    repositories {
-        maven("https://maven.aliyun.com/repository/central")
-        maven("https://mirrors.cloud.tencent.com/nexus/repository/maven-public/")
-        maven("https://plugins.gradle.org/m2/")
-        gradlePluginPortal()
-        mavenCentral()
+package icu.h2l.login.safe.service
+
+import icu.h2l.login.safe.config.SafeConfig
+
+class UsernameValidator(
+    private val config: SafeConfig.UsernameConfig
+) {
+    private val pattern by lazy { Regex(config.pattern) }
+
+    fun validate(username: String): String? {
+        if (!config.enable) {
+            return null
+        }
+        if (username.length !in config.minLength..config.maxLength) {
+            return "用户名长度不符合要求"
+        }
+        if (config.denyLeadingOrTrailingWhitespace && username != username.trim()) {
+            return "用户名不能包含首尾空白"
+        }
+        if (!pattern.matches(username)) {
+            return "用户名包含不允许的字符"
+        }
+        return null
     }
 }
 
-rootProject.name = "HyperzoneLogin"
-
-include("velocity")
-include("api")
-include("auth-yggd")
-include("auth-offline")
-include("safe")
-include("data-merge")
-include("profile-skin")

@@ -49,6 +49,7 @@ spotless {
             "auth-yggd/src/**/*.kt",
             "data-merge/src/**/*.kt",
             "profile-skin/src/**/*.kt",
+            "safe/src/**/*.kt",
             "velocity/src/**/*.kt",
         )
         licenseHeader(kotlinLicenseHeader, kotlinSourceHeaderDelimiter)
@@ -63,6 +64,7 @@ spotless {
             "auth-yggd/build.gradle.kts",
             "data-merge/build.gradle.kts",
             "profile-skin/build.gradle.kts",
+            "safe/build.gradle.kts",
             "velocity/build.gradle.kts",
         )
         licenseHeader(kotlinLicenseHeader, kotlinGradleHeaderDelimiter)
