@@ -39,7 +39,8 @@ class MojangStyleAuthRequest(
     private val config: AuthServerConfig,
     private val httpClient: HttpClient,
     private val gson: Gson,
-    private val userAgent: String = "HyperZoneLogin/1.0"
+    private val userAgent: String = "HyperZoneLogin/1.0",
+    private val preventProxy: Boolean = false
 ) : AuthenticationRequest {
 
     override suspend fun authenticate(
@@ -77,7 +78,7 @@ class MojangStyleAuthRequest(
             .replace("{serverId}", escapedServerId)
         
         // 处理IP占位符：如果有IP则替换为&ip=xxx，否则替换为空字符串
-        val ipParam = if (playerIp != null) {
+        val ipParam = if (playerIp != null && preventProxy) {
             val escapedIp = UrlEscapers.urlFormParameterEscaper().escape(playerIp)
             "&ip=$escapedIp"
         } else {

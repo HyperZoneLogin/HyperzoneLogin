@@ -520,7 +520,8 @@ class YggdrasilAuthModule(
             val authRequest = MojangStyleAuthRequest(
                 config = authServerConfig,
                 httpClient = httpClient,
-                gson = gson
+                gson = gson,
+                preventProxy = proxy.configuration.shouldPreventClientProxyConnections()
             )
 
             requests.add(Pair(entryConfig.id, authRequest))
