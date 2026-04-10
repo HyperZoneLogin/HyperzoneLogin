@@ -27,15 +27,39 @@ import icu.h2l.api.module.HyperSubModule
 import icu.h2l.login.safe.config.SafeConfigLoader
 import icu.h2l.login.safe.listener.PreLoginGuardListener
 import icu.h2l.login.safe.service.ConnectionRateLimiter
+import icu.h2l.login.safe.service.IpCooldownManager
+import icu.h2l.login.safe.service.StrictModeController
 import icu.h2l.login.safe.service.UsernameValidator
 
 class SafeSubModule : HyperSubModule {
     override fun register(api: HyperZoneApi) {
         val config = SafeConfigLoader.load(api.dataDirectory)
+        val logger = java.util.logging.Logger.getLogger("hzl-safe")
         val listener = PreLoginGuardListener(
             config = config,
             globalRateLimiter = ConnectionRateLimiter(config.globalRateLimit.windowSeconds, config.globalRateLimit.maxAttempts),
             ipRateLimiter = ConnectionRateLimiter(config.ipRateLimit.windowSeconds, config.ipRateLimit.maxAttempts),
+            strictGlobalRateLimiter = ConnectionRateLimiter(
+                config.strictMode.globalRateLimit.windowSeconds,
+                config.strictMode.globalRateLimit.maxAttempts
+            ),
+            strictIpRateLimiter = ConnectionRateLimiter(
+                config.strictMode.ipRateLimit.windowSeconds,
+                config.strictMode.ipRateLimit.maxAttempts
+            ),
+            ipCooldownManager = IpCooldownManager(
+                enabled = config.ipCooldown.enabled,
+                windowSeconds = config.ipCooldown.windowSeconds,
+                triggerAttempts = config.ipCooldown.triggerAttempts,
+                cooldownSeconds = config.ipCooldown.cooldownSeconds
+            ),
+            strictModeController = StrictModeController(
+                enabled = config.strictMode.enabled,
+                windowSeconds = config.strictMode.windowSeconds,
+                triggerAttempts = config.strictMode.triggerAttempts,
+                recoverAfterSeconds = config.strictMode.recoverAfterSeconds,
+                logger = logger
+            ),
             usernameValidator = UsernameValidator(config.username)
         )
         api.proxy.eventManager.register(api, listener)

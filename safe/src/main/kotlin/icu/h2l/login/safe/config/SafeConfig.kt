@@ -37,6 +37,14 @@ class SafeConfig {
     @JvmField
     val ipRateLimit = RateLimitConfig(maxAttempts = 8, windowSeconds = 10)
 
+    @Comment("同 IP 超阈值后的临时冷却")
+    @JvmField
+    val ipCooldown = IpCooldownConfig()
+
+    @Comment("自动高峰防护模式")
+    @JvmField
+    val strictMode = StrictModeConfig()
+
     @Comment("用户名基础校验")
     @JvmField
     val username = UsernameConfig()
@@ -65,6 +73,44 @@ class SafeConfig {
 
         @Comment("允许的用户名正则，默认与 Minecraft 传统用户名规则一致")
         val pattern = "^[A-Za-z0-9_]+$"
+    }
+
+    @ConfigSerializable
+    class IpCooldownConfig {
+        @Comment("是否启用同 IP 临时冷却")
+        val enabled = true
+
+        @Comment("在统计窗口内触发多少次限流后，开始临时封禁")
+        val triggerAttempts = 3
+
+        @Comment("统计窗口长度（秒）")
+        val windowSeconds = 60
+
+        @Comment("触发后的冷却时长（秒）")
+        val cooldownSeconds = 300
+    }
+
+    @ConfigSerializable
+    class StrictModeConfig {
+        @Comment("是否启用自动高峰防护模式")
+        val enabled = true
+
+        @Comment("全局连接请求在窗口内达到该次数后进入 strict mode")
+        val triggerAttempts = 120
+
+        @Comment("strict mode 触发统计窗口（秒）")
+        val windowSeconds = 15
+
+        @Comment("进入 strict mode 后，至少保持这么多秒")
+        val recoverAfterSeconds = 90
+
+        @Comment("strict mode 下的全局限流")
+        @JvmField
+        val globalRateLimit = RateLimitConfig(maxAttempts = 30, windowSeconds = 10)
+
+        @Comment("strict mode 下的同 IP 限流")
+        @JvmField
+        val ipRateLimit = RateLimitConfig(maxAttempts = 4, windowSeconds = 10)
     }
 }
 
