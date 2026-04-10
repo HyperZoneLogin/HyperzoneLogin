@@ -42,6 +42,10 @@ class OfflineAuthConfig {
     @JvmField
     val prompt = PromptConfig()
 
+    @Comment("会话自动登录")
+    @JvmField
+    val session = SessionConfig()
+
     @ConfigSerializable
     class PasswordPolicy {
         @Comment("最短密码长度")
@@ -145,6 +149,21 @@ class OfflineAuthConfig {
     class PromptConfig {
         @Comment("首次进入认证阶段时是否额外展示邮箱找回提示")
         val showRecoveryHint = true
+    }
+
+    @ConfigSerializable
+    class SessionConfig {
+        @Comment("是否启用短期会话自动登录")
+        val enabled = true
+
+        @Comment("会话有效期（分钟）")
+        val expireMinutes = 30
+
+        @Comment("是否把会话与玩家 IP 绑定")
+        val bindIp = true
+
+        @Comment("注册成功后是否立刻签发会话")
+        val issueOnRegister = true
     }
 }
 

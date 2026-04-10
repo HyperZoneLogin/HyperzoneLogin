@@ -36,6 +36,7 @@ import icu.h2l.login.auth.offline.mail.OfflineAuthEmailSender
 import icu.h2l.login.auth.offline.service.OfflineAuthService
 import icu.h2l.login.auth.offline.config.OfflineMatchConfigLoader
 import icu.h2l.login.auth.offline.listener.OfflinePreLoginListener
+import icu.h2l.login.auth.offline.listener.OfflineSessionAuthListener
 import java.util.Locale
 
 class OfflineSubModule : HyperSubModule {
@@ -82,6 +83,7 @@ class OfflineSubModule : HyperSubModule {
 
         // Register pre-login listener (handles channel init + offline UUID matching)
         proxy.eventManager.register(api, OfflinePreLoginListener())
+        proxy.eventManager.register(api, OfflineSessionAuthListener(offlineAuthService))
 
         OfflineAuthCommandRegistrar.registerAll(
             commandManager = api.chatCommandManager,

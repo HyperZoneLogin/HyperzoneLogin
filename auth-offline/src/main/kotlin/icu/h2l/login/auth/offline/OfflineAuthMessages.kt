@@ -46,6 +46,8 @@ object OfflineAuthMessages {
     const val BIND_USAGE = "${PREFIX}§e/bind <密码> <再次输入密码>"
     const val BIND_SUCCESS = "${PREFIX}§a绑定成功"
     const val LOGOUT_SUCCESS = "${PREFIX}§a已成功登出，请重新登录"
+    const val SESSION_AUTO_LOGIN = "${PREFIX}§a欢迎回来，已根据有效会话自动登录"
+    const val SESSION_INVALID = "${PREFIX}§e检测到旧会话已失效，请重新输入密码登录"
     const val UNREGISTER_USAGE = "${PREFIX}§e/unregister <密码>"
     const val UNREGISTER_SUCCESS = "${PREFIX}§a账号已注销"
     const val EMAIL_USAGE = "${PREFIX}§e/email <add|change|show|recovery|code|setpassword> ..."

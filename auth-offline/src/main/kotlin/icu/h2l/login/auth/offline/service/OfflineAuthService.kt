@@ -39,6 +39,7 @@ class OfflineAuthService(
     private val emailSender: OfflineAuthEmailSender
 ) {
     data class Result(val success: Boolean, val message: String)
+    data class SessionCheckResult(val passed: Boolean, val message: String? = null)
 
     private val logger = java.util.logging.Logger.getLogger("hzl-auth-offline")
     private val secureRandom = SecureRandom()
@@ -69,6 +70,9 @@ class OfflineAuthService(
         )
         return if (created) {
             hyperZonePlayer.overVerify()
+            if (OfflineAuthConfigLoader.getConfig().session.enabled && OfflineAuthConfigLoader.getConfig().session.issueOnRegister) {
+                issueSession(profile.id, player)
+            }
             Result(true, OfflineAuthMessages.REGISTER_SUCCESS)
         } else {
             Result(false, OfflineAuthMessages.REGISTER_FAILED)
@@ -136,6 +140,7 @@ class OfflineAuthService(
 
         repository.resetLoginProtection(entry.profileId)
         hyperPlayer.overVerify()
+        issueSession(entry.profileId, player)
         return Result(true, OfflineAuthMessages.LOGIN_SUCCESS)
     }
 
@@ -168,6 +173,7 @@ class OfflineAuthService(
             return Result(false, OfflineAuthMessages.NOT_LOGGED_IN)
         }
 
+        resolveEntryByPlayer(player)?.let { repository.clearSession(it.profileId) }
         hyperPlayer.resetVerify()
         return Result(true, OfflineAuthMessages.LOGOUT_SUCCESS)
     }
@@ -348,6 +354,10 @@ class OfflineAuthService(
 
     fun getJoinPrompts(player: Player): List<String> {
         val hyperPlayer = playerAccessor.getByPlayer(player)
+        if (hyperPlayer.isVerified()) {
+            return emptyList()
+        }
+
         val entry = repository.getByName(hyperPlayer.userName.lowercase())
         val prompts = ArrayList<String>()
 
@@ -372,6 +382,34 @@ class OfflineAuthService(
             }
         }
         return prompts
+    }
+
+    fun tryAutoLogin(player: Player): SessionCheckResult? {
+        val sessionConfig = OfflineAuthConfigLoader.getConfig().session
+        if (!sessionConfig.enabled) {
+            return null
+        }
+
+        val hyperPlayer = playerAccessor.getByPlayer(player)
+        if (hyperPlayer.isVerified()) {
+            return SessionCheckResult(true)
+        }
+
+        val entry = repository.getByName(hyperPlayer.userName.lowercase()) ?: return null
+        val sessionIssuedAt = entry.sessionIssuedAt ?: return null
+        val sessionExpiresAt = entry.sessionExpiresAt ?: return null
+        val currentIp = getPlayerRemoteAddress(player)
+        val now = System.currentTimeMillis()
+
+        val invalidByTime = sessionExpiresAt <= now || sessionIssuedAt > sessionExpiresAt
+        val invalidByIp = sessionConfig.bindIp && !entry.sessionIp.isNullOrBlank() && entry.sessionIp != currentIp
+        if (invalidByTime || invalidByIp) {
+            repository.clearSession(entry.profileId)
+            return SessionCheckResult(false, OfflineAuthMessages.SESSION_INVALID)
+        }
+
+        hyperPlayer.overVerify()
+        return SessionCheckResult(true, OfflineAuthMessages.SESSION_AUTO_LOGIN)
     }
 
     private fun verifyPassword(password: String, entry: OfflineAuthEntry): Boolean {
@@ -466,6 +504,29 @@ class OfflineAuthService(
             logger.warning("离线找回邮件发送失败: player=$playerName email=$email cause=${result.diagnosticMessage}")
         }
         return result
+    }
+
+    private fun issueSession(profileId: java.util.UUID, player: Player) {
+        val sessionConfig = OfflineAuthConfigLoader.getConfig().session
+        if (!sessionConfig.enabled) {
+            repository.clearSession(profileId)
+            return
+        }
+
+        val now = System.currentTimeMillis()
+        val sessionIp = if (sessionConfig.bindIp) getPlayerRemoteAddress(player) else null
+        val expiresAt = now + sessionConfig.expireMinutes.coerceAtLeast(1) * 60_000L
+        repository.issueSession(profileId, sessionIp, now, expiresAt)
+    }
+
+    private fun getPlayerRemoteAddress(player: Player): String {
+        val hostAddress = player.remoteAddress.address.hostAddress
+        val ipv6ScopeIdx = hostAddress.indexOf('%')
+        return if (ipv6ScopeIdx == -1) {
+            hostAddress
+        } else {
+            hostAddress.substring(0, ipv6ScopeIdx)
+        }
     }
 
     companion object {

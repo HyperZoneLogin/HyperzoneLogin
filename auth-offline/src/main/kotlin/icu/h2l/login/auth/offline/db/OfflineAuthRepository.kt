@@ -97,6 +97,9 @@ class OfflineAuthRepository(
                     it[this.resetPasswordVerifiedUntil] = null
                     it[this.loginFailCount] = 0
                     it[this.loginBlockedUntil] = null
+                    it[this.sessionIp] = null
+                    it[this.sessionIssuedAt] = null
+                    it[this.sessionExpiresAt] = null
                 }
             } > 0
         } catch (e: Exception) {
@@ -206,6 +209,36 @@ class OfflineAuthRepository(
         }
     }
 
+    fun issueSession(profileId: UUID, sessionIp: String?, issuedAt: Long, expiresAt: Long): Boolean {
+        return try {
+            databaseManager.executeTransaction {
+                table.update({ table.profileId eq profileId }) {
+                    it[this.sessionIp] = sessionIp
+                    it[this.sessionIssuedAt] = issuedAt
+                    it[this.sessionExpiresAt] = expiresAt
+                }
+            } > 0
+        } catch (e: Exception) {
+            warn { "签发离线认证会话失败: ${e.message}" }
+            false
+        }
+    }
+
+    fun clearSession(profileId: UUID): Boolean {
+        return try {
+            databaseManager.executeTransaction {
+                table.update({ table.profileId eq profileId }) {
+                    it[this.sessionIp] = null
+                    it[this.sessionIssuedAt] = null
+                    it[this.sessionExpiresAt] = null
+                }
+            } > 0
+        } catch (e: Exception) {
+            warn { "清理离线认证会话失败: ${e.message}" }
+            false
+        }
+    }
+
     fun deleteByProfileId(profileId: UUID): Boolean {
         return try {
             databaseManager.executeTransaction {
@@ -231,7 +264,10 @@ class OfflineAuthRepository(
             recoveryVerifyTries = row[table.recoveryVerifyTries],
             resetPasswordVerifiedUntil = row[table.resetPasswordVerifiedUntil],
             loginFailCount = row[table.loginFailCount],
-            loginBlockedUntil = row[table.loginBlockedUntil]
+            loginBlockedUntil = row[table.loginBlockedUntil],
+            sessionIp = row[table.sessionIp],
+            sessionIssuedAt = row[table.sessionIssuedAt],
+            sessionExpiresAt = row[table.sessionExpiresAt]
         )
     }
 }
