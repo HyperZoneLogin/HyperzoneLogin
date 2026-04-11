@@ -28,7 +28,7 @@ import java.util.UUID
 import kotlin.random.Random
 
 object RemapUtils {
-    const val EXPECTED_NAME_PREFIX = "hzl-login-"
+    const val EXPECTED_NAME_PREFIX = "HZL"
     const val REMAP_PREFIX = "check"
     private const val PROFILE_PREFIX = "h2l"
 

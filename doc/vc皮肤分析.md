@@ -4,7 +4,7 @@
 
 当前 `velocity` 模块里的皮肤相关尝试，核心目标是：
 
-1. 登录阶段继续使用随机 `GameProfile`（例如 `hzl-login-xxxxxx`）以满足前置一致性校验；
+1. 登录阶段继续使用随机 `GameProfile`（例如 `HZLxxxxxx`）以满足前置一致性校验；
 2. 但仍然希望客户端能够显示正确皮肤；
 3. 因此尝试了两条路径：
    - 在登录/后端转发链路里把 `textures` 叠加到最终 `GameProfile`；
@@ -32,7 +32,7 @@
 
 同文件 `onPreLogin(event: GameProfileRequestEvent)` 中：
 
-- 要求 `gameProfile.name` 以 `hzl-login-` 前缀开头；
+- 要求 `gameProfile.name` 以 `HZL` 前缀开头；
 - 要求 `gameProfile.id == RemapUtils.genUUID(name, REMAP_PREFIX)`；
 - 这意味着登录阶段使用的 `GameProfile` 身份是强约束，不是可随意替换成“真实玩家名/UUID”的。
 
@@ -285,7 +285,7 @@ ProtocolUtils.writeProperties(buf, info.profile.getProperties());
 
 即目标应该是：
 
-- `name`：仍然是随机登录名（例如 `hzl-login-xxxxxx`）
+- `name`：仍然是随机登录名（例如 `HZLxxxxxx`）
 - `uuid`：仍然是当前登录采用的 remap UUID
 - `properties`：带有正确 `textures`
 
