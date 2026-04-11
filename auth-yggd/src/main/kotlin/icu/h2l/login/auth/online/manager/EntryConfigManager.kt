@@ -230,6 +230,28 @@ class EntryConfigManager(
         )
 
         debug { "创建默认配置文件: littleskin.conf" }
+
+        val elyByPath = entryDir.resolve("elyby$CONFIG_EXTENSION")
+        val elyByConfig = EntryConfig().apply {
+            id = "elyby"
+            name = "Ely.by"
+            yggdrasil = EntryConfig.YggdrasilAuthConfig().apply {
+                url = "https://authserver.ely.by/session/hasJoined?username={username}&serverId={serverId}{ip}"
+            }
+        }
+
+        createConfigFile(
+            path = elyByPath,
+            config = elyByConfig,
+            header =
+                """
+                HyperZoneLogin Entry Configuration - Ely.by
+                Ely.by 第三方验证服务配置
+                
+                """.trimIndent()
+        )
+
+        debug { "创建默认配置文件: elyby.conf" }
     }
 
     private fun createConfigFile(path: Path, config: EntryConfig, header: String) {

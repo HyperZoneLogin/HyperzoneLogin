@@ -4,6 +4,7 @@ ref/
 build/
 bin/
 .kotlin
+pubDoc
 
 target/
 pom.xml.tag
