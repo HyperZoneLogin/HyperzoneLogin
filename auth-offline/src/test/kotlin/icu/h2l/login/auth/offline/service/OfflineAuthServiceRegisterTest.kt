@@ -210,7 +210,7 @@ class OfflineAuthServiceRegisterTest {
         val savedBeforeBind = repository.getByName(NORMALIZED_NAME)
 
         assertTrue(result.success)
-        assertEquals("§a注册成功，但当前名称无法直接分配档案。请使用 /bindcode use <绑定码> 完成绑定", result.message)
+        assertEquals(OfflineAuthMessages.REGISTER_BIND_PENDING, result.message)
         assertNull(savedBeforeBind)
         assertTrue(credentialSlot.isCaptured)
         assertTrue(credentialSlot.captured.credentialId.startsWith("$NORMALIZED_NAME:"))

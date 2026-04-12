@@ -31,10 +31,12 @@ import com.velocitypowered.api.proxy.ProxyServer
 import com.velocitypowered.api.proxy.server.RegisteredServer
 import icu.h2l.api.event.vServer.VServerAuthStartEvent
 import icu.h2l.api.event.vServer.VServerJoinEvent
+import icu.h2l.api.message.HyperZoneMessagePlaceholder
 import icu.h2l.api.player.getChannel
 import icu.h2l.api.vServer.HyperZoneVServerAdapter
 import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.manager.HyperZonePlayerManager
+import icu.h2l.login.message.MessageKeys
 import icu.h2l.login.player.VelocityHyperZonePlayer
 import net.kyori.adventure.text.Component
 import java.util.Locale
@@ -76,9 +78,10 @@ class BackendAuthHoldListener(
     }
 
     override fun authPlayer(player: Player) {
+        val messages = HyperZoneLoginMain.getInstance().messageService
         val hyperPlayer = getHyperPlayer(player) ?: return
         val authServer = resolveAuthServer() ?: run {
-            player.sendPlainMessage("§c当前未配置可用的认证等待服务器")
+            player.sendMessage(messages.render(player, MessageKeys.BackendAuth.NO_AUTH_SERVER))
             return
         }
 
@@ -100,13 +103,25 @@ class BackendAuthHoldListener(
 
         player.createConnectionRequest(authServer).connect().whenComplete { result, throwable ->
             if (throwable != null) {
-                player.sendPlainMessage("§c进入认证等待服务器失败：${throwable.message ?: "未知错误"}")
+                player.sendMessage(
+                    messages.render(
+                        player,
+                        MessageKeys.BackendAuth.ENTER_FAILED_EXCEPTION,
+                        HyperZoneMessagePlaceholder.text("reason", throwable.message ?: "Unknown error")
+                    )
+                )
                 return@whenComplete
             }
 
             if (result == null || !result.isSuccessful) {
                 val reason = result?.reasonComponent?.map { it.toString() }?.orElse("未知原因") ?: "未知原因"
-                player.sendPlainMessage("§c进入认证等待服务器失败：$reason")
+                player.sendMessage(
+                    messages.render(
+                        player,
+                        MessageKeys.BackendAuth.ENTER_FAILED_REASON,
+                        HyperZoneMessagePlaceholder.text("reason", reason)
+                    )
+                )
             }
         }
     }
@@ -120,13 +135,14 @@ class BackendAuthHoldListener(
         if (!isEnabled()) return
 
         val player = event.player
+        val messages = HyperZoneLoginMain.getInstance().messageService
         val hyperPlayer = getHyperPlayer(player) ?: return
         hyperPlayer.update(player)
 
         if (!hyperPlayer.isInWaitingArea()) return
 
         val authServer = resolveAuthServer() ?: run {
-            player.disconnect(Component.text("§c认证等待服务器未配置正确，请联系管理员"))
+            player.disconnect(messages.render(player, MessageKeys.BackendAuth.MISCONFIGURED_DISCONNECT))
             return
         }
         val targetServerName = event.initialServer
@@ -144,13 +160,14 @@ class BackendAuthHoldListener(
     @Subscribe
     fun onServerPreConnect(event: ServerPreConnectEvent) {
         val player = event.player
+        val messages = HyperZoneLoginMain.getInstance().messageService
         val hyperPlayer = getHyperPlayer(player) ?: return
         hyperPlayer.update(player)
 
         if (!isInBackendAuthHold(player, hyperPlayer)) return
 
         val authServer = resolveAuthServer() ?: run {
-            player.disconnect(Component.text("§c认证等待服务器不可用，请联系管理员"))
+            player.disconnect(messages.render(player, MessageKeys.BackendAuth.UNAVAILABLE_DISCONNECT))
             return
         }
 
@@ -165,7 +182,7 @@ class BackendAuthHoldListener(
             rememberPostAuthTarget(player, requestedServerName)
         }
 
-        player.sendPlainMessage("§e请先完成认证，然后才能进入其他服务器")
+        player.sendMessage(messages.render(player, MessageKeys.BackendAuth.MUST_VERIFY_BEFORE_TRANSFER))
         event.result = if (event.previousServer == null) {
             ServerPreConnectEvent.ServerResult.allowed(authServer)
         } else {
@@ -298,8 +315,10 @@ class BackendAuthHoldListener(
             player = player,
             targetServerName = returnTarget,
             authServerName = authServerName,
-            missingTargetMessage = "§e当前没有可返回的目标服务器，无法退出认证等待区",
-            failurePrefix = "退出认证等待区后返回目标服务器失败"
+            missingTargetKey = MessageKeys.BackendAuth.EXIT_NO_TARGET,
+            missingServerKey = MessageKeys.BackendAuth.EXIT_SERVER_MISSING,
+            failureExceptionKey = MessageKeys.BackendAuth.EXIT_FAILURE_EXCEPTION,
+            failureReasonKey = MessageKeys.BackendAuth.EXIT_FAILURE_REASON
         )
     }
 
@@ -312,8 +331,10 @@ class BackendAuthHoldListener(
             player = player,
             targetServerName = state.returnTargetServerName,
             authServerName = state.authServerName,
-            missingTargetMessage = "§e认证完成，但当前没有可自动返回的目标服务器",
-            failurePrefix = "认证完成后自动连接到目标服务器失败"
+            missingTargetKey = MessageKeys.BackendAuth.VERIFIED_NO_TARGET,
+            missingServerKey = MessageKeys.BackendAuth.VERIFIED_SERVER_MISSING,
+            failureExceptionKey = MessageKeys.BackendAuth.VERIFIED_FAILURE_EXCEPTION,
+            failureReasonKey = MessageKeys.BackendAuth.VERIFIED_FAILURE_REASON
         )
     }
 
@@ -422,27 +443,42 @@ class BackendAuthHoldListener(
         player: Player,
         targetServerName: String?,
         authServerName: String,
-        missingTargetMessage: String,
-        failurePrefix: String
+        missingTargetKey: String,
+        missingServerKey: String,
+        failureExceptionKey: String,
+        failureReasonKey: String
     ): Boolean {
+        val messages = HyperZoneLoginMain.getInstance().messageService
         val resolvedTarget = targetServerName
             ?.takeUnless { it.isBlank() || it.equals(authServerName, ignoreCase = true) }
             ?: resolveFallbackTargetServerName(player, authServerName)
 
         if (resolvedTarget == null) {
-            player.sendPlainMessage(missingTargetMessage)
+            player.sendMessage(messages.render(player, missingTargetKey))
             return false
         }
 
         val target = server.getServer(resolvedTarget).orElse(null)
         if (target == null) {
-            player.sendPlainMessage("§c$failurePrefix：目标服务器 $resolvedTarget 不存在")
+            player.sendMessage(
+                messages.render(
+                    player,
+                    missingServerKey,
+                    HyperZoneMessagePlaceholder.text("server", resolvedTarget)
+                )
+            )
             return false
         }
 
         player.createConnectionRequest(target).connect().whenComplete { result, throwable ->
             if (throwable != null) {
-                player.sendPlainMessage("§c$failurePrefix：${throwable.message ?: "未知错误"}")
+                player.sendMessage(
+                    messages.render(
+                        player,
+                        failureExceptionKey,
+                        HyperZoneMessagePlaceholder.text("reason", throwable.message ?: "Unknown error")
+                    )
+                )
                 return@whenComplete
             }
 
@@ -450,7 +486,13 @@ class BackendAuthHoldListener(
                 val reason = result?.reasonComponent?.map { component ->
                     component.toString()
                 }?.orElse("未知原因") ?: "未知原因"
-                player.sendPlainMessage("§c$failurePrefix：$reason")
+                player.sendMessage(
+                    messages.render(
+                        player,
+                        failureReasonKey,
+                        HyperZoneMessagePlaceholder.text("reason", reason)
+                    )
+                )
             }
         }
         return true

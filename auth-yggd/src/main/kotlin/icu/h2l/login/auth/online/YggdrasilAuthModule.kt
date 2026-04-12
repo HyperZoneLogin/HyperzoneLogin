@@ -43,7 +43,6 @@ import icu.h2l.login.auth.online.db.EntryTableManager
 import icu.h2l.login.auth.online.manager.EntryConfigManager
 import icu.h2l.login.auth.online.req.*
 import kotlinx.coroutines.*
-import net.kyori.adventure.text.Component
 import org.jetbrains.exposed.sql.or
 import org.jetbrains.exposed.sql.selectAll
 import java.nio.charset.StandardCharsets
@@ -206,7 +205,7 @@ class YggdrasilAuthModule(
                 if (profileResolveError != null) {
                     val failedResult = YggdrasilAuthResult.Failed(profileResolveError)
                     publishAuthFailure(player, username, failedResult)
-                    handler.sendMessage(Component.text(profileResolveError))
+                    handler.sendMessage(YggdrasilMessages.profileResolveFailed(handler, profileResolveError))
                     info { "玩家 $username Yggdrasil 验证成功，但 Profile 解析失败：$profileResolveError" }
                     return
                 }
@@ -220,7 +219,7 @@ class YggdrasilAuthModule(
                         val message = throwable.message ?: "认证成功，但 Profile 绑定失败"
                         val failedResult = YggdrasilAuthResult.Failed(message)
                         publishAuthFailure(player, username, failedResult)
-                        handler.sendMessage(Component.text(message))
+                        handler.sendMessage(YggdrasilMessages.verifyCompleteFailed(handler, message))
                         info { "玩家 $username Yggdrasil 验证成功，但完成验证失败：$message" }
                         return
                     }
@@ -235,7 +234,7 @@ class YggdrasilAuthModule(
                 is YggdrasilAuthResult.NoEntriesConfigured -> "No entries configured"
             }
             publishAuthFailure(player, username, result)
-            handler.sendMessage(Component.text("玩家 $username Yggdrasil 验证失败"))
+            handler.sendMessage(YggdrasilMessages.authFailed(handler, username))
             info { "玩家 $username Yggdrasil 验证失败" }
             debug { "玩家 $username Yggdrasil 验证失败原因: $failureReason" }
         } finally {
@@ -435,7 +434,7 @@ class YggdrasilAuthModule(
 
         // 第二批次：立即向所有Yggdrasil Entry发起请求
         val secondBatchContext = SecondBatchContext(username, uuid, serverId, playerIp)
-        runSecondBatchAuth(player, secondBatchContext)
+        runSecondBatchAuth(secondBatchContext)
     }
 
     private fun validateFirstBatchProfile(
@@ -462,19 +461,15 @@ class YggdrasilAuthModule(
         val handler = limboHandlers[player] ?: return
 
         val message = when (result) {
-            is YggdrasilAuthResult.Failed -> {
-                val status = result.statusCode?.let { " (HTTP $it)" } ?: ""
-                "第一批次验证失败: ${result.reason}$status"
-            }
-            is YggdrasilAuthResult.Timeout -> "第一批次验证超时"
+            is YggdrasilAuthResult.Failed -> YggdrasilMessages.firstBatchFailed(handler, result.reason, result.statusCode)
+            is YggdrasilAuthResult.Timeout -> YggdrasilMessages.firstBatchTimeout(handler)
             else -> return
         }
 
-        handler.sendMessage(Component.text(message))
+        handler.sendMessage(message)
     }
 
     private suspend fun runSecondBatchAuth(
-        player: Player,
         context: SecondBatchContext
     ): YggdrasilAuthResult {
         val allYggdrasilEntries = getAllYggdrasilEntries()

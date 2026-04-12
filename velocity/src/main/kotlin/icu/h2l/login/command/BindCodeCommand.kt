@@ -24,29 +24,32 @@ package icu.h2l.login.command
 import com.velocitypowered.api.proxy.Player
 import icu.h2l.api.command.HyperChatCommandExecutor
 import icu.h2l.api.command.HyperChatCommandInvocation
+import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.manager.HyperZonePlayerManager
+import icu.h2l.login.message.MessageKeys
 import icu.h2l.login.profile.ProfileBindingCodeService
 
 class BindCodeCommand(
     private val bindingCodeService: ProfileBindingCodeService
 ) : HyperChatCommandExecutor {
     override fun execute(invocation: HyperChatCommandInvocation) {
+        val messages = HyperZoneLoginMain.getInstance().messageService
         val source = invocation.source()
         if (source !is Player) {
-            source.sendPlainMessage("§c该命令只能由玩家执行")
+            messages.send(source, MessageKeys.Common.ONLY_PLAYER)
             return
         }
 
         val hyperPlayer = runCatching {
             HyperZonePlayerManager.getByPlayer(source)
         }.getOrElse {
-            source.sendPlainMessage("§c当前无法获取登录态玩家对象")
+            messages.send(source, MessageKeys.Common.PLAYER_STATE_UNAVAILABLE)
             return
         }
 
         val args = invocation.arguments()
         if (args.isEmpty()) {
-            source.sendPlainMessage("§e用法: /bindcode generate 或 /bindcode use <绑定码>")
+            messages.send(source, MessageKeys.BindCode.COMMAND_USAGE)
             return
         }
 
@@ -54,13 +57,13 @@ class BindCodeCommand(
             "generate", "gen", "create" -> bindingCodeService.generate(hyperPlayer)
             "use" -> {
                 if (args.size < 2) {
-                    source.sendPlainMessage("§e用法: /bindcode use <绑定码>")
+                    messages.send(source, MessageKeys.BindCode.COMMAND_USE_USAGE)
                     return
                 }
                 bindingCodeService.use(hyperPlayer, args[1])
             }
             else -> {
-                source.sendPlainMessage("§e用法: /bindcode generate 或 /bindcode use <绑定码>")
+                messages.send(source, MessageKeys.BindCode.COMMAND_USAGE)
                 return
             }
         }

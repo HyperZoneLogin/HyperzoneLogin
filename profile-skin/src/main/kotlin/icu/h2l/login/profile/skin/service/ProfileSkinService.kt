@@ -37,6 +37,7 @@ import icu.h2l.api.profile.HyperZoneProfileService
 import icu.h2l.api.profile.skin.ProfileSkinModel
 import icu.h2l.api.profile.skin.ProfileSkinSource
 import icu.h2l.api.profile.skin.ProfileSkinTextures
+import icu.h2l.login.profile.skin.ProfileSkinMessages
 import icu.h2l.login.profile.skin.config.MineSkinMethod
 import icu.h2l.login.profile.skin.config.ProfileSkinConfig
 import icu.h2l.login.profile.skin.db.ProfileSkinCacheRepository
@@ -56,7 +57,6 @@ import java.util.Base64
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import javax.imageio.ImageIO
-import net.kyori.adventure.text.Component
 
 private class MineSkinRequestFailedException(
     val method: MineSkinMethod,
@@ -293,7 +293,7 @@ class ProfileSkinService(
             debug {
                 "[ProfileSkinFlow] apply listener failed: no attached DB profile, clientOriginal=${event.hyperZonePlayer.clientOriginalName}, base=${describeProfile(event.baseProfile)}"
             }
-            event.hyperZonePlayer.sendMessage(Component.text("§c皮肤修复失败，需要重新进入游戏"))
+            event.hyperZonePlayer.sendMessage(ProfileSkinMessages.repairFailed(event.hyperZonePlayer))
             return
         }
         val skinId = profileRepository.findSkinIdByProfileId(profileId) ?: return

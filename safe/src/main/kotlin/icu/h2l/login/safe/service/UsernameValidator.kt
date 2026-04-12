@@ -22,24 +22,26 @@
 package icu.h2l.login.safe.service
 
 import icu.h2l.login.safe.config.SafeConfig
+import icu.h2l.login.safe.SafeMessages
+import net.kyori.adventure.text.Component
 
 class UsernameValidator(
     private val config: SafeConfig.UsernameConfig
 ) {
     private val pattern by lazy { Regex(config.pattern) }
 
-    fun validate(username: String): String? {
+    fun validate(username: String): Component? {
         if (!config.enable) {
             return null
         }
         if (username.length !in config.minLength..config.maxLength) {
-            return "用户名长度不符合要求"
+            return SafeMessages.usernameLengthInvalid()
         }
         if (config.denyLeadingOrTrailingWhitespace && username != username.trim()) {
-            return "用户名不能包含首尾空白"
+            return SafeMessages.usernameWhitespaceInvalid()
         }
         if (!pattern.matches(username)) {
-            return "用户名包含不允许的字符"
+            return SafeMessages.usernamePatternInvalid()
         }
         return null
     }

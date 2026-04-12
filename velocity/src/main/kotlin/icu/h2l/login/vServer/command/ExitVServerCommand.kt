@@ -26,29 +26,30 @@ import icu.h2l.api.command.HyperChatCommandExecutor
 import icu.h2l.api.command.HyperChatCommandInvocation
 import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.manager.HyperZonePlayerManager
-import net.kyori.adventure.text.Component
+import icu.h2l.login.message.MessageKeys
 
 class ExitVServerCommand : HyperChatCommandExecutor {
     override fun execute(invocation: HyperChatCommandInvocation) {
+        val messages = HyperZoneLoginMain.getInstance().messageService
         val source = invocation.source()
         if (source !is Player) {
-            source.sendPlainMessage("§c该命令只能由玩家执行")
+            messages.send(source, MessageKeys.Common.ONLY_PLAYER)
             return
         }
 
         val hyperZonePlayer = HyperZonePlayerManager.getByPlayer(source)
         if (hyperZonePlayer.isInWaitingArea()) {
-            source.sendPlainMessage("§c你仍处于等待区：尚未完成认证或尚未绑定游戏档案")
+            messages.send(source, MessageKeys.Exit.STILL_IN_WAITING_AREA)
             return
         }
 
         val exited = HyperZoneLoginMain.getInstance().serverAdapter?.exitWaitingArea(source) == true
         if (!exited) {
-            source.sendMessage(Component.text("§e当前不在可退出的认证等待区"))
+            messages.send(source, MessageKeys.Exit.NOT_IN_WAITING_AREA)
             return
         }
 
-        source.sendMessage(Component.text("§a已尝试退出认证等待区"))
+        messages.send(source, MessageKeys.Exit.ATTEMPTED)
     }
 
     override fun hasPermission(invocation: HyperChatCommandInvocation): Boolean {

@@ -24,6 +24,7 @@ package icu.h2l.login.merge.command
 import com.mojang.brigadier.Command
 import com.velocitypowered.api.command.BrigadierCommand
 import com.velocitypowered.api.command.CommandSource
+import icu.h2l.login.merge.MergeMessages
 import java.util.concurrent.atomic.AtomicBoolean
 
 class MergeCommand(
@@ -43,44 +44,45 @@ class MergeCommand(
                 .then(
                     BrigadierCommand.literalArgumentBuilder("ml")
                         .executes { context ->
-                            executeMigration(context.source, "ml", "§e开始执行 ML 迁移，请稍候...", runMlMigration)
+                            executeMigration(context.source, "ml", runMlMigration)
                         }
                 )
                 .then(
                     BrigadierCommand.literalArgumentBuilder("am")
                         .executes { context ->
-                            executeMigration(context.source, "am", "§e开始执行 AUTHME 迁移，请稍候...", runAmMigration)
+                            executeMigration(context.source, "am", runAmMigration)
                         }
                 )
         )
     }
 
     private fun showUsage(sender: CommandSource) {
-        sender.sendPlainMessage("§e/hzl-merge ml")
-        sender.sendPlainMessage("§e/hzl-merge am")
+        sender.sendMessage(MergeMessages.usageMl(sender))
+        sender.sendMessage(MergeMessages.usageAm(sender))
     }
 
     private fun executeMigration(
         sender: CommandSource,
         subCommand: String,
-        startMessage: String,
         action: () -> String
     ): Int {
         if (!running.compareAndSet(false, true)) {
-            sender.sendPlainMessage("§c迁移正在执行中，请稍后再试")
+            sender.sendMessage(MergeMessages.alreadyRunning(sender))
             return Command.SINGLE_SUCCESS
         }
 
         try {
-            sender.sendPlainMessage(startMessage)
+            sender.sendMessage(
+                if (subCommand == "ml") MergeMessages.startMl(sender) else MergeMessages.startAm(sender)
+            )
             val summary = action()
 
-            sender.sendPlainMessage("§a迁移完成: $summary")
-            sender.sendPlainMessage(
-                "§a详细日志已输出到 ${if (subCommand == "ml") "merge-ml.log" else "merge-am.log"}"
+            sender.sendMessage(MergeMessages.completed(sender, summary))
+            sender.sendMessage(
+                MergeMessages.detailLog(sender, if (subCommand == "ml") "merge-ml.log" else "merge-am.log")
             )
         } catch (ex: Exception) {
-            sender.sendPlainMessage("§c迁移失败: ${ex.message}")
+            sender.sendMessage(MergeMessages.failed(sender, ex.message))
         } finally {
             running.set(false)
         }

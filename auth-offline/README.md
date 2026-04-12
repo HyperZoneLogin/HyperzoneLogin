@@ -23,6 +23,8 @@ Auth Offline 模块 (hzl-auth-offline)
   - 支持邮箱绑定与找回密码；恢复邮件可走 `LOG` 或 `SMTP` 投递模式，SMTP 基于 Jakarta Mail / Angus Mail 运行库。
   - 支持短期 session 自动登录：可按 IP 绑定、按分钟过期，并在登出、改密、邮箱找回改密后立即失效；出于安全考虑默认关闭。
   - 支持 TOTP 二步验证：使用成熟验证器库生成密钥与 `otpauth://` 链接，登录时可要求 `/login <password> <code>` 双因子验证。
+  - 游戏内玩家提示现已接入主插件共享的 i18n 服务，默认语言文件位于 `messages/auth-offline/` 下的 `en_us.conf`、`zh_cn.conf`、`ru_ru.conf`。
+  - 模块启动时会自动把这些默认文案复制到主插件数据目录；修改后可通过主插件 `/hzl reload` 一并重载。
 - 事件与集成：
   - 模块会在注册时向代理事件管理器注册 `OfflineAuthTableManager`、命令注册器和监听器（例如 `OfflineLimboEventListener`）。
   - 模块实现依赖的 provider 接口包括 `HyperChatCommandManagerProvider` 与 `HyperZonePlayerAccessorProvider`，注册时会对 owner 做类型断言并在缺失时抛出异常以防止错误集成。
@@ -80,6 +82,7 @@ Auth Offline 模块 (hzl-auth-offline)
 - 本模块不打包 `api`；运行时必须由 `velocity` 主模块或主插件提供 API。若未找到主插件，会在初始化时打印警告并在主插件就绪后尝试注册。
 - 密码兼容注意：如果你从其他插件迁移数据，`authme` 格式会被识别并验证，但建议统一迁移为 sha256 以获得一致性和更简单的实现。
 - 首次启动会生成 `offline-auth.conf`；若要启用真实邮件发送，请将 `email.deliveryMode` 改为 `SMTP` 并完整填写 `email.smtp.*` 配置。
+- 首次加载模块时，还会在主插件数据目录下生成 `messages/auth-offline/*.conf` 文案文件；它们用于控制游戏内提示，不影响 SMTP 邮件模板本身。
 - short session 自动登录默认关闭；如需启用，请编辑 `offline-auth.conf` 中的 `session.enabled`、`session.expireMinutes`、`session.bindIp`、`session.issueOnRegister`。
 - TOTP 二步验证由 `offline-auth.conf` 中的 `totp.*` 控制；默认启用功能，但仅在玩家主动使用 `/totp add` 后才会生效到账号。
 

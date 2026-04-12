@@ -21,9 +21,12 @@
 
 package icu.h2l.login.profile
 
+import icu.h2l.api.message.HyperZoneMessagePlaceholder
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.profile.HyperZoneProfileService
+import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.database.BindingCodeStore
+import icu.h2l.login.message.MessageKeys
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.event.ClickEvent
 import net.kyori.adventure.text.event.HoverEvent
@@ -47,9 +50,18 @@ class ProfileBindingCodeService(
     private val secureRandom = SecureRandom()
     private val codeLocks = ConcurrentHashMap<String, ReentrantLock>()
 
+    private fun messages() = runCatching {
+        HyperZoneLoginMain.getInstance().messageService
+    }.getOrNull()
+
     fun generate(player: HyperZonePlayer): Result {
+        val messages = messages()
         val attachedProfile = profileService.getAttachedProfile(player)
-            ?: return Result(false, Component.text("§c当前没有已绑定的档案，无法生成绑定码"))
+            ?: return Result(
+                false,
+                messages?.render(player, MessageKeys.BindCode.GENERATE_NO_PROFILE)
+                    ?: Component.text("当前没有已绑定的档案，无法生成绑定码")
+            )
 
         repeat(10) {
             val code = randomCode()
@@ -58,45 +70,99 @@ class ProfileBindingCodeService(
             }
         }
 
-        return Result(false, Component.text("§c生成绑定码失败，请稍后再试"))
+        return Result(
+            false,
+            messages?.render(player, MessageKeys.BindCode.GENERATE_FAILED)
+                ?: Component.text("生成绑定码失败，请稍后再试")
+        )
     }
 
     fun use(player: HyperZonePlayer, rawCode: String): Result {
+        val messages = messages()
         if (!player.isVerified()) {
-            return Result(false, Component.text("§c请先完成当前认证流程，再使用绑定码"))
+            return Result(
+                false,
+                messages?.render(player, MessageKeys.BindCode.USE_VERIFY_FIRST)
+                    ?: Component.text("请先完成当前认证流程，再使用绑定码")
+            )
         }
         if (player.hasAttachedProfile()) {
-            return Result(false, Component.text("§e你当前已经绑定正式档案，无需再次使用绑定码"))
+            return Result(
+                false,
+                messages?.render(player, MessageKeys.BindCode.USE_ALREADY_BOUND)
+                    ?: Component.text("你当前已经绑定正式档案，无需再次使用绑定码")
+            )
         }
         if (player.getSubmittedCredentials().isEmpty()) {
-            return Result(false, Component.text("§c当前没有可绑定的认证凭证"))
+            return Result(
+                false,
+                messages?.render(player, MessageKeys.BindCode.USE_NO_CREDENTIALS)
+                    ?: Component.text("当前没有可绑定的认证凭证")
+            )
         }
 
         val code = normalizeCode(rawCode)
         if (code.isBlank()) {
-            return Result(false, Component.text("§c绑定码不能为空"))
+            return Result(
+                false,
+                messages?.render(player, MessageKeys.BindCode.USE_EMPTY)
+                    ?: Component.text("绑定码不能为空")
+            )
         }
 
         val lock = codeLocks.computeIfAbsent(code) { ReentrantLock() }
         try {
             return lock.withLock {
                 val profileId = repository.findProfileId(code)
-                    ?: return@withLock Result(false, Component.text("§c绑定码不存在、已过期或已被使用"))
+                    ?: return@withLock Result(
+                        false,
+                        messages?.render(player, MessageKeys.BindCode.USE_INVALID)
+                            ?: Component.text("绑定码不存在、已过期或已被使用")
+                    )
 
                 val attachedProfile = try {
                     profileService.bindSubmittedCredentials(player, profileId)
                 } catch (t: Throwable) {
-                    return@withLock Result(false, Component.text(t.message ?: "§c绑定失败，请稍后再试"))
+                    val reason = t.message?.takeUnless { it.isBlank() }
+                    return@withLock Result(
+                        false,
+                        if (reason == null && messages != null) {
+                            messages.render(player, MessageKeys.BindCode.USE_BIND_FAILED)
+                        } else if (reason != null && messages != null) {
+                            messages.render(
+                                player,
+                                MessageKeys.BindCode.USE_BIND_FAILED_WITH_REASON,
+                                HyperZoneMessagePlaceholder.text("reason", reason)
+                            )
+                        } else {
+                            Component.text(reason ?: "绑定失败，请稍后再试")
+                        }
+                    )
                 }
 
                 if (!repository.consume(code)) {
-                    return@withLock Result(false, Component.text("§c绑定已写入，但销毁绑定码失败，请联系管理员"))
+                    return@withLock Result(
+                        false,
+                        messages?.render(player, MessageKeys.BindCode.USE_CONSUME_FAILED)
+                            ?: Component.text("绑定已写入，但销毁绑定码失败，请联系管理员")
+                    )
                 }
 
                 profileService.attachProfile(player, attachedProfile.id)
-                    ?: return@withLock Result(false, Component.text("§c绑定码已销毁，但 attach 档案失败，请联系管理员"))
+                    ?: return@withLock Result(
+                        false,
+                        messages?.render(player, MessageKeys.BindCode.USE_ATTACH_FAILED)
+                            ?: Component.text("绑定码已销毁，但 attach 档案失败，请联系管理员")
+                    )
 
-                Result(true, Component.text("§a绑定成功，已关联到档案 ${attachedProfile.name}"))
+                Result(
+                    true,
+                    messages?.render(
+                        player,
+                        MessageKeys.BindCode.USE_SUCCESS,
+                        HyperZoneMessagePlaceholder.text("profile_name", attachedProfile.name)
+                    ) ?: Component.text("绑定成功，已关联到档案 ${attachedProfile.name}")
+                )
             }
         } finally {
             if (!lock.isLocked && !lock.hasQueuedThreads()) {
@@ -106,18 +172,36 @@ class ProfileBindingCodeService(
     }
 
     private fun generatedMessage(code: String, profileName: String): Component {
-        return Component.text()
-            .append(Component.text("绑定码已生成，可发送给待绑定玩家：", NamedTextColor.YELLOW))
+        val messages = messages()
+        if (messages == null) {
+            return Component.empty()
+                .append(Component.text("绑定码已生成，可发送给待绑定玩家：", NamedTextColor.YELLOW))
+                .append(Component.newline())
+                .append(
+                    Component.text(code, NamedTextColor.AQUA, TextDecoration.BOLD)
+                        .clickEvent(ClickEvent.copyToClipboard(code))
+                        .hoverEvent(HoverEvent.showText(Component.text("点击复制绑定码", NamedTextColor.GREEN)))
+                        .insertion(code)
+                )
+                .append(Component.newline())
+                .append(Component.text("目标档案：$profileName ；该绑定码使用一次后立即失效。", NamedTextColor.GRAY))
+        }
+        return Component.empty()
+            .append(messages.render(MessageKeys.BindCode.GENERATED_HEADER))
             .append(Component.newline())
             .append(
                 Component.text(code, NamedTextColor.AQUA, TextDecoration.BOLD)
                     .clickEvent(ClickEvent.copyToClipboard(code))
-                    .hoverEvent(HoverEvent.showText(Component.text("点击复制绑定码", NamedTextColor.GREEN)))
+                    .hoverEvent(HoverEvent.showText(messages.render(MessageKeys.BindCode.GENERATED_HOVER_COPY)))
                     .insertion(code)
             )
             .append(Component.newline())
-            .append(Component.text("目标档案：$profileName ；该绑定码使用一次后立即失效。", NamedTextColor.GRAY))
-            .build()
+            .append(
+                messages.render(
+                    MessageKeys.BindCode.GENERATED_FOOTER,
+                    HyperZoneMessagePlaceholder.text("profile_name", profileName)
+                )
+            )
     }
 
     private fun randomCode(length: Int = 10): String {

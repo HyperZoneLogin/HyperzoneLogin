@@ -28,26 +28,26 @@ import icu.h2l.login.auth.offline.service.OfflineAuthService
 
 class RegisterCommand(
 	private val authService: OfflineAuthService
-) : BasePlaceholderAuthCommand(OfflineAuthMessages.REGISTER_USAGE) {
+) : BasePlaceholderAuthCommand({ OfflineAuthMessages.REGISTER_USAGE }) {
 	override fun execute(invocation: HyperChatCommandInvocation) {
 		val source = invocation.source()
 		if (source !is Player) {
-			source.sendPlainMessage(OfflineAuthMessages.ONLY_PLAYER)
+			source.sendMessage(OfflineAuthMessages.ONLY_PLAYER)
 			return
 		}
 
 		val args = invocation.arguments()
 		if (args.size != 2) {
-			source.sendPlainMessage(OfflineAuthMessages.REGISTER_USAGE)
+			source.sendMessage(OfflineAuthMessages.REGISTER_USAGE)
 			return
 		}
 
 		if (args[0] != args[1]) {
-			source.sendPlainMessage(OfflineAuthMessages.PASSWORD_MISMATCH)
+			source.sendMessage(OfflineAuthMessages.PASSWORD_MISMATCH)
 			return
 		}
 
 		val result = authService.register(source, args[0])
-		source.sendPlainMessage(result.message)
+		source.sendMessage(result.message)
 	}
 }

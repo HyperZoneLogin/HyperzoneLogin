@@ -23,6 +23,7 @@ package icu.h2l.login.safe
 
 import icu.h2l.api.HyperZoneApi
 import icu.h2l.api.log.info
+import icu.h2l.api.message.HyperZoneModuleMessageResources
 import icu.h2l.api.module.HyperSubModule
 import icu.h2l.login.safe.config.SafeConfigLoader
 import icu.h2l.login.safe.listener.AuthFailureGuardListener
@@ -34,6 +35,7 @@ import icu.h2l.login.safe.service.UsernameValidator
 
 class SafeSubModule : HyperSubModule {
     override fun register(api: HyperZoneApi) {
+        HyperZoneModuleMessageResources.copyBundledLocales(api.dataDirectory, "safe", javaClass.classLoader)
         val config = SafeConfigLoader.load(api.dataDirectory)
         val logger = java.util.logging.Logger.getLogger("hzl-safe")
         val authFailureCooldownManager = IpCooldownManager(

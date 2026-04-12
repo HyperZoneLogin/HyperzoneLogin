@@ -28,15 +28,15 @@ import icu.h2l.login.auth.offline.service.OfflineAuthService
 
 class LogoutCommand(
 	private val authService: OfflineAuthService
-) : BasePlaceholderAuthCommand("/logout") {
+) : BasePlaceholderAuthCommand({ OfflineAuthMessages.LOGOUT_USAGE }) {
 	override fun execute(invocation: HyperChatCommandInvocation) {
 		val source = invocation.source()
 		if (source !is Player) {
-			source.sendPlainMessage(OfflineAuthMessages.ONLY_PLAYER)
+			source.sendMessage(OfflineAuthMessages.ONLY_PLAYER)
 			return
 		}
 
 		val result = authService.logout(source)
-		source.sendPlainMessage(result.message)
+		source.sendMessage(result.message)
 	}
 }

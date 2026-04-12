@@ -44,6 +44,13 @@ velocity / 主插件 (HyperZoneLogin 核心)
   - 认证完成前，玩家不能进入其他后端；
   - 若 `rememberRequestedServerDuringAuth=true`，则会记住玩家原本想去的服务器，并在认证成功后自动连接过去。
 
+- i18n / 玩家提示国际化：
+  - 主插件会在数据目录生成 `messages.conf` 与 `messages/` 子目录；
+  - `messages.conf` 用于控制 `defaultLocale`、`fallbackLocale` 与是否优先读取客户端语言；
+  - 默认提供 `messages/en_us.conf`、`messages/zh_cn.conf`、`messages/ru_ru.conf` 三套文案；
+  - 服主可直接编辑这些语言文件，自定义核心模块面向玩家的提示内容；
+  - 修改后可使用 `/hzl reload` 重新加载消息配置。
+
 权限（Permission）
 -------------------
 | 命令 | 说明 | 所需权限 |

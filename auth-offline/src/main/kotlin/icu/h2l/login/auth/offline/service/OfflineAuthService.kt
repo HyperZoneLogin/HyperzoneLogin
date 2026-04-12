@@ -32,6 +32,7 @@ import icu.h2l.login.auth.offline.api.db.OfflineAuthEntry
 import icu.h2l.login.auth.offline.db.OfflineAuthRepository
 import icu.h2l.login.auth.offline.mail.OfflineAuthEmailSender
 import icu.h2l.login.auth.offline.totp.OfflineTotpAuthenticator
+import net.kyori.adventure.text.Component
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.security.SecureRandom
@@ -47,8 +48,8 @@ class OfflineAuthService(
     private val totpAuthenticator: OfflineTotpAuthenticator,
     private val proxy: ProxyServer
 ) {
-    data class Result(val success: Boolean, val message: String)
-    data class SessionCheckResult(val passed: Boolean, val message: String? = null)
+    data class Result(val success: Boolean, val message: Component)
+    data class SessionCheckResult(val passed: Boolean, val message: Component? = null)
 
     private val logger = java.util.logging.Logger.getLogger("hzl-auth-offline")
     private val secureRandom = SecureRandom()
@@ -74,7 +75,7 @@ class OfflineAuthService(
             val profile = try {
                 profileService.resolveOrCreateProfile(hyperZonePlayer, username)
             } catch (throwable: IllegalStateException) {
-                return Result(false, throwable.message ?: OfflineAuthMessages.REGISTER_FAILED)
+                return Result(false, componentFromThrowable(throwable, OfflineAuthMessages.REGISTER_FAILED))
             }
 
             return createOfflinePasswordEntry(
@@ -97,10 +98,10 @@ class OfflineAuthService(
             hyperZonePlayer.overVerify()
         }.getOrElse { throwable ->
             pendingCredential.pendingRegistrationIdOrNull()?.let(pendingRegistrations::remove)
-            return Result(false, throwable.message ?: "§c注册成功，但等待绑定时出现错误")
+            return Result(false, componentFromThrowable(throwable, OfflineAuthMessages.REGISTER_BIND_PENDING_ERROR))
         }
 
-        return Result(true, REGISTER_BIND_PENDING_MESSAGE)
+        return Result(true, OfflineAuthMessages.REGISTER_BIND_PENDING)
 
     }
 
@@ -140,8 +141,8 @@ class OfflineAuthService(
         normalizedName: String,
         password: String,
         profileId: UUID,
-        successMessage: String,
-        failureMessage: String,
+        successMessage: Component,
+        failureMessage: Component,
         markVerified: Boolean = false,
         issueSession: Boolean = false
     ): Result {
@@ -157,7 +158,7 @@ class OfflineAuthService(
                 runCatching {
                     hyperZonePlayer.overVerify()
                 }.getOrElse { throwable ->
-                    return Result(false, throwable.message ?: "§c离线认证成功，但 Profile 绑定失败")
+                    return Result(false, componentFromThrowable(throwable, OfflineAuthMessages.PROFILE_ATTACH_FAILED_AFTER_LOGIN))
                 }
             }
             if (issueSession) {
@@ -175,7 +176,7 @@ class OfflineAuthService(
             return Result(false, OfflineAuthMessages.ALREADY_LOGGED_IN)
         }
 
-        val entry = resolveEntryByPlayer(player) ?: return Result(false, "§c尚未注册")
+        val entry = resolveEntryByPlayer(player) ?: return Result(false, OfflineAuthMessages.UNREGISTERED_SIMPLE)
 
         val now = System.currentTimeMillis()
         val blockedUntil = entry.loginBlockedUntil
@@ -243,7 +244,7 @@ class OfflineAuthService(
         runCatching {
             hyperPlayer.overVerify()
         }.getOrElse { throwable ->
-            return Result(false, throwable.message ?: "§c未找到已绑定的游戏档案，无法完成本次认证")
+            return Result(false, componentFromThrowable(throwable, OfflineAuthMessages.ATTACHED_PROFILE_MISSING))
         }
         issueSession(entry.profileId, player)
         return Result(true, OfflineAuthMessages.LOGIN_SUCCESS)
@@ -285,7 +286,7 @@ class OfflineAuthService(
             repository.clearSession(profileId)
             Result(true, OfflineAuthMessages.TOTP_ENABLED)
         } else {
-            Result(false, "§c二步验证启用失败，请稍后再试")
+            Result(false, OfflineAuthMessages.TOTP_ENABLE_FAILED)
         }
     }
 
@@ -306,12 +307,12 @@ class OfflineAuthService(
             totpAuthenticator.clearPendingSetup(profileId)
             Result(true, OfflineAuthMessages.TOTP_DISABLED)
         } else {
-            Result(false, "§c二步验证关闭失败，请稍后再试")
+            Result(false, OfflineAuthMessages.TOTP_DISABLE_FAILED)
         }
     }
 
     fun changePassword(player: Player, oldPassword: String, newPassword: String): Result {
-        val entry = resolveEntryByPlayer(player) ?: return Result(false, "§c尚未注册")
+        val entry = resolveEntryByPlayer(player) ?: return Result(false, OfflineAuthMessages.UNREGISTERED_SIMPLE)
         val profileId = entry.profileId
         if (!verifyPassword(oldPassword, entry)) {
             return Result(false, OfflineAuthMessages.OLD_PASSWORD_WRONG)
@@ -331,7 +332,7 @@ class OfflineAuthService(
         return if (updated) {
             Result(true, OfflineAuthMessages.PASSWORD_CHANGED)
         } else {
-            Result(false, "§c密码更新失败，请稍后再试")
+            Result(false, OfflineAuthMessages.PASSWORD_UPDATE_FAILED)
         }
     }
 
@@ -347,7 +348,7 @@ class OfflineAuthService(
     }
 
     fun unregister(player: Player, password: String): Result {
-        val entry = resolveEntryByPlayer(player) ?: return Result(false, "§c尚未注册")
+        val entry = resolveEntryByPlayer(player) ?: return Result(false, OfflineAuthMessages.UNREGISTERED_SIMPLE)
         val profileId = entry.profileId
         if (!verifyPassword(password, entry)) {
             return Result(false, OfflineAuthMessages.PASSWORD_WRONG)
@@ -357,7 +358,7 @@ class OfflineAuthService(
         return if (deleted) {
             Result(true, OfflineAuthMessages.UNREGISTER_SUCCESS)
         } else {
-            Result(false, "§c注销失败，请稍后再试")
+            Result(false, OfflineAuthMessages.UNREGISTER_FAILED)
         }
     }
 
@@ -365,7 +366,7 @@ class OfflineAuthService(
         ensureEmailFeatureEnabled()?.let { return it }
 
         if (!email.equals(confirmEmail, ignoreCase = true)) {
-            return Result(false, "§c两次输入的邮箱不一致")
+            return Result(false, OfflineAuthMessages.EMAIL_MISMATCH)
         }
 
         val normalizedEmail = normalizeEmail(email) ?: return Result(false, OfflineAuthMessages.EMAIL_INVALID)
@@ -383,7 +384,7 @@ class OfflineAuthService(
         return if (repository.updateEmail(profileId, normalizedEmail)) {
             Result(true, OfflineAuthMessages.EMAIL_ADDED)
         } else {
-            Result(false, "§c邮箱绑定失败，请稍后再试")
+            Result(false, OfflineAuthMessages.EMAIL_BIND_FAILED)
         }
     }
 
@@ -399,7 +400,7 @@ class OfflineAuthService(
         }
 
         if (!normalizedOldEmail.equals(entry.email, ignoreCase = true)) {
-            return Result(false, "§c旧邮箱不匹配")
+            return Result(false, OfflineAuthMessages.EMAIL_OLD_MISMATCH)
         }
 
         val occupied = repository.getByEmail(normalizedNewEmail)
@@ -410,7 +411,7 @@ class OfflineAuthService(
         return if (repository.updateEmail(profileId, normalizedNewEmail)) {
             Result(true, OfflineAuthMessages.EMAIL_CHANGED)
         } else {
-            Result(false, "§c邮箱修改失败，请稍后再试")
+            Result(false, OfflineAuthMessages.EMAIL_CHANGE_FAILED)
         }
     }
 
@@ -447,7 +448,7 @@ class OfflineAuthService(
         val code = generateRecoveryCode(emailConfig.recoveryCodeLength)
         val expireAt = now + emailConfig.recoveryCodeExpireMinutes * 60_000L
         if (!repository.startRecovery(profileId, hashPassword(code), expireAt, now)) {
-            return Result(false, "§c写入恢复码失败，请稍后再试")
+            return Result(false, OfflineAuthMessages.RECOVERY_CODE_WRITE_FAILED)
         }
 
         val deliveryResult = deliverRecoveryCode(player.username, normalizedEmail, code, expireAt)
@@ -459,7 +460,7 @@ class OfflineAuthService(
         val successMessage = if (!deliveryResult.diagnosticMessage.isNullOrBlank() &&
             !deliveryResult.diagnosticMessage.equals("SMTP", ignoreCase = true)
         ) {
-            "${OfflineAuthMessages.RECOVERY_EMAIL_SENT} §7(${deliveryResult.diagnosticMessage})"
+            OfflineAuthMessages.recoveryEmailSentWithDiagnostic(deliveryResult.diagnosticMessage)
         } else {
             OfflineAuthMessages.RECOVERY_EMAIL_SENT
         }
@@ -494,7 +495,7 @@ class OfflineAuthService(
         return if (repository.markRecoveryVerified(profileId, verifiedUntil)) {
             Result(true, OfflineAuthMessages.RECOVERY_CODE_CORRECT)
         } else {
-            Result(false, "§c恢复码状态更新失败，请稍后再试")
+            Result(false, OfflineAuthMessages.RECOVERY_STATE_UPDATE_FAILED)
         }
     }
 
@@ -518,26 +519,26 @@ class OfflineAuthService(
 
         val updated = repository.updatePassword(profileId, hashPassword(newPassword), HASH_FORMAT_SHA256)
         if (!updated) {
-            return Result(false, "§c密码重置失败，请稍后再试")
+            return Result(false, OfflineAuthMessages.PASSWORD_RESET_FAILED)
         }
 
         hyperPlayer.submitCredential(offlineCredential(entry.name, profileId))
         runCatching {
             hyperPlayer.overVerify()
         }.getOrElse { throwable ->
-            return Result(false, throwable.message ?: "§c未找到已绑定的游戏档案，无法完成本次认证")
+            return Result(false, componentFromThrowable(throwable, OfflineAuthMessages.ATTACHED_PROFILE_MISSING))
         }
-        return Result(true, "${OfflineAuthMessages.PASSWORD_CHANGED} §7已自动通过本次认证")
+        return Result(true, OfflineAuthMessages.PASSWORD_CHANGE_AUTO_AUTHED)
     }
 
-    fun getJoinPrompts(player: Player): List<String> {
+    fun getJoinPrompts(player: Player): List<Component> {
         val hyperPlayer = playerAccessor.getByPlayer(player)
         if (!hyperPlayer.isInWaitingArea()) {
             return emptyList()
         }
 
         val entry = resolveEntryByPlayer(player)
-        val prompts = ArrayList<String>()
+        val prompts = ArrayList<Component>()
 
         if (entry == null) {
             val normalizedName = hyperPlayer.clientOriginalName.lowercase()
@@ -546,7 +547,7 @@ class OfflineAuthService(
                 .filterIsInstance<OfflineHyperZoneCredential>()
                 .any { it.pendingRegistrationIdOrNull() != null && it.matchesNormalizedName(normalizedName) }
             if (hasPendingOfflineRegistration) {
-                prompts += "§8[§6玩家系统§8] §7当前离线注册信息已暂存，请使用 /bindcode use <绑定码> 完成绑定"
+                prompts += OfflineAuthMessages.PENDING_BIND_PROMPT
                 return prompts
             }
 
@@ -561,22 +562,22 @@ class OfflineAuthService(
         if (isTotpEnabled(entry)) {
             prompts += OfflineAuthMessages.TOTP_LOGIN_HINT
         }
-        prompts += "§8[§6玩家系统§8] §7如需修改密码：/changepassword <旧密码> <新密码>"
+        prompts += OfflineAuthMessages.CHANGE_PASSWORD_PROMPT
         if (OfflineAuthConfigLoader.getConfig().prompt.showRecoveryHint && !entry.email.isNullOrBlank()) {
             prompts += OfflineAuthMessages.RECOVERY_HINT
         }
         if (OfflineAuthConfigLoader.getConfig().email.enabled) {
             prompts += if (entry.email.isNullOrBlank()) {
-                "§8[§6玩家系统§8] §7可使用 /email add <当前密码> <邮箱> <再次输入邮箱> 绑定邮箱"
+                OfflineAuthMessages.EMAIL_ADD_PROMPT
             } else {
                 OfflineAuthMessages.emailShow(entry.email)
             }
         }
         if (OfflineAuthConfigLoader.getConfig().totp.enabled) {
             prompts += if (isTotpEnabled(entry)) {
-                "§8[§6玩家系统§8] §7已启用 TOTP，可使用 /totp remove <密码> <验证码> 关闭"
+                OfflineAuthMessages.TOTP_REMOVE_PROMPT
             } else {
-                "§8[§6玩家系统§8] §7可使用 /totp add <密码> 启用二步验证"
+                OfflineAuthMessages.TOTP_ADD_PROMPT
             }
         }
         return prompts
@@ -627,7 +628,7 @@ class OfflineAuthService(
         runCatching {
             hyperPlayer.overVerify()
         }.getOrElse { throwable ->
-            return SessionCheckResult(false, throwable.message ?: "§c未找到已绑定的游戏档案，无法完成本次认证")
+            return SessionCheckResult(false, componentFromThrowable(throwable, OfflineAuthMessages.ATTACHED_PROFILE_MISSING))
         }
         return SessionCheckResult(true, OfflineAuthMessages.SESSION_AUTO_LOGIN)
     }
@@ -737,6 +738,15 @@ class OfflineAuthService(
         return null
     }
 
+    private fun componentFromThrowable(throwable: Throwable, fallback: Component): Component {
+        val reason = throwable.message?.takeUnless { it.isBlank() }
+        return if (reason != null) {
+            Component.text(reason)
+        } else {
+            fallback
+        }
+    }
+
     private fun generateRecoveryCode(length: Int): String {
         val resolvedLength = length.coerceAtLeast(4)
         return buildString(resolvedLength) {
@@ -825,7 +835,6 @@ class OfflineAuthService(
         private const val HASH_FORMAT_AUTHME = "authme"
         private val EMAIL_PATTERN = Regex("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$")
         private const val RECOVERY_CODE_CHARS = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
-        private const val REGISTER_BIND_PENDING_MESSAGE = "§a注册成功，但当前名称无法直接分配档案。请使用 /bindcode use <绑定码> 完成绑定"
     }
 
     private fun offlineCredential(

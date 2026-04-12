@@ -23,25 +23,26 @@ package icu.h2l.login.auth.offline.command
 
 import com.velocitypowered.api.proxy.Player
 import icu.h2l.api.command.HyperChatCommandInvocation
+import icu.h2l.login.auth.offline.OfflineAuthMessages
 import icu.h2l.login.auth.offline.service.OfflineAuthService
 
 class ChangePasswordCommand(
 	private val authService: OfflineAuthService
-) : BasePlaceholderAuthCommand("/changepassword <oldPassword> <newPassword>") {
+) : BasePlaceholderAuthCommand({ OfflineAuthMessages.CHANGE_PASSWORD_USAGE }) {
 	override fun execute(invocation: HyperChatCommandInvocation) {
 		val source = invocation.source()
 		if (source !is Player) {
-			source.sendPlainMessage("§c该命令只能由玩家执行")
+			source.sendMessage(OfflineAuthMessages.ONLY_PLAYER)
 			return
 		}
 
 		val args = invocation.arguments()
 		if (args.size != 2) {
-			source.sendPlainMessage("§e/changepassword <oldPassword> <newPassword>")
+			source.sendMessage(OfflineAuthMessages.CHANGE_PASSWORD_USAGE)
 			return
 		}
 
 		val result = authService.changePassword(source, args[0], args[1])
-		source.sendPlainMessage(result.message)
+		source.sendMessage(result.message)
 	}
 }

@@ -95,6 +95,7 @@ dependencies {
     compileOnly(libs.adventureTextSerializerGson)
     compileOnly(libs.adventureTextLoggerSlf4j)
     compileOnly(libs.adventureTextMinimessage)
+    needPackageCompileOnly(libs.adventureTextMinimessage)
     compileOnly(libs.guice)
     compileOnly(libs.guava)
     compileOnly(libs.brigadier)
@@ -104,6 +105,8 @@ dependencies {
     testImplementation(platform(libs.junitBom))
     testImplementation(libs.junitJupiter)
     testImplementation(libs.velocityApi)
+    testImplementation(libs.adventureTextLoggerSlf4j)
+    testImplementation(libs.adventureTextMinimessage)
     testRuntimeOnly(libs.junitPlatformLauncher)
 }
 

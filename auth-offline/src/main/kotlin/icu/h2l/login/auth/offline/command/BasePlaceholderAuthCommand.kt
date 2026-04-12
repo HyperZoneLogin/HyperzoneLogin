@@ -23,12 +23,14 @@ package icu.h2l.login.auth.offline.command
 
 import icu.h2l.api.command.HyperChatCommandExecutor
 import icu.h2l.api.command.HyperChatCommandInvocation
+import icu.h2l.login.auth.offline.OfflineAuthMessages
+import net.kyori.adventure.text.Component
 
 abstract class BasePlaceholderAuthCommand(
-    private val usage: String
+    private val usage: () -> Component
 ) : HyperChatCommandExecutor {
     override fun execute(invocation: HyperChatCommandInvocation) {
-        invocation.source().sendPlainMessage("§e$usage")
-        invocation.source().sendPlainMessage("§7该命令功能暂未实现")
+        invocation.source().sendMessage(usage())
+        invocation.source().sendMessage(OfflineAuthMessages.NOT_IMPLEMENTED)
     }
 }

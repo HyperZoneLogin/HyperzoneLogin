@@ -26,9 +26,11 @@ import com.mojang.brigadier.arguments.StringArgumentType
 import com.velocitypowered.api.command.BrigadierCommand
 import com.velocitypowered.api.command.CommandSource
 import com.velocitypowered.api.proxy.Player
+import icu.h2l.api.message.HyperZoneMessagePlaceholder
 import icu.h2l.api.profile.HyperZoneProfileServiceProvider
 import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.manager.HyperZonePlayerManager
+import icu.h2l.login.message.MessageKeys
 import icu.h2l.login.profile.ProfileBindingCodeService
 
 class HyperZoneLoginCommand(
@@ -89,36 +91,41 @@ class HyperZoneLoginCommand(
     }
 
     private fun showUsage(sender: CommandSource) {
+        val messages = HyperZoneLoginMain.getInstance().messageService
         if (sender.hasPermission(ADMIN_PERMISSION)) {
-            sender.sendPlainMessage("§e/hzl reload")
+            messages.send(sender, MessageKeys.HzlCommand.USAGE_RELOAD)
         }
-        sender.sendPlainMessage("§e/hzl re")
-        sender.sendPlainMessage("§e/hzl bindcode generate")
-        sender.sendPlainMessage("§e/hzl bindcode use <绑定码>")
+        messages.send(sender, MessageKeys.HzlCommand.USAGE_RE)
+        messages.send(sender, MessageKeys.HzlCommand.USAGE_BINDCODE_GENERATE)
+        messages.send(sender, MessageKeys.HzlCommand.USAGE_BINDCODE_USE)
         if (sender.hasPermission(ADMIN_PERMISSION)) {
-            sender.sendPlainMessage("§e/hzl uuid")
+            messages.send(sender, MessageKeys.HzlCommand.USAGE_UUID)
         }
     }
 
     private fun executeReload(sender: CommandSource): Int {
-        sender.sendPlainMessage("§aReloaded!")
+        val main = HyperZoneLoginMain.getInstance()
+        main.reloadRuntimeConfigs()
+        main.messageService.send(sender, MessageKeys.HzlCommand.RELOADED)
         return Command.SINGLE_SUCCESS
     }
 
     private fun executeReAuth(sender: CommandSource): Int {
+        val messages = HyperZoneLoginMain.getInstance().messageService
         if (sender !is Player) {
-            sender.sendPlainMessage("§c该命令只能由玩家执行")
+            messages.send(sender, MessageKeys.Common.ONLY_PLAYER)
             return Command.SINGLE_SUCCESS
         }
 
-        sender.sendPlainMessage("§e开始重新认证...")
+        messages.send(sender, MessageKeys.HzlCommand.REAUTH_START)
         HyperZoneLoginMain.getInstance().triggerVServerAuthForPlayer(sender)
         return Command.SINGLE_SUCCESS
     }
 
     private fun executeUuid(sender: CommandSource): Int {
+        val messages = HyperZoneLoginMain.getInstance().messageService
         if (sender !is Player) {
-            sender.sendPlainMessage("§c该命令只能由玩家执行")
+            messages.send(sender, MessageKeys.Common.ONLY_PLAYER)
             return Command.SINGLE_SUCCESS
         }
 
@@ -127,32 +134,64 @@ class HyperZoneLoginCommand(
         val profileService = HyperZoneProfileServiceProvider.get()
         val profile = profileService.getAttachedProfile(hyperZonePlayer)
 
-        sender.sendPlainMessage("§e[ProxyPlayer] name=${proxyPlayer.username} uuid=${proxyPlayer.uniqueId}")
-        sender.sendPlainMessage(
-            "§e[ClientOriginal][UNTRUSTED] name=${hyperZonePlayer.clientOriginalName} uuid=${hyperZonePlayer.clientOriginalUUID}"
+        sender.sendMessage(
+            messages.render(
+                sender,
+                MessageKeys.HzlCommand.UUID_PROXY_PLAYER,
+                HyperZoneMessagePlaceholder.text("name", proxyPlayer.username),
+                HyperZoneMessagePlaceholder.text("uuid", proxyPlayer.uniqueId)
+            )
         )
-        sender.sendPlainMessage(
-            "§e[HyperZonePlayer] verified=${hyperZonePlayer.isVerified()} attachedProfile=${hyperZonePlayer.hasAttachedProfile()} waitingArea=${hyperZonePlayer.isInWaitingArea()} canResolveOrCreateProfile=${profileService.canResolveOrCreateProfile(hyperZonePlayer.clientOriginalName)} credentials=${hyperZonePlayer.getSubmittedCredentials().size}"
+        sender.sendMessage(
+            messages.render(
+                sender,
+                MessageKeys.HzlCommand.UUID_CLIENT_ORIGINAL,
+                HyperZoneMessagePlaceholder.text("name", hyperZonePlayer.clientOriginalName),
+                HyperZoneMessagePlaceholder.text("uuid", hyperZonePlayer.clientOriginalUUID)
+            )
+        )
+        sender.sendMessage(
+            messages.render(
+                sender,
+                MessageKeys.HzlCommand.UUID_HYPER_PLAYER,
+                HyperZoneMessagePlaceholder.text("verified", hyperZonePlayer.isVerified()),
+                HyperZoneMessagePlaceholder.text("attached_profile", hyperZonePlayer.hasAttachedProfile()),
+                HyperZoneMessagePlaceholder.text("waiting_area", hyperZonePlayer.isInWaitingArea()),
+                HyperZoneMessagePlaceholder.text(
+                    "can_resolve_or_create_profile",
+                    profileService.canResolveOrCreateProfile(hyperZonePlayer.clientOriginalName)
+                ),
+                HyperZoneMessagePlaceholder.text("credentials", hyperZonePlayer.getSubmittedCredentials().size)
+            )
         )
         if (profile != null) {
-            sender.sendPlainMessage("§e[Profile] id=${profile.id} name=${profile.name} uuid=${profile.uuid}")
+            sender.sendMessage(
+                messages.render(
+                    sender,
+                    MessageKeys.HzlCommand.UUID_PROFILE,
+                    HyperZoneMessagePlaceholder.text("id", profile.id),
+                    HyperZoneMessagePlaceholder.text("name", profile.name),
+                    HyperZoneMessagePlaceholder.text("uuid", profile.uuid)
+                )
+            )
         } else {
-            sender.sendPlainMessage("§e[Profile] null")
+            messages.send(sender, MessageKeys.HzlCommand.UUID_PROFILE_NULL)
         }
 
         return Command.SINGLE_SUCCESS
     }
 
     private fun executeBindCodeGenerate(sender: CommandSource): Int {
+        val messages = HyperZoneLoginMain.getInstance().messageService
         if (sender !is Player) {
-            sender.sendPlainMessage("§c该命令只能由玩家执行")
+            messages.send(sender, MessageKeys.Common.ONLY_PLAYER)
             return Command.SINGLE_SUCCESS
         }
 
         val hyperZonePlayer = runCatching {
             HyperZonePlayerManager.getByPlayer(sender)
         }.getOrElse {
-            sender.sendPlainMessage("§c当前无法获取登录态玩家对象")
+            messages.send(sender, MessageKeys.Common.PLAYER_STATE_UNAVAILABLE)
             return Command.SINGLE_SUCCESS
         }
 
@@ -161,15 +200,16 @@ class HyperZoneLoginCommand(
     }
 
     private fun executeBindCodeUse(sender: CommandSource, code: String): Int {
+        val messages = HyperZoneLoginMain.getInstance().messageService
         if (sender !is Player) {
-            sender.sendPlainMessage("§c该命令只能由玩家执行")
+            messages.send(sender, MessageKeys.Common.ONLY_PLAYER)
             return Command.SINGLE_SUCCESS
         }
 
         val hyperZonePlayer = runCatching {
             HyperZonePlayerManager.getByPlayer(sender)
         }.getOrElse {
-            sender.sendPlainMessage("§c当前无法获取登录态玩家对象")
+            messages.send(sender, MessageKeys.Common.PLAYER_STATE_UNAVAILABLE)
             return Command.SINGLE_SUCCESS
         }
 

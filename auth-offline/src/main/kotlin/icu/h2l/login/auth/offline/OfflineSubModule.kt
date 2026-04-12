@@ -29,6 +29,7 @@ import icu.h2l.api.module.HyperSubModule
 import icu.h2l.api.profile.HyperZoneProfileServiceProvider
 import icu.h2l.login.auth.offline.command.OfflineAuthCommandRegistrar
 import icu.h2l.login.auth.offline.config.OfflineAuthConfigLoader
+import icu.h2l.login.auth.offline.config.OfflineAuthMessageResourceLoader
 import icu.h2l.login.auth.offline.db.OfflineAuthRepository
 import icu.h2l.login.auth.offline.db.OfflineAuthTableManager
 import icu.h2l.login.auth.offline.mail.JakartaMailOfflineAuthEmailSender
@@ -56,6 +57,7 @@ class OfflineSubModule : HyperSubModule {
         // Load offline matching configuration for this module
         OfflineMatchConfigLoader.load(dataDirectory)
         OfflineAuthConfigLoader.load(dataDirectory)
+        OfflineAuthMessageResourceLoader.load(dataDirectory)
         offlineAuthTableManager = OfflineAuthTableManager(
             databaseManager = databaseManager,
             tablePrefix = databaseManager.tablePrefix,

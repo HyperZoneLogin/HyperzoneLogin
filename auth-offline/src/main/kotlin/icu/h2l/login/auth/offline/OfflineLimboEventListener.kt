@@ -24,7 +24,6 @@ package icu.h2l.login.auth.offline
 import com.velocitypowered.api.event.Subscribe
 import icu.h2l.api.event.vServer.VServerJoinEvent
 import icu.h2l.login.auth.offline.service.OfflineAuthService
-import net.kyori.adventure.text.Component
 
 class OfflineLimboEventListener(
     private val authService: OfflineAuthService
@@ -34,7 +33,7 @@ class OfflineLimboEventListener(
         if (event.proxyPlayer.isOnlineMode) return
 
         authService.getJoinPrompts(event.proxyPlayer).forEach { line ->
-            event.hyperZonePlayer.sendMessage(Component.text(line))
+            event.hyperZonePlayer.sendMessage(line)
         }
     }
 }

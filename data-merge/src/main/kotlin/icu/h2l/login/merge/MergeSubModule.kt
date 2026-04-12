@@ -24,6 +24,7 @@ package icu.h2l.login.merge
 import icu.h2l.api.HyperZoneApi
 import icu.h2l.api.db.HyperZoneDatabaseManager
 import icu.h2l.api.log.info
+import icu.h2l.api.message.HyperZoneModuleMessageResources
 import icu.h2l.api.log.warn
 import icu.h2l.api.module.HyperSubModule
 import icu.h2l.login.merge.command.MergeCommand
@@ -43,6 +44,7 @@ class MergeSubModule : HyperSubModule {
         val proxy = api.proxy
         val dataDirectory = api.dataDirectory
         val databaseManager: HyperZoneDatabaseManager = api.databaseManager
+        HyperZoneModuleMessageResources.copyBundledLocales(dataDirectory, "data-merge", javaClass.classLoader)
         val mergeMlConfig = loadMergeMlConfig(dataDirectory)
         val mergeAmConfig = loadMergeAmConfig(dataDirectory)
         val mlMigrator = MlDataMigrator(dataDirectory, databaseManager, mergeMlConfig)

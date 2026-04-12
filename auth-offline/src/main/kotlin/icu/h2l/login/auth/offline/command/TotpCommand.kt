@@ -28,24 +28,24 @@ import icu.h2l.login.auth.offline.service.OfflineAuthService
 
 class TotpCommand(
     private val authService: OfflineAuthService
-) : BasePlaceholderAuthCommand(OfflineAuthMessages.TOTP_USAGE) {
+) : BasePlaceholderAuthCommand({ OfflineAuthMessages.TOTP_USAGE }) {
     override fun execute(invocation: HyperChatCommandInvocation) {
         val source = invocation.source()
         if (source !is Player) {
-            source.sendPlainMessage(OfflineAuthMessages.ONLY_PLAYER)
+            source.sendMessage(OfflineAuthMessages.ONLY_PLAYER)
             return
         }
 
         val args = invocation.arguments()
         if (args.isEmpty()) {
-            source.sendPlainMessage(OfflineAuthMessages.TOTP_USAGE)
+            source.sendMessage(OfflineAuthMessages.TOTP_USAGE)
             return
         }
 
         val result = when (args[0].lowercase()) {
             "add", "enable" -> {
                 if (args.size != 2) {
-                    source.sendPlainMessage(OfflineAuthMessages.TOTP_ADD_USAGE)
+                    source.sendMessage(OfflineAuthMessages.TOTP_ADD_USAGE)
                     return
                 }
                 authService.beginTotpSetup(source, args[1])
@@ -53,7 +53,7 @@ class TotpCommand(
 
             "confirm" -> {
                 if (args.size != 2) {
-                    source.sendPlainMessage(OfflineAuthMessages.TOTP_CONFIRM_USAGE)
+                    source.sendMessage(OfflineAuthMessages.TOTP_CONFIRM_USAGE)
                     return
                 }
                 authService.confirmTotpSetup(source, args[1])
@@ -61,19 +61,19 @@ class TotpCommand(
 
             "remove", "disable" -> {
                 if (args.size != 3) {
-                    source.sendPlainMessage(OfflineAuthMessages.TOTP_REMOVE_USAGE)
+                    source.sendMessage(OfflineAuthMessages.TOTP_REMOVE_USAGE)
                     return
                 }
                 authService.disableTotp(source, args[1], args[2])
             }
 
             else -> {
-                source.sendPlainMessage(OfflineAuthMessages.TOTP_USAGE)
+                source.sendMessage(OfflineAuthMessages.TOTP_USAGE)
                 return
             }
         }
 
-        source.sendPlainMessage(result.message)
+        source.sendMessage(result.message)
     }
 }
 

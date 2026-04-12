@@ -24,7 +24,6 @@ package icu.h2l.login.auth.offline.listener
 import com.velocitypowered.api.event.Subscribe
 import icu.h2l.api.event.vServer.VServerAuthStartEvent
 import icu.h2l.login.auth.offline.service.OfflineAuthService
-import net.kyori.adventure.text.Component
 
 class OfflineSessionAuthListener(
     private val authService: OfflineAuthService
@@ -40,7 +39,7 @@ class OfflineSessionAuthListener(
         }
 
         val result = authService.tryAutoLogin(event.proxyPlayer) ?: return
-        result.message?.let { event.hyperZonePlayer.sendMessage(Component.text(it)) }
+        result.message?.let { event.hyperZonePlayer.sendMessage(it) }
         if (result.passed) {
             event.pass = true
         }

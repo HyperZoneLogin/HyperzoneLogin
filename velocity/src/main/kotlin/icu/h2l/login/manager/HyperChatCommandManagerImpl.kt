@@ -32,7 +32,8 @@ import icu.h2l.api.command.HyperChatCommandInvocation
 import icu.h2l.api.command.HyperChatCommandManager
 import icu.h2l.api.command.HyperChatCommandRegistration
 import icu.h2l.api.vServer.HyperZoneVServerAdapter
-import net.kyori.adventure.text.Component
+import icu.h2l.login.HyperZoneLoginMain
+import icu.h2l.login.message.MessageKeys
 import java.util.concurrent.ConcurrentHashMap
 
 object HyperChatCommandManagerImpl : HyperChatCommandManager {
@@ -65,6 +66,7 @@ object HyperChatCommandManagerImpl : HyperChatCommandManager {
     }
 
     override fun executeChat(source: CommandSource, chat: String): Boolean {
+        val messages = HyperZoneLoginMain.getInstance().messageService
         val input = chat.trim()
         val hyperPlayer = (source as? Player)?.let { player ->
             runCatching {
@@ -73,7 +75,7 @@ object HyperChatCommandManagerImpl : HyperChatCommandManager {
         }
         if (!input.startsWith("/")) {
             if (hyperPlayer != null && hyperPlayer.isInWaitingArea()) {
-                source.sendMessage(Component.text("§c您需要先通过验证才能聊天！"))
+                messages.send(source, MessageKeys.Chat.MUST_VERIFY_BEFORE_CHAT)
                 return true
             }
             return false
@@ -88,14 +90,14 @@ object HyperChatCommandManagerImpl : HyperChatCommandManager {
 
         val registration = commands[label] ?: run {
             if (hyperPlayer != null && hyperPlayer.isInWaitingArea()) {
-                source.sendMessage(Component.text("§e认证阶段仅可使用 /login、/register、/changepassword、/email、/totp、/bindcode 等命令"))
+                messages.send(source, MessageKeys.Chat.ONLY_ALLOWED_COMMANDS)
                 return true
             }
             return false
         }
         val invocation = ChatInvocation(source, label, args)
         if (!registration.executor.hasPermission(invocation)) {
-            source.sendMessage(Component.text("§c没有权限"))
+            messages.send(source, MessageKeys.Common.NO_PERMISSION)
             return true
         }
 
@@ -178,20 +180,21 @@ object HyperChatCommandManagerImpl : HyperChatCommandManager {
         alias: String,
         args: Array<String>
     ): Int {
+        val messages = HyperZoneLoginMain.getInstance().messageService
         if (source !is Player) {
-            source.sendMessage(Component.text("§c该命令只能由玩家执行"))
+            messages.send(source, MessageKeys.Common.ONLY_PLAYER)
             return Command.SINGLE_SUCCESS
         }
 
         val adapter = vServerAdapter
         if (adapter == null || !adapter.canUseProxyFallbackCommand(source)) {
-            source.sendMessage(Component.text("§e该命令仅可在等待区服务器使用"))
+            messages.send(source, MessageKeys.Chat.WAITING_AREA_ONLY)
             return Command.SINGLE_SUCCESS
         }
 
         val invocation = ChatInvocation(source, alias, args)
         if (!registration.executor.hasPermission(invocation)) {
-            source.sendMessage(Component.text("§c没有权限"))
+            messages.send(source, MessageKeys.Common.NO_PERMISSION)
             return Command.SINGLE_SUCCESS
         }
 

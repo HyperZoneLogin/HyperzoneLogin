@@ -27,6 +27,7 @@ import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.profile.HyperZoneCredential
 import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.manager.HyperZonePlayerManager
+import icu.h2l.login.message.MessageKeys
 import net.kyori.adventure.text.Component
 import java.util.*
 import java.util.concurrent.CopyOnWriteArrayList
@@ -131,7 +132,7 @@ class VelocityHyperZonePlayer(
 
         tryNotifyReady()
         if (!hasAttachedProfile()) {
-            sendMessage(Component.text("§e认证已通过，但尚未绑定档案。请使用 /bindcode use <绑定码> 完成绑定。"))
+            sendMessage(HyperZoneLoginMain.getInstance().messageService.render(this, MessageKeys.Player.VERIFIED_UNBOUND))
         }
     }
 
@@ -251,12 +252,17 @@ class VelocityHyperZonePlayer(
             return
         }
 
-        sendMessage(Component.text("§c当前已有同档案玩家正在游玩或正在进入游戏区，已阻止你进入游戏区。"))
+        sendMessage(HyperZoneLoginMain.getInstance().messageService.render(this, MessageKeys.Player.PROFILE_CONFLICT_SELF))
         conflictingPlayers.forEach { conflictingPlayer ->
             if (conflictingPlayer === this) {
                 return@forEach
             }
-            conflictingPlayer.sendMessage(Component.text("§e检测到同档案再次尝试登入，系统已阻止该会话进入游戏区。"))
+            conflictingPlayer.sendMessage(
+                HyperZoneLoginMain.getInstance().messageService.render(
+                    conflictingPlayer,
+                    MessageKeys.Player.PROFILE_CONFLICT_OTHER
+                )
+            )
         }
     }
 }

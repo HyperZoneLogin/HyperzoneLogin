@@ -28,24 +28,24 @@ import icu.h2l.login.auth.offline.service.OfflineAuthService
 
 class EmailCommand(
     private val authService: OfflineAuthService
-) : BasePlaceholderAuthCommand(OfflineAuthMessages.EMAIL_USAGE) {
+) : BasePlaceholderAuthCommand({ OfflineAuthMessages.EMAIL_USAGE }) {
     override fun execute(invocation: HyperChatCommandInvocation) {
         val source = invocation.source()
         if (source !is Player) {
-            source.sendPlainMessage(OfflineAuthMessages.ONLY_PLAYER)
+            source.sendMessage(OfflineAuthMessages.ONLY_PLAYER)
             return
         }
 
         val args = invocation.arguments()
         if (args.isEmpty()) {
-            source.sendPlainMessage(OfflineAuthMessages.EMAIL_USAGE)
+            source.sendMessage(OfflineAuthMessages.EMAIL_USAGE)
             return
         }
 
         val result = when (args[0].lowercase()) {
             "add" -> {
                 if (args.size != 4) {
-                    source.sendPlainMessage(OfflineAuthMessages.EMAIL_ADD_USAGE)
+                    source.sendMessage(OfflineAuthMessages.EMAIL_ADD_USAGE)
                     return
                 }
                 authService.addEmail(source, args[1], args[2], args[3])
@@ -53,7 +53,7 @@ class EmailCommand(
 
             "change" -> {
                 if (args.size != 4) {
-                    source.sendPlainMessage(OfflineAuthMessages.EMAIL_CHANGE_USAGE)
+                    source.sendMessage(OfflineAuthMessages.EMAIL_CHANGE_USAGE)
                     return
                 }
                 authService.changeEmail(source, args[1], args[2], args[3])
@@ -61,7 +61,7 @@ class EmailCommand(
 
             "show" -> {
                 if (args.size != 2) {
-                    source.sendPlainMessage(OfflineAuthMessages.EMAIL_SHOW_USAGE)
+                    source.sendMessage(OfflineAuthMessages.EMAIL_SHOW_USAGE)
                     return
                 }
                 authService.showEmail(source, args[1])
@@ -69,7 +69,7 @@ class EmailCommand(
 
             "recovery" -> {
                 if (args.size != 2) {
-                    source.sendPlainMessage(OfflineAuthMessages.EMAIL_RECOVERY_USAGE)
+                    source.sendMessage(OfflineAuthMessages.EMAIL_RECOVERY_USAGE)
                     return
                 }
                 authService.startEmailRecovery(source, args[1])
@@ -77,7 +77,7 @@ class EmailCommand(
 
             "code" -> {
                 if (args.size != 2) {
-                    source.sendPlainMessage(OfflineAuthMessages.EMAIL_CODE_USAGE)
+                    source.sendMessage(OfflineAuthMessages.EMAIL_CODE_USAGE)
                     return
                 }
                 authService.verifyRecoveryCode(source, args[1])
@@ -85,23 +85,23 @@ class EmailCommand(
 
             "setpassword" -> {
                 if (args.size != 3) {
-                    source.sendPlainMessage(OfflineAuthMessages.EMAIL_SETPASSWORD_USAGE)
+                    source.sendMessage(OfflineAuthMessages.EMAIL_SETPASSWORD_USAGE)
                     return
                 }
                 if (args[1] != args[2]) {
-                    source.sendPlainMessage(OfflineAuthMessages.PASSWORD_MISMATCH)
+                    source.sendMessage(OfflineAuthMessages.PASSWORD_MISMATCH)
                     return
                 }
                 authService.setPasswordByRecovery(source, args[1])
             }
 
             else -> {
-                source.sendPlainMessage(OfflineAuthMessages.EMAIL_USAGE)
+                source.sendMessage(OfflineAuthMessages.EMAIL_USAGE)
                 return
             }
         }
 
-        source.sendPlainMessage(result.message)
+        source.sendMessage(result.message)
     }
 }
 

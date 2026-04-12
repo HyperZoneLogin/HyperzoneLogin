@@ -26,6 +26,7 @@ import com.velocitypowered.api.proxy.ProxyServer
 import icu.h2l.api.HyperZoneApi
 import icu.h2l.api.command.HyperChatCommandManager
 import icu.h2l.api.command.HyperChatCommandRegistration
+import icu.h2l.api.message.HyperZoneMessageServiceProvider
 import icu.h2l.api.profile.HyperZoneProfileServiceProvider
 import icu.h2l.api.vServer.HyperZoneVServerAdapter
 import icu.h2l.api.module.HyperSubModule
@@ -37,6 +38,7 @@ import icu.h2l.login.command.HyperZoneLoginCommand
 import icu.h2l.login.database.BindingCodeRepository
 import icu.h2l.login.config.BackendServerConfig
 import icu.h2l.login.config.DatabaseSourceConfig
+import icu.h2l.login.config.MessagesConfig
 import icu.h2l.login.config.MiscConfig
 import icu.h2l.login.config.ModulesConfig
 import icu.h2l.login.config.RemapConfig
@@ -49,6 +51,8 @@ import icu.h2l.login.vServer.command.ExitVServerCommand
 import icu.h2l.login.listener.EventListener
 import icu.h2l.login.manager.HyperChatCommandManagerImpl
 import icu.h2l.login.manager.HyperZonePlayerManager
+import icu.h2l.login.message.MessageKeys
+import icu.h2l.login.message.MessageService
 import icu.h2l.login.module.EmbeddedModuleRegistry
 import icu.h2l.login.module.EmbeddedModuleSpec
 import icu.h2l.login.profile.ProfileBindingCodeService
@@ -74,6 +78,7 @@ class HyperZoneLoginMain(
     lateinit var databaseHelper: DatabaseHelper
     lateinit var profileService: VelocityHyperZoneProfileService
     lateinit var bindingCodeService: ProfileBindingCodeService
+    lateinit var messageService: MessageService
     val serverAdapter: HyperZoneVServerAdapter?
         get() = activeVServerAdapter
     val hyperZonePlayers: HyperZonePlayerAccessor
@@ -89,6 +94,7 @@ class HyperZoneLoginMain(
         private lateinit var miscConfig: MiscConfig
         private lateinit var modulesConfig: ModulesConfig
         private lateinit var backendServerConfig: BackendServerConfig
+        private lateinit var messagesConfig: MessagesConfig
 
         @JvmStatic
         fun getInstance(): HyperZoneLoginMain = instance
@@ -101,6 +107,9 @@ class HyperZoneLoginMain(
 
         @JvmStatic
         fun getBackendServerConfig(): BackendServerConfig = backendServerConfig
+
+        @JvmStatic
+        fun getMessagesConfig(): MessagesConfig = messagesConfig
     }
 
     init {
@@ -115,6 +124,10 @@ class HyperZoneLoginMain(
         loadMiscConfig()
         loadModulesConfig()
         loadBackendServerConfig()
+        loadMessagesConfig()
+        messageService = MessageService(dataDirectory, logger)
+        messageService.load(messagesConfig)
+        HyperZoneMessageServiceProvider.bind(messageService)
         connectDatabase()
         // 创建基础表（Profile 表等）
         createBaseTables()
@@ -241,7 +254,7 @@ class HyperZoneLoginMain(
      */
     fun triggerVServerAuthForPlayer(player: com.velocitypowered.api.proxy.Player) {
         serverAdapter?.authPlayer(player)
-            ?: player.sendPlainMessage("§c当前未启用可用的认证等待流程")
+            ?: messageService.send(player, MessageKeys.HzlCommand.AUTH_FLOW_UNAVAILABLE)
     }
 
     @Deprecated("Use triggerVServerAuthForPlayer(player) instead")
@@ -253,6 +266,17 @@ class HyperZoneLoginMain(
         logger.warn("========================================")
         logger.warn("=== ⚠ 内测版本，可能有 bug，请勿分发 ===")
         logger.warn("========================================")
+    }
+
+    fun reloadRuntimeConfigs() {
+        loadRemapConfig()
+        loadMiscConfig()
+        loadModulesConfig()
+        loadBackendServerConfig()
+        loadMessagesConfig()
+        if (::messageService.isInitialized) {
+            messageService.load(messagesConfig)
+        }
     }
 
 
@@ -410,6 +434,38 @@ class HyperZoneLoginMain(
         }
         if (config != null) {
             backendServerConfig = config
+        }
+    }
+
+    private fun loadMessagesConfig() {
+        val path = dataDirectory.resolve("messages.conf")
+        val firstCreation = Files.notExists(path)
+        val loader = HoconConfigurationLoader.builder()
+            .defaultOptions { opts: ConfigurationOptions ->
+                opts
+                    .shouldCopyDefaults(true)
+                    .header(
+                        """
+                            HyperZoneLogin Messages Configuration | by ksqeib
+                            具体文案文件位于 messages/ 目录，可分别编辑 en_us.conf / zh_cn.conf / ru_ru.conf。
+                            
+                        """.trimIndent()
+                    ).serializers { s ->
+                        s.registerAnnotatedObjects(
+                            ObjectMapper.factoryBuilder().addDiscoverer(dataClassFieldDiscoverer()).build()
+                        )
+                    }
+            }
+            .path(path)
+            .build()
+        val node = loader.load()
+        val config = node.get(MessagesConfig::class.java)
+        if (firstCreation) {
+            node.set(config)
+            loader.save(node)
+        }
+        if (config != null) {
+            messagesConfig = config
         }
     }
 

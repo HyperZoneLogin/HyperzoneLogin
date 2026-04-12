@@ -23,12 +23,12 @@ package icu.h2l.login.safe.listener
 
 import com.velocitypowered.api.event.Subscribe
 import icu.h2l.api.event.connection.OpenPreLoginEvent
+import icu.h2l.login.safe.SafeMessages
 import icu.h2l.login.safe.config.SafeConfig
 import icu.h2l.login.safe.service.ConnectionRateLimiter
 import icu.h2l.login.safe.service.IpCooldownManager
 import icu.h2l.login.safe.service.StrictModeController
 import icu.h2l.login.safe.service.UsernameValidator
-import net.kyori.adventure.text.Component
 
 class PreLoginGuardListener(
     private val config: SafeConfig,
@@ -48,17 +48,17 @@ class PreLoginGuardListener(
         }
 
         usernameValidator.validate(event.userName)?.let { reason ->
-            deny(event, "§c连接已被入口防护拒绝：$reason")
+            deny(event, SafeMessages.entryRejected(reason))
             return
         }
 
         authFailureCooldownManager.getCooldownState(event.playerIp)?.let { cooldown ->
-            deny(event, "§c该 IP 因认证失败过多已被临时限制，请在 ${cooldown.remainingSeconds} 秒后再试")
+            deny(event, SafeMessages.authFailureCooldown(cooldown.remainingSeconds))
             return
         }
 
         ipCooldownManager.getCooldownState(event.playerIp)?.let { cooldown ->
-            deny(event, "§c你的 IP 已被临时限制，请在 ${cooldown.remainingSeconds} 秒后再试")
+            deny(event, SafeMessages.ipCooldown(cooldown.remainingSeconds))
             return
         }
 
@@ -68,26 +68,24 @@ class PreLoginGuardListener(
 
         if (!activeGlobalLimiter.tryAcquire("global")) {
             ipCooldownManager.recordViolation(event.playerIp)
-            val strictHint = if (strictMode.active) "（当前为高峰防护模式）" else ""
-            deny(event, "§c当前连接请求过于频繁，请稍后再试$strictHint")
+            deny(event, SafeMessages.globalRateLimited(strictMode.active))
             return
         }
 
         if (!activeIpRateLimiter.tryAcquire(event.playerIp)) {
             val cooldown = ipCooldownManager.recordViolation(event.playerIp)
             if (cooldown != null) {
-                deny(event, "§c你的 IP 请求过于频繁，已被临时限制 ${cooldown.remainingSeconds} 秒")
+                deny(event, SafeMessages.ipRateLimited(cooldown.remainingSeconds))
                 return
             }
 
-            val strictHint = if (strictMode.active) "（当前为高峰防护模式）" else ""
-            deny(event, "§c你的 IP 请求过于频繁，请稍后再试$strictHint")
+            deny(event, if (strictMode.active) SafeMessages.ipRateLimitedStrict() else SafeMessages.ipRateLimited(null))
         }
     }
 
-    private fun deny(event: OpenPreLoginEvent, message: String) {
+    private fun deny(event: OpenPreLoginEvent, message: net.kyori.adventure.text.Component) {
         event.allow = false
-        event.disconnectMessage = Component.text(message)
+        event.disconnectMessage = message
     }
 }
 
