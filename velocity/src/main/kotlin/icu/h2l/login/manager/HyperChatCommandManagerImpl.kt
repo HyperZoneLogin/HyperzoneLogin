@@ -164,7 +164,7 @@ object HyperChatCommandManagerImpl : HyperChatCommandManager {
         }
 
         val hyperPlayer = getVelocityPlayer(source) ?: return false
-        if (!hyperPlayer.isInBackendAuthHold()) {
+        if (!hyperPlayer.isOnBackendAuthServer()) {
             return false
         }
 
@@ -193,8 +193,8 @@ object HyperChatCommandManagerImpl : HyperChatCommandManager {
         }
 
         val hyperPlayer = getVelocityPlayer(source)
-        if (hyperPlayer == null || !hyperPlayer.isInBackendAuthHold()) {
-            source.sendMessage(Component.text("§e该命令仅可在认证等待阶段使用"))
+        if (hyperPlayer == null || !hyperPlayer.isOnBackendAuthServer()) {
+            source.sendMessage(Component.text("§e该命令仅可在等待区服务器使用"))
             return Command.SINGLE_SUCCESS
         }
 

@@ -313,6 +313,31 @@ class VelocityHyperZonePlayer(
         return isInWaitingArea() && !authHoldServerName.get().isNullOrBlank()
     }
 
+    /**
+     * 判断玩家当前是否真的位于“后端等待区服务器”上。
+     *
+     * 注意：这里故意不能复用 `isInBackendAuthHold()`，也不能依赖 `isInWaitingArea()`。
+     * 原因是玩家在等待区服务器完成登录后，`overVerify()` 会清掉 hold 状态，
+     * 同时 `isInWaitingArea()` 也可能变为 false；但这类玩家之后仍然可能主动重新进入该服务器，
+     * 用于登出、改密、换绑等后续操作。
+     *
+     * 所以“命令是否允许在代理兜底层执行”的判定，必须基于玩家当前所在服务器，
+     * 而不是一次性的认证 hold 标记，否则未来很容易再次误收紧这里的逻辑。
+     */
+    fun isOnBackendAuthServer(): Boolean {
+        val authServerName = HyperZoneLoginMain.getBackendServerConfig().fallbackAuthServer.trim()
+        if (authServerName.isBlank()) {
+            return false
+        }
+
+        val currentServerName = proxyPlayer?.currentServer
+            ?.map { it.server.serverInfo.name }
+            ?.orElse(null)
+            ?: return false
+
+        return currentServerName.equals(authServerName, ignoreCase = true)
+    }
+
     fun getBackendAuthHoldServerName(): String? {
         return authHoldServerName.get()
     }
