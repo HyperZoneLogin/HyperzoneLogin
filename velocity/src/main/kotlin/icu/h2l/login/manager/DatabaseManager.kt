@@ -31,6 +31,7 @@ import icu.h2l.api.event.db.TableSchemaEvent
 import icu.h2l.api.log.info
 import icu.h2l.api.log.warn
 import icu.h2l.login.database.DatabaseConfig
+import icu.h2l.login.database.BindingCodeTable
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.transactions.transaction
@@ -51,6 +52,7 @@ class DatabaseManager(
      * 档案表实例
      */
     private val profileTable = ProfileTable(config.tablePrefix)
+    private val bindingCodeTable = BindingCodeTable(config.tablePrefix, profileTable)
 
     override val tablePrefix: String
         get() = config.tablePrefix
@@ -119,7 +121,9 @@ class DatabaseManager(
      * 获取档案表实例
      */
     fun getProfileTable(): ProfileTable = profileTable
-    
+
+    fun getBindingCodeTable(): BindingCodeTable = bindingCodeTable
+
     /**
      * 创建基础表（不包括 Entry 表）
      * Entry 表由事件系统自动创建
@@ -127,7 +131,7 @@ class DatabaseManager(
     fun createBaseTables() {
         transaction(database) {
             // 创建档案表
-            SchemaUtils.create(profileTable)
+            SchemaUtils.create(profileTable, bindingCodeTable)
         }
     }
     
@@ -142,7 +146,7 @@ class DatabaseManager(
 
         executeTransaction {
             // 删除档案表
-            SchemaUtils.drop(profileTable)
+            SchemaUtils.drop(bindingCodeTable, profileTable)
             warn { "已删除表: ${profileTable.tableName}" }
         }
 

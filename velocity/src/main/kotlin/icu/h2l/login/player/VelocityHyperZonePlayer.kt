@@ -60,6 +60,7 @@ class VelocityHyperZonePlayer(
      * 该状态不代表一定能进入游戏区；还需要核心层已根据凭证 attach Profile。
      */
     private val isVerifiedState = AtomicBoolean(false)
+    private val hasNotifiedReadyState = AtomicBoolean(false)
     private val submittedCredentials = CopyOnWriteArrayList<HyperZoneCredential>()
 
     /**
@@ -88,6 +89,7 @@ class VelocityHyperZonePlayer(
                 proxyPlayer?.sendMessage(message)
             }
         }
+        tryNotifyReady()
     }
 
     override fun hasAttachedProfile(): Boolean {
@@ -115,15 +117,19 @@ class VelocityHyperZonePlayer(
 
     override fun overVerify() {
         HyperZoneLoginMain.getInstance().profileService.attachVerifiedCredentialProfile(this)
-        if (isVerifiedState.compareAndSet(false, true)) {
-            proxyPlayer?.let { player ->
-                HyperZoneLoginMain.getInstance().serverAdapter?.onVerified(player)
-            }
+        if (!isVerifiedState.compareAndSet(false, true)) {
+            return
+        }
+
+        tryNotifyReady()
+        if (!hasAttachedProfile()) {
+            sendMessage(Component.text("§e认证已通过，但尚未绑定档案。请使用 /bindcode use <绑定码> 完成绑定。"))
         }
     }
 
     override fun resetVerify() {
         isVerifiedState.set(false)
+        hasNotifiedReadyState.set(false)
         submittedCredentials.clear()
     }
 
@@ -163,6 +169,24 @@ class VelocityHyperZonePlayer(
 
     override fun setTemporaryGameProfile(profile: GameProfile?) {
         temporaryGameProfile = profile
+    }
+
+    internal fun onAttachedProfileAvailable() {
+        tryNotifyReady()
+    }
+
+    private fun tryNotifyReady() {
+        if (!isVerifiedState.get() || !hasAttachedProfile()) {
+            return
+        }
+
+        if (!hasNotifiedReadyState.compareAndSet(false, true)) {
+            return
+        }
+
+        proxyPlayer?.let { player ->
+            HyperZoneLoginMain.getInstance().serverAdapter?.onVerified(player)
+        }
     }
 }
 

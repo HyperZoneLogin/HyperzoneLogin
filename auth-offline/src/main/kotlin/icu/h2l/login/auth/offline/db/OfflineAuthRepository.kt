@@ -139,6 +139,7 @@ class OfflineAuthRepository(
         return updateLoginProtection(profileId, 0, null)
     }
 
+
     fun startRecovery(profileId: UUID, recoveryCodeHash: String, expireAt: Long, requestedAt: Long): Boolean {
         return try {
             databaseManager.executeTransaction {

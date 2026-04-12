@@ -35,6 +35,7 @@ import icu.h2l.login.auth.offline.mail.JakartaMailOfflineAuthEmailSender
 import icu.h2l.login.auth.offline.mail.LoggingOfflineAuthEmailSender
 import icu.h2l.login.auth.offline.mail.OfflineAuthEmailSender
 import icu.h2l.login.auth.offline.service.OfflineAuthService
+import icu.h2l.login.auth.offline.service.PendingOfflineRegistrationManager
 import icu.h2l.login.auth.offline.config.OfflineMatchConfigLoader
 import icu.h2l.login.auth.offline.listener.OfflinePreLoginListener
 import icu.h2l.login.auth.offline.listener.OfflineSessionAuthListener
@@ -79,8 +80,10 @@ class OfflineSubModule : HyperSubModule {
             issuer = offlineAuthConfig.totp.issuer,
             pendingExpireMinutes = offlineAuthConfig.totp.pendingExpireMinutes
         )
+        val pendingRegistrations = PendingOfflineRegistrationManager()
         offlineAuthService = OfflineAuthService(
             repository = offlineAuthRepository,
+            pendingRegistrations = pendingRegistrations,
             playerAccessor = api.hyperZonePlayers,
             profileService = HyperZoneProfileServiceProvider.get(),
             emailSender = emailSender,

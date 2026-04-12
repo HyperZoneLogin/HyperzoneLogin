@@ -23,10 +23,12 @@ package icu.h2l.login.profile
 
 import icu.h2l.api.db.Profile
 import icu.h2l.api.player.HyperZonePlayer
+import icu.h2l.api.profile.HyperZoneProfileResolveResult
 import icu.h2l.api.profile.HyperZoneProfileService
 import icu.h2l.api.util.RemapUtils
 import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.database.DatabaseHelper
+import icu.h2l.login.player.VelocityHyperZonePlayer
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -44,28 +46,39 @@ class VelocityHyperZoneProfileService(
         return databaseHelper.getProfile(profileId)
     }
 
-    override fun canResolveOrCreateProfile(player: HyperZonePlayer): Boolean {
-        return !attachedProfiles.containsKey(player)
+    override fun canResolveOrCreateProfile(userName: String, uuid: UUID?): Boolean {
+        val resolvedUuid = resolveRequestedUuid(userName, uuid)
+        val resolved = databaseHelper.resolveTrustedProfile(userName, resolvedUuid)
+        return resolved.reason == null
+    }
+
+    override fun tryResolveOrCreateProfile(userName: String, uuid: UUID?): HyperZoneProfileResolveResult {
+        val resolvedUuid = resolveRequestedUuid(userName, uuid)
+        val resolved = databaseHelper.resolveOrCreateTrustedProfile(userName, resolvedUuid)
+        return HyperZoneProfileResolveResult(
+            profile = resolved.profile,
+            created = resolved.created,
+            reason = resolved.reason
+        )
     }
 
     override fun resolveOrCreateProfile(player: HyperZonePlayer, userName: String?, uuid: UUID?): Profile {
         getAttachedProfile(player)?.let { return it }
 
         val resolvedName = userName ?: player.clientOriginalName
-        val remapPrefix = HyperZoneLoginMain.getRemapConfig().prefix
-        val resolvedUuid = uuid ?: RemapUtils.genUUID(resolvedName, remapPrefix)
-        val resolved = databaseHelper.resolveOrCreateTrustedProfile(resolvedName, resolvedUuid)
+        val resolved = tryResolveOrCreateProfile(resolvedName, uuid)
         return resolved.profile
             ?: throw IllegalStateException(resolved.reason ?: "玩家 $resolvedName 注册失败，未能解析 Profile")
     }
 
-    fun attachProfile(player: HyperZonePlayer, profileId: UUID): Profile? {
+    override fun attachProfile(player: HyperZonePlayer, profileId: UUID): Profile? {
         val profile = databaseHelper.getProfile(profileId) ?: return null
         attachedProfiles[player] = profile.id
+        (player as? VelocityHyperZonePlayer)?.onAttachedProfileAvailable()
         return profile
     }
 
-    fun attachVerifiedCredentialProfile(player: HyperZonePlayer): Profile {
+    override fun attachVerifiedCredentialProfile(player: HyperZonePlayer): Profile? {
         getAttachedProfile(player)?.let { return it }
 
         val credentials = player.getSubmittedCredentials()
@@ -73,7 +86,11 @@ class VelocityHyperZoneProfileService(
             throw IllegalStateException("玩家 ${player.clientOriginalName} 尚未提交任何认证凭证，无法完成 Profile 绑定")
         }
 
-        val distinctProfileIds = credentials.map { it.profileId }.distinct()
+        val distinctProfileIds = credentials.mapNotNull { it.getBoundProfileId() }.distinct()
+        if (distinctProfileIds.isEmpty()) {
+            return null
+        }
+
         if (distinctProfileIds.size != 1) {
             throw IllegalStateException(
                 "玩家 ${player.clientOriginalName} 提交了多个冲突的 Profile 凭证: ${distinctProfileIds.joinToString()}"
@@ -86,6 +103,45 @@ class VelocityHyperZoneProfileService(
 
     fun clear(player: HyperZonePlayer) {
         attachedProfiles.remove(player)
+    }
+
+    override fun bindSubmittedCredentials(player: HyperZonePlayer, profileId: UUID): Profile {
+        val targetProfile = databaseHelper.getProfile(profileId)
+            ?: throw IllegalStateException("未找到绑定码对应的 Profile: $profileId")
+        val credentials = player.getSubmittedCredentials()
+        if (credentials.isEmpty()) {
+            throw IllegalStateException("玩家 ${player.clientOriginalName} 当前没有可绑定的凭证")
+        }
+
+        credentials.forEach { credential ->
+            val boundProfileId = credential.getBoundProfileId()
+            if (boundProfileId != null && boundProfileId != profileId) {
+                throw IllegalStateException(
+                    "凭证 ${credential.channelId}:${credential.credentialId} 已绑定到其他 Profile: $boundProfileId"
+                )
+            }
+
+            credential.validateBind(profileId)?.let { reason ->
+                throw IllegalStateException(reason)
+            }
+        }
+
+        credentials.forEach { credential ->
+            if (credential.getBoundProfileId() == profileId) {
+                return@forEach
+            }
+
+            if (!credential.bind(profileId)) {
+                throw IllegalStateException("绑定凭证失败: ${credential.channelId}:${credential.credentialId}")
+            }
+        }
+
+        return targetProfile
+    }
+
+    private fun resolveRequestedUuid(userName: String, uuid: UUID?): UUID {
+        val remapPrefix = HyperZoneLoginMain.getRemapConfig().prefix
+        return uuid ?: RemapUtils.genUUID(userName, remapPrefix)
     }
 }
 

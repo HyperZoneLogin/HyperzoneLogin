@@ -28,7 +28,6 @@ import icu.h2l.api.db.HyperZoneDatabaseManager
 import icu.h2l.api.db.table.ProfileTable
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.player.HyperZonePlayerAccessor
-import icu.h2l.api.profile.HyperZoneCredential
 import icu.h2l.api.profile.HyperZoneProfileService
 import icu.h2l.login.auth.offline.OfflineAuthMessages
 import icu.h2l.login.auth.offline.api.db.OfflineAuthTable
@@ -43,6 +42,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -62,6 +62,7 @@ class OfflineAuthServiceRegisterTest {
     private lateinit var proxy: ProxyServer
     private lateinit var profileService: HyperZoneProfileService
     private lateinit var service: OfflineAuthService
+    private lateinit var pendingRegistrations: PendingOfflineRegistrationManager
     private lateinit var profileTable: ProfileTable
     private lateinit var offlineAuthTable: OfflineAuthTable
     private lateinit var database: Database
@@ -92,11 +93,14 @@ class OfflineAuthServiceRegisterTest {
         hyperZonePlayer = mockk(relaxUnitFun = true)
         proxy = mockk(relaxed = true)
         profileService = mockk()
+        pendingRegistrations = PendingOfflineRegistrationManager()
 
         every { hyperZonePlayer.clientOriginalName } returns USERNAME
+        every { hyperZonePlayer.getSubmittedCredentials() } returns emptyList()
 
         service = OfflineAuthService(
             repository = repository,
+            pendingRegistrations = pendingRegistrations,
             playerAccessor = TestPlayerAccessor(hyperZonePlayer),
             profileService = profileService,
             emailSender = NoopEmailSender,
@@ -107,10 +111,11 @@ class OfflineAuthServiceRegisterTest {
 
     @Test
     fun `register creates a new offline password entry when player can resolve profile`() {
-        insertProfile(PROFILE)
+        insertProfile()
 
-        every { profileService.canResolveOrCreateProfile(hyperZonePlayer) } returns true
-        every { profileService.resolveOrCreateProfile(hyperZonePlayer, null, null) } returns PROFILE
+        every { profileService.getAttachedProfile(hyperZonePlayer) } returns null
+        every { profileService.canResolveOrCreateProfile(USERNAME, null) } returns true
+        every { profileService.resolveOrCreateProfile(hyperZonePlayer, USERNAME, null) } returns PROFILE
 
         val result = service.register(player, VALID_PASSWORD)
         val saved = repository.getByName(NORMALIZED_NAME)
@@ -123,20 +128,21 @@ class OfflineAuthServiceRegisterTest {
         assertEquals(64, saved.passwordHash.length)
         assertNotEquals(VALID_PASSWORD, saved.passwordHash)
         verify(exactly = 1) {
-            hyperZonePlayer.submitCredential(
-                HyperZoneCredential("offline", NORMALIZED_NAME, PROFILE.id)
-            )
+            hyperZonePlayer.submitCredential(match {
+                it.channelId == "offline" &&
+                    it.credentialId == NORMALIZED_NAME &&
+                    it.getBoundProfileId() == PROFILE.id
+            })
         }
         verify(exactly = 1) { hyperZonePlayer.overVerify() }
     }
 
     @Test
     fun `register falls back to binding existing profile when direct registration is unavailable`() {
-        insertProfile(PROFILE)
+        insertProfile()
 
-        every { profileService.canResolveOrCreateProfile(hyperZonePlayer) } returns false
-        every { hyperZonePlayer.canBind() } returns true
         every { profileService.getAttachedProfile(hyperZonePlayer) } returns PROFILE
+        every { hyperZonePlayer.canBind() } returns true
 
         val result = service.register(player, VALID_PASSWORD)
         val saved = repository.getByProfileId(PROFILE.id)
@@ -149,8 +155,8 @@ class OfflineAuthServiceRegisterTest {
     }
 
     @Test
-    fun `register reports denial when neither registration nor binding is allowed`() {
-        every { profileService.canResolveOrCreateProfile(hyperZonePlayer) } returns false
+    fun `register reports denial when attached profile binding is not allowed`() {
+        every { profileService.getAttachedProfile(hyperZonePlayer) } returns PROFILE
         every { hyperZonePlayer.canBind() } returns false
 
         val result = service.register(player, VALID_PASSWORD)
@@ -161,7 +167,7 @@ class OfflineAuthServiceRegisterTest {
 
     @Test
     fun `register reports existing offline password when fallback binding target is already linked`() {
-        insertProfile(PROFILE)
+        insertProfile()
         repository.create(
             name = NORMALIZED_NAME,
             passwordHash = "existing-hash",
@@ -169,9 +175,8 @@ class OfflineAuthServiceRegisterTest {
             profileId = PROFILE.id
         )
 
-        every { profileService.canResolveOrCreateProfile(hyperZonePlayer) } returns false
-        every { hyperZonePlayer.canBind() } returns true
         every { profileService.getAttachedProfile(hyperZonePlayer) } returns PROFILE
+        every { hyperZonePlayer.canBind() } returns true
 
         val result = service.register(player, VALID_PASSWORD)
 
@@ -181,11 +186,11 @@ class OfflineAuthServiceRegisterTest {
 
     @Test
     fun `join prompts tell attached players to use register for automatic binding`() {
-        insertProfile(PROFILE)
+        insertProfile()
 
         every { hyperZonePlayer.isInWaitingArea() } returns true
         every { profileService.getAttachedProfile(hyperZonePlayer) } returns PROFILE
-        every { profileService.canResolveOrCreateProfile(hyperZonePlayer) } returns false
+        every { profileService.canResolveOrCreateProfile(USERNAME, null) } returns false
 
         val prompts = service.getJoinPrompts(player)
 
@@ -193,12 +198,48 @@ class OfflineAuthServiceRegisterTest {
         assertTrue(prompts.contains(OfflineAuthMessages.REGISTER_BIND_HINT))
     }
 
-    private fun insertProfile(profile: Profile) {
+    @Test
+    fun `register falls back to unbound credential flow when profile name conflicts prevent direct creation`() {
+        every { profileService.getAttachedProfile(hyperZonePlayer) } returns null
+        every { profileService.canResolveOrCreateProfile(USERNAME, null) } returns false
+
+        val credentialSlot = slot<OfflineHyperZoneCredential>()
+        every { hyperZonePlayer.submitCredential(capture(credentialSlot)) } just Runs
+
+        val result = service.register(player, VALID_PASSWORD)
+        val savedBeforeBind = repository.getByName(NORMALIZED_NAME)
+
+        assertTrue(result.success)
+        assertEquals("§a注册成功，但当前名称无法直接分配档案。请使用 /bindcode use <绑定码> 完成绑定", result.message)
+        assertNull(savedBeforeBind)
+        assertTrue(credentialSlot.isCaptured)
+        assertTrue(credentialSlot.captured.credentialId.startsWith("$NORMALIZED_NAME:"))
+        assertEquals(null, credentialSlot.captured.getBoundProfileId())
+        verify(exactly = 1) {
+            hyperZonePlayer.submitCredential(match {
+                it.channelId == "offline" &&
+                    it.credentialId.startsWith("$NORMALIZED_NAME:") &&
+                    it.getBoundProfileId() == null
+            })
+        }
+        verify(exactly = 1) { hyperZonePlayer.overVerify() }
+
+        insertProfile()
+        assertEquals(null, credentialSlot.captured.validateBind(PROFILE.id))
+        assertTrue(credentialSlot.captured.bind(PROFILE.id))
+
+        val savedAfterBind = repository.getByProfileId(PROFILE.id)
+        assertNotNull(savedAfterBind)
+        assertEquals(NORMALIZED_NAME, savedAfterBind!!.name)
+        assertEquals(PROFILE.id, savedAfterBind.profileId)
+    }
+
+    private fun insertProfile() {
         transaction(database) {
             profileTable.insert {
-                it[id] = profile.id
-                it[name] = profile.name
-                it[uuid] = profile.uuid
+                it[id] = PROFILE.id
+                it[name] = PROFILE.name
+                it[uuid] = PROFILE.uuid
             }
         }
     }

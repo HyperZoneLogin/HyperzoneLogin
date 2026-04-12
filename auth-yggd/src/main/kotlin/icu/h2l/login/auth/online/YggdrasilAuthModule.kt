@@ -33,7 +33,6 @@ import icu.h2l.api.log.error
 import icu.h2l.api.log.info
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.player.HyperZonePlayerAccessor
-import icu.h2l.api.profile.HyperZoneCredential
 import icu.h2l.api.profile.HyperZoneProfileService
 import icu.h2l.api.profile.skin.ProfileSkinModel
 import icu.h2l.api.profile.skin.ProfileSkinSource
@@ -252,13 +251,52 @@ class YggdrasilAuthModule(
             return null
         }
 
-        val profileId = findBoundProfileIdByAuthenticatedEntry(result)
-            ?: return "认证成功，但未找到可信 Entry 绑定"
+        val existingBoundProfileId = findBoundProfileIdByAuthenticatedEntry(result)
+        if (existingBoundProfileId != null) {
+            handler.submitCredential(
+                yggdrasilCredential(
+                    entryId = result.entryId,
+                    authenticatedName = result.profile.name,
+                    authenticatedUuid = result.profile.id,
+                    knownProfileId = existingBoundProfileId
+                )
+            )
+            return null
+        }
 
-        val profile = profileService.getProfile(profileId)
-            ?: return "认证成功，但绑定 Profile 不存在: $profileId"
+        if (profileService.canResolveOrCreateProfile(result.profile.name, result.profile.id)) {
+            val resolvedProfile = try {
+                profileService.resolveOrCreateProfile(handler, result.profile.name, result.profile.id)
+            } catch (throwable: IllegalStateException) {
+                return throwable.message ?: "创建 Profile 失败"
+            }
 
-        handler.submitCredential(yggdrasilCredential(result.entryId, result.profile.id, profile.id))
+            val bound = entryDatabaseHelper.createEntry(
+                entryId = result.entryId,
+                name = result.profile.name,
+                uuid = result.profile.id,
+                pid = resolvedProfile.id
+            )
+            if (bound) {
+                handler.submitCredential(
+                    yggdrasilCredential(
+                        entryId = result.entryId,
+                        authenticatedName = result.profile.name,
+                        authenticatedUuid = result.profile.id,
+                        knownProfileId = resolvedProfile.id
+                    )
+                )
+                return null
+            }
+        }
+
+        handler.submitCredential(
+            yggdrasilCredential(
+                entryId = result.entryId,
+                authenticatedName = result.profile.name,
+                authenticatedUuid = result.profile.id
+            )
+        )
         return null
     }
 
@@ -439,13 +477,6 @@ class YggdrasilAuthModule(
         player: Player,
         context: SecondBatchContext
     ): YggdrasilAuthResult {
-        val handler = playerAccessor.getByPlayer(player)
-
-        if (!profileService.canResolveOrCreateProfile(handler)) {
-            debug { "玩家 ${context.username} 不允许再解析/创建 Profile，终止第二批次验证" }
-            return YggdrasilAuthResult.Failed("Player already registered")
-        }
-
         val allYggdrasilEntries = getAllYggdrasilEntries()
         val secondBatchRequests = buildAuthRequests(allYggdrasilEntries)
 
@@ -460,28 +491,6 @@ class YggdrasilAuthModule(
             secondBatchRequests,
             "第二批次"
         )
-
-        if (secondBatchResult is YggdrasilAuthResult.Success) {
-            val entryName = secondBatchResult.profile.name
-            val entryUuid = secondBatchResult.profile.id
-
-            val registeredProfile = try {
-                profileService.resolveOrCreateProfile(handler, entryName, entryUuid)
-            } catch (ex: IllegalStateException) {
-                return YggdrasilAuthResult.Failed(ex.message ?: "创建 Profile 失败")
-            }
-
-            val bound = entryDatabaseHelper.createEntry(
-                entryId = secondBatchResult.entryId,
-                name = entryName,
-                uuid = entryUuid,
-                pid = registeredProfile.id
-            )
-
-            if (!bound) {
-                return YggdrasilAuthResult.Failed("绑定 Entry 记录失败")
-            }
-        }
 
         return secondBatchResult
     }
@@ -666,16 +675,19 @@ class YggdrasilAuthModule(
         }
     }
 
-    private fun yggdrasilCredential(entryId: String, authenticatedUuid: UUID, profileId: UUID): HyperZoneCredential {
-        return HyperZoneCredential(
-            channelId = YGGDRASIL_CHANNEL_ID,
-            credentialId = "$entryId:$authenticatedUuid",
-            profileId = profileId
+    private fun yggdrasilCredential(
+        entryId: String,
+        authenticatedName: String,
+        authenticatedUuid: UUID,
+        knownProfileId: UUID? = null
+    ): YggdrasilHyperZoneCredential {
+        return YggdrasilHyperZoneCredential(
+            entryDatabaseHelper = entryDatabaseHelper,
+            entryId = entryId,
+            authenticatedName = authenticatedName,
+            authenticatedUUID = authenticatedUuid,
+            knownProfileId = knownProfileId
         )
-    }
-
-    companion object {
-        private const val YGGDRASIL_CHANNEL_ID = "yggdrasil"
     }
 }
 

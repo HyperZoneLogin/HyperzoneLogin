@@ -25,6 +25,12 @@ import icu.h2l.api.db.Profile
 import icu.h2l.api.player.HyperZonePlayer
 import java.util.UUID
 
+data class HyperZoneProfileResolveResult(
+    val profile: Profile? = null,
+    val created: Boolean = false,
+    val reason: String? = null
+)
+
 /**
  * 核心层 Profile 访问入口。
  *
@@ -36,13 +42,21 @@ interface HyperZoneProfileService {
 
     fun getAttachedProfile(player: HyperZonePlayer): Profile?
 
+    fun attachProfile(player: HyperZonePlayer, profileId: UUID): Profile?
+
     fun hasAttachedProfile(player: HyperZonePlayer): Boolean {
         return getAttachedProfile(player) != null
     }
 
-    fun canResolveOrCreateProfile(player: HyperZonePlayer): Boolean
+    fun canResolveOrCreateProfile(userName: String, uuid: UUID? = null): Boolean
+
+    fun tryResolveOrCreateProfile(userName: String, uuid: UUID? = null): HyperZoneProfileResolveResult
 
     fun resolveOrCreateProfile(player: HyperZonePlayer, userName: String? = null, uuid: UUID? = null): Profile
+
+    fun attachVerifiedCredentialProfile(player: HyperZonePlayer): Profile?
+
+    fun bindSubmittedCredentials(player: HyperZonePlayer, profileId: UUID): Profile
 }
 
 object HyperZoneProfileServiceProvider {

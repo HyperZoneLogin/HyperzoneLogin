@@ -32,7 +32,9 @@ import icu.h2l.api.module.HyperSubModule
 import icu.h2l.api.player.HyperZonePlayerAccessor
 // Module implementations (auth-offline, auth-yggd, data-merge) are now separate plugins
 // and will register themselves with the main plugin at runtime. Do not import them here.
+import icu.h2l.login.command.BindCodeCommandRegistrar
 import icu.h2l.login.command.HyperZoneLoginCommand
+import icu.h2l.login.database.BindingCodeRepository
 import icu.h2l.login.config.BackendServerConfig
 import icu.h2l.login.config.DatabaseSourceConfig
 import icu.h2l.login.config.MiscConfig
@@ -49,6 +51,7 @@ import icu.h2l.login.manager.HyperChatCommandManagerImpl
 import icu.h2l.login.manager.HyperZonePlayerManager
 import icu.h2l.login.module.EmbeddedModuleRegistry
 import icu.h2l.login.module.EmbeddedModuleSpec
+import icu.h2l.login.profile.ProfileBindingCodeService
 import icu.h2l.login.profile.VelocityHyperZoneProfileService
 import icu.h2l.login.util.registerApiLogger
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger
@@ -70,6 +73,7 @@ class HyperZoneLoginMain(
     lateinit var databaseManager: icu.h2l.login.manager.DatabaseManager
     lateinit var databaseHelper: DatabaseHelper
     lateinit var profileService: VelocityHyperZoneProfileService
+    lateinit var bindingCodeService: ProfileBindingCodeService
     val serverAdapter: HyperZoneVServerAdapter?
         get() = activeVServerAdapter
     val hyperZonePlayers: HyperZonePlayerAccessor
@@ -115,6 +119,10 @@ class HyperZoneLoginMain(
         // 创建基础表（Profile 表等）
         createBaseTables()
         profileService = VelocityHyperZoneProfileService(databaseHelper)
+        bindingCodeService = ProfileBindingCodeService(
+            BindingCodeRepository(databaseManager, databaseManager.getBindingCodeTable()),
+            profileService
+        )
         HyperZoneProfileServiceProvider.bind(profileService)
 
         activeVServerAdapter = null
@@ -163,6 +171,7 @@ class HyperZoneLoginMain(
                 executor = ExitVServerCommand()
             )
         )
+        BindCodeCommandRegistrar.register(chatCommandManager, bindingCodeService)
 
 //        最后加载模块
         // Keep internal modules that are part of the main plugin
@@ -171,7 +180,7 @@ class HyperZoneLoginMain(
         // External modules (auth-offline, auth-yggd, data-merge) will be loaded as
         // separate Velocity plugins and should call `registerModule(...)` on this
         // main plugin during their own initialization.
-        val hzlCommand = HyperZoneLoginCommand().createCommand()
+        val hzlCommand = HyperZoneLoginCommand(bindingCodeService).createCommand()
         val hzlCommandMeta = proxy.commandManager.metaBuilder(hzlCommand).build()
         proxy.commandManager.register(hzlCommandMeta, hzlCommand)
         proxy.eventManager.register(plugin, EventListener())

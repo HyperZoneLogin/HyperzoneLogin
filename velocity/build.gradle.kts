@@ -103,6 +103,8 @@ dependencies {
 
     testImplementation(platform(libs.junitBom))
     testImplementation(libs.junitJupiter)
+    testImplementation(libs.velocityApi)
+    testRuntimeOnly(libs.junitPlatformLauncher)
 }
 
 tasks {
@@ -152,6 +154,10 @@ tasks {
 
     named<ShadowJar>("shadowJar") {
         enabled = false
+    }
+
+    test {
+        useJUnitPlatform()
     }
 
     named("assemble") {

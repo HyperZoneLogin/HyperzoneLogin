@@ -26,13 +26,41 @@ import java.util.UUID
 /**
  * 认证子模块向登录核心提交的可信凭证。
  *
- * - [channelId]：认证渠道唯一标识，由子模块负责稳定定义；
- * - [credentialId]：该渠道内部可识别的凭证标识；
- * - [profileId]：该凭证最终绑定到的正式 Profile。
+ * 注意：凭证对象本身不直接携带 profileId 字段；
+ * 是否已绑定、如何绑定到 Profile，都由各认证模块自己的实现负责。
  */
-data class HyperZoneCredential(
-    val channelId: String,
-    val credentialId: String,
-    val profileId: UUID
-)
+interface HyperZoneCredential {
+    /**
+     * 认证渠道唯一标识，由子模块负责稳定定义。
+     */
+    val channelId: String
+
+    /**
+     * 该渠道内部可识别的凭证标识。
+     */
+    val credentialId: String
+
+    /**
+     * 读取该凭证当前已经绑定到的 Profile。
+     *
+     * 返回 null 表示该凭证尚未完成绑定。
+     */
+    fun getBoundProfileId(): UUID?
+
+    /**
+     * 在真正写入绑定关系前做一次校验。
+     *
+     * 返回 null 表示允许绑定；否则返回拒绝原因。
+     */
+    fun validateBind(profileId: UUID): String? {
+        return null
+    }
+
+    /**
+     * 将该凭证绑定到指定 Profile。
+     *
+     * 实现应把绑定关系写入模块自己的数据表。
+     */
+    fun bind(profileId: UUID): Boolean
+}
 

@@ -32,7 +32,6 @@ import icu.h2l.api.command.HyperChatCommandInvocation
 import icu.h2l.api.command.HyperChatCommandManager
 import icu.h2l.api.command.HyperChatCommandRegistration
 import icu.h2l.api.vServer.HyperZoneVServerAdapter
-import icu.h2l.login.player.VelocityHyperZonePlayer
 import net.kyori.adventure.text.Component
 import java.util.concurrent.ConcurrentHashMap
 
@@ -69,7 +68,7 @@ object HyperChatCommandManagerImpl : HyperChatCommandManager {
         val input = chat.trim()
         val hyperPlayer = (source as? Player)?.let { player ->
             runCatching {
-                HyperZonePlayerManager.getByPlayer(player) as? VelocityHyperZonePlayer
+                HyperZonePlayerManager.getByPlayer(player)
             }.getOrNull()
         }
         if (!input.startsWith("/")) {
@@ -89,7 +88,7 @@ object HyperChatCommandManagerImpl : HyperChatCommandManager {
 
         val registration = commands[label] ?: run {
             if (hyperPlayer != null && hyperPlayer.isInWaitingArea()) {
-                source.sendMessage(Component.text("§e认证阶段仅可使用 /login、/register、/changepassword、/email、/totp 等认证命令"))
+                source.sendMessage(Component.text("§e认证阶段仅可使用 /login、/register、/changepassword、/email、/totp、/bindcode 等命令"))
                 return true
             }
             return false

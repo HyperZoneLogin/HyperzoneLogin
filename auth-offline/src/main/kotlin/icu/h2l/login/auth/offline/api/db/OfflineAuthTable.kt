@@ -45,6 +45,14 @@ data class OfflineAuthEntry(
     val totpSecret: String?
 )
 
+/**
+ * 离线认证正式数据表。
+ *
+ * 重要约束：该表只允许保存“已经完成 Profile 绑定”的正式离线认证记录，
+ * 因此 [profileId] 永远不能为空。
+ * 任何待绑定阶段的临时注册数据（例如密码哈希）都必须留在临时管理器中，
+ * 等绑定成功后再创建正式 entry，绝不能先写入一条 `profileId = null` 的库记录。
+ */
 class OfflineAuthTable(prefix: String, profileTable: ProfileTable) : Table("${prefix}offline_auth") {
     val id = integer("id").autoIncrement()
     val name = varchar("name", 32)

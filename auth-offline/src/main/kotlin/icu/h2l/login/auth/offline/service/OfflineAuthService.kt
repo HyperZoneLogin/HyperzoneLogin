@@ -25,7 +25,6 @@ import com.velocitypowered.api.proxy.ProxyServer
 import com.velocitypowered.api.proxy.Player
 import icu.h2l.api.event.auth.AuthenticationFailureEvent
 import icu.h2l.api.player.HyperZonePlayerAccessor
-import icu.h2l.api.profile.HyperZoneCredential
 import icu.h2l.api.profile.HyperZoneProfileService
 import icu.h2l.login.auth.offline.OfflineAuthMessages
 import icu.h2l.login.auth.offline.config.OfflineAuthConfigLoader
@@ -37,9 +36,11 @@ import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.Locale
+import java.util.UUID
 
 class OfflineAuthService(
     private val repository: OfflineAuthRepository,
+    private val pendingRegistrations: PendingOfflineRegistrationManager,
     private val playerAccessor: HyperZonePlayerAccessor,
     private val profileService: HyperZoneProfileService,
     private val emailSender: OfflineAuthEmailSender,
@@ -56,16 +57,26 @@ class OfflineAuthService(
         val hyperZonePlayer = playerAccessor.getByPlayer(player)
         val username = hyperZonePlayer.clientOriginalName
         val normalizedName = username.lowercase()
-        if (profileService.canResolveOrCreateProfile(hyperZonePlayer)) {
-            if (repository.getByName(normalizedName) != null) {
-                return Result(false, OfflineAuthMessages.OFFLINE_PASSWORD_ALREADY_SET)
+        if (repository.getByName(normalizedName) != null) {
+            return Result(false, OfflineAuthMessages.OFFLINE_PASSWORD_ALREADY_SET)
+        }
+
+        validatePassword(username, password)?.let {
+            return it
+        }
+
+        val attachedProfile = profileService.getAttachedProfile(hyperZonePlayer)
+        if (attachedProfile != null) {
+            return bindExistingProfile(player, hyperZonePlayer, attachedProfile, username, normalizedName, password)
+        }
+
+        if (profileService.canResolveOrCreateProfile(username)) {
+            val profile = try {
+                profileService.resolveOrCreateProfile(hyperZonePlayer, username)
+            } catch (throwable: IllegalStateException) {
+                return Result(false, throwable.message ?: OfflineAuthMessages.REGISTER_FAILED)
             }
 
-            validatePassword(username, password)?.let {
-                return it
-            }
-
-            val profile = profileService.resolveOrCreateProfile(hyperZonePlayer)
             return createOfflinePasswordEntry(
                 player = player,
                 hyperZonePlayer = hyperZonePlayer,
@@ -80,12 +91,23 @@ class OfflineAuthService(
             )
         }
 
-        return bindExistingProfile(player, hyperZonePlayer, username, normalizedName, password)
+        val pendingCredential = createPendingOfflineCredential(hyperZonePlayer, normalizedName, password)
+        hyperZonePlayer.submitCredential(pendingCredential)
+        runCatching {
+            hyperZonePlayer.overVerify()
+        }.getOrElse { throwable ->
+            pendingCredential.pendingRegistrationIdOrNull()?.let(pendingRegistrations::remove)
+            return Result(false, throwable.message ?: "§c注册成功，但等待绑定时出现错误")
+        }
+
+        return Result(true, REGISTER_BIND_PENDING_MESSAGE)
+
     }
 
     private fun bindExistingProfile(
         player: Player,
         hyperZonePlayer: icu.h2l.api.player.HyperZonePlayer,
+        profile: icu.h2l.api.db.Profile,
         username: String,
         normalizedName: String,
         password: String
@@ -93,9 +115,6 @@ class OfflineAuthService(
         if (!hyperZonePlayer.canBind()) {
             return Result(false, OfflineAuthMessages.REGISTER_BIND_DENIED)
         }
-
-        val profile = profileService.getAttachedProfile(hyperZonePlayer)
-            ?: return Result(false, OfflineAuthMessages.REGISTER_BIND_PROFILE_MISSING)
         if (repository.getByProfileId(profile.id) != null || repository.getByName(normalizedName) != null) {
             return Result(false, OfflineAuthMessages.OFFLINE_PASSWORD_ALREADY_SET)
         }
@@ -120,7 +139,7 @@ class OfflineAuthService(
         hyperZonePlayer: icu.h2l.api.player.HyperZonePlayer,
         normalizedName: String,
         password: String,
-        profileId: java.util.UUID,
+        profileId: UUID,
         successMessage: String,
         failureMessage: String,
         markVerified: Boolean = false,
@@ -234,6 +253,7 @@ class OfflineAuthService(
         ensureTotpFeatureEnabled()?.let { return it }
 
         val entry = resolveEntryByPlayer(player) ?: return Result(false, OfflineAuthMessages.UNREGISTERED)
+        val profileId = entry.profileId
         if (!verifyPassword(password, entry)) {
             return Result(false, OfflineAuthMessages.PASSWORD_WRONG)
         }
@@ -241,7 +261,7 @@ class OfflineAuthService(
             return Result(false, OfflineAuthMessages.TOTP_ALREADY_ENABLED)
         }
 
-        val setup = totpAuthenticator.createSetup(entry.profileId, entry.name)
+        val setup = totpAuthenticator.createSetup(profileId, entry.name)
         return Result(true, OfflineAuthMessages.totpSetupGenerated(setup.secret, setup.otpAuthUrl))
     }
 
@@ -249,19 +269,20 @@ class OfflineAuthService(
         ensureTotpFeatureEnabled()?.let { return it }
 
         val entry = resolveEntryByPlayer(player) ?: return Result(false, OfflineAuthMessages.UNREGISTERED)
+        val profileId = entry.profileId
         if (isTotpEnabled(entry)) {
             return Result(false, OfflineAuthMessages.TOTP_ALREADY_ENABLED)
         }
 
-        val pendingSetup = totpAuthenticator.getPendingSetup(entry.profileId)
+        val pendingSetup = totpAuthenticator.getPendingSetup(profileId)
             ?: return Result(false, OfflineAuthMessages.TOTP_PENDING_NOT_FOUND)
-        if (!totpAuthenticator.verifyPendingCode(entry.profileId, entry.name, code)) {
+        if (!totpAuthenticator.verifyPendingCode(profileId, entry.name, code)) {
             return Result(false, OfflineAuthMessages.TOTP_INVALID_CODE)
         }
 
-        return if (repository.updateTotpSecret(entry.profileId, pendingSetup.secret)) {
-            totpAuthenticator.clearPendingSetup(entry.profileId)
-            repository.clearSession(entry.profileId)
+        return if (repository.updateTotpSecret(profileId, pendingSetup.secret)) {
+            totpAuthenticator.clearPendingSetup(profileId)
+            repository.clearSession(profileId)
             Result(true, OfflineAuthMessages.TOTP_ENABLED)
         } else {
             Result(false, "§c二步验证启用失败，请稍后再试")
@@ -272,6 +293,7 @@ class OfflineAuthService(
         ensureTotpFeatureEnabled()?.let { return it }
 
         val entry = resolveEntryByPlayer(player) ?: return Result(false, OfflineAuthMessages.UNREGISTERED)
+        val profileId = entry.profileId
         if (!verifyPassword(password, entry)) {
             return Result(false, OfflineAuthMessages.PASSWORD_WRONG)
         }
@@ -280,8 +302,8 @@ class OfflineAuthService(
             return Result(false, OfflineAuthMessages.TOTP_INVALID_CODE)
         }
 
-        return if (repository.updateTotpSecret(entry.profileId, null)) {
-            totpAuthenticator.clearPendingSetup(entry.profileId)
+        return if (repository.updateTotpSecret(profileId, null)) {
+            totpAuthenticator.clearPendingSetup(profileId)
             Result(true, OfflineAuthMessages.TOTP_DISABLED)
         } else {
             Result(false, "§c二步验证关闭失败，请稍后再试")
@@ -290,6 +312,7 @@ class OfflineAuthService(
 
     fun changePassword(player: Player, oldPassword: String, newPassword: String): Result {
         val entry = resolveEntryByPlayer(player) ?: return Result(false, "§c尚未注册")
+        val profileId = entry.profileId
         if (!verifyPassword(oldPassword, entry)) {
             return Result(false, OfflineAuthMessages.OLD_PASSWORD_WRONG)
         }
@@ -301,7 +324,7 @@ class OfflineAuthService(
         }
 
         val updated = repository.updatePassword(
-            profileId = entry.profileId,
+            profileId = profileId,
             passwordHash = hashPassword(newPassword),
             hashFormat = HASH_FORMAT_SHA256
         )
@@ -325,11 +348,12 @@ class OfflineAuthService(
 
     fun unregister(player: Player, password: String): Result {
         val entry = resolveEntryByPlayer(player) ?: return Result(false, "§c尚未注册")
+        val profileId = entry.profileId
         if (!verifyPassword(password, entry)) {
             return Result(false, OfflineAuthMessages.PASSWORD_WRONG)
         }
 
-        val deleted = repository.deleteByProfileId(entry.profileId)
+        val deleted = repository.deleteByProfileId(profileId)
         return if (deleted) {
             Result(true, OfflineAuthMessages.UNREGISTER_SUCCESS)
         } else {
@@ -346,16 +370,17 @@ class OfflineAuthService(
 
         val normalizedEmail = normalizeEmail(email) ?: return Result(false, OfflineAuthMessages.EMAIL_INVALID)
         val entry = resolveEntryByPlayer(player) ?: return Result(false, OfflineAuthMessages.UNREGISTERED)
+        val profileId = entry.profileId
         if (!verifyPassword(password, entry)) {
             return Result(false, OfflineAuthMessages.PASSWORD_WRONG)
         }
 
         val occupied = repository.getByEmail(normalizedEmail)
-        if (occupied != null && occupied.profileId != entry.profileId) {
+        if (occupied != null && occupied.profileId != profileId) {
             return Result(false, OfflineAuthMessages.EMAIL_ALREADY_USED)
         }
 
-        return if (repository.updateEmail(entry.profileId, normalizedEmail)) {
+        return if (repository.updateEmail(profileId, normalizedEmail)) {
             Result(true, OfflineAuthMessages.EMAIL_ADDED)
         } else {
             Result(false, "§c邮箱绑定失败，请稍后再试")
@@ -368,6 +393,7 @@ class OfflineAuthService(
         val normalizedOldEmail = normalizeEmail(oldEmail) ?: return Result(false, OfflineAuthMessages.EMAIL_INVALID)
         val normalizedNewEmail = normalizeEmail(newEmail) ?: return Result(false, OfflineAuthMessages.EMAIL_INVALID)
         val entry = resolveEntryByPlayer(player) ?: return Result(false, OfflineAuthMessages.UNREGISTERED)
+        val profileId = entry.profileId
         if (!verifyPassword(password, entry)) {
             return Result(false, OfflineAuthMessages.PASSWORD_WRONG)
         }
@@ -377,11 +403,11 @@ class OfflineAuthService(
         }
 
         val occupied = repository.getByEmail(normalizedNewEmail)
-        if (occupied != null && occupied.profileId != entry.profileId) {
+        if (occupied != null && occupied.profileId != profileId) {
             return Result(false, OfflineAuthMessages.EMAIL_ALREADY_USED)
         }
 
-        return if (repository.updateEmail(entry.profileId, normalizedNewEmail)) {
+        return if (repository.updateEmail(profileId, normalizedNewEmail)) {
             Result(true, OfflineAuthMessages.EMAIL_CHANGED)
         } else {
             Result(false, "§c邮箱修改失败，请稍后再试")
@@ -408,6 +434,7 @@ class OfflineAuthService(
 
         val normalizedEmail = normalizeEmail(email) ?: return Result(false, OfflineAuthMessages.EMAIL_INVALID)
         val entry = repository.getByEmail(normalizedEmail) ?: return Result(false, OfflineAuthMessages.EMAIL_NOT_SET)
+        val profileId = entry.profileId
         val now = System.currentTimeMillis()
         val emailConfig = OfflineAuthConfigLoader.getConfig().email
         val cooldownMillis = emailConfig.recoveryCooldownSeconds * 1000L
@@ -419,13 +446,13 @@ class OfflineAuthService(
 
         val code = generateRecoveryCode(emailConfig.recoveryCodeLength)
         val expireAt = now + emailConfig.recoveryCodeExpireMinutes * 60_000L
-        if (!repository.startRecovery(entry.profileId, hashPassword(code), expireAt, now)) {
+        if (!repository.startRecovery(profileId, hashPassword(code), expireAt, now)) {
             return Result(false, "§c写入恢复码失败，请稍后再试")
         }
 
         val deliveryResult = deliverRecoveryCode(player.username, normalizedEmail, code, expireAt)
         if (!deliveryResult.success) {
-            repository.clearRecoveryState(entry.profileId)
+            repository.clearRecoveryState(profileId)
             return Result(false, OfflineAuthMessages.recoverySendFailure(deliveryResult.diagnosticMessage))
         }
 
@@ -443,27 +470,28 @@ class OfflineAuthService(
         ensureEmailFeatureEnabled()?.let { return it }
 
         val entry = resolveEntryByPlayer(player) ?: return Result(false, OfflineAuthMessages.UNREGISTERED)
+        val profileId = entry.profileId
         val storedHash = entry.recoveryCodeHash ?: return Result(false, OfflineAuthMessages.RECOVERY_CODE_NOT_REQUESTED)
         val now = System.currentTimeMillis()
 
         if (entry.recoveryCodeExpireAt == null || entry.recoveryCodeExpireAt < now) {
-            repository.clearRecoveryState(entry.profileId)
+            repository.clearRecoveryState(profileId)
             return Result(false, OfflineAuthMessages.RECOVERY_CODE_EXPIRED)
         }
 
         val emailConfig = OfflineAuthConfigLoader.getConfig().email
         if (entry.recoveryVerifyTries >= emailConfig.maxCodeVerifyAttempts) {
-            repository.clearRecoveryState(entry.profileId)
+            repository.clearRecoveryState(profileId)
             return Result(false, OfflineAuthMessages.recoveryCodeAttemptsExceeded())
         }
 
         if (hashPassword(code) != storedHash) {
-            repository.incrementRecoveryVerifyTries(entry.profileId)
+            repository.incrementRecoveryVerifyTries(profileId)
             return Result(false, OfflineAuthMessages.RECOVERY_CODE_INCORRECT)
         }
 
         val verifiedUntil = now + emailConfig.resetPasswordWindowMinutes * 60_000L
-        return if (repository.markRecoveryVerified(entry.profileId, verifiedUntil)) {
+        return if (repository.markRecoveryVerified(profileId, verifiedUntil)) {
             Result(true, OfflineAuthMessages.RECOVERY_CODE_CORRECT)
         } else {
             Result(false, "§c恢复码状态更新失败，请稍后再试")
@@ -476,10 +504,11 @@ class OfflineAuthService(
         val hyperPlayer = playerAccessor.getByPlayer(player)
         val username = hyperPlayer.clientOriginalName
         val entry = resolveEntryByPlayer(player) ?: return Result(false, OfflineAuthMessages.UNREGISTERED)
+        val profileId = entry.profileId
         val verifiedUntil = entry.resetPasswordVerifiedUntil
         val now = System.currentTimeMillis()
         if (verifiedUntil == null || verifiedUntil < now) {
-            repository.clearRecoveryState(entry.profileId)
+            repository.clearRecoveryState(profileId)
             return Result(false, OfflineAuthMessages.RECOVERY_PASSWORD_WINDOW_EXPIRED)
         }
 
@@ -487,12 +516,12 @@ class OfflineAuthService(
             return it
         }
 
-        val updated = repository.updatePassword(entry.profileId, hashPassword(newPassword), HASH_FORMAT_SHA256)
+        val updated = repository.updatePassword(profileId, hashPassword(newPassword), HASH_FORMAT_SHA256)
         if (!updated) {
             return Result(false, "§c密码重置失败，请稍后再试")
         }
 
-        hyperPlayer.submitCredential(offlineCredential(entry.name, entry.profileId))
+        hyperPlayer.submitCredential(offlineCredential(entry.name, profileId))
         runCatching {
             hyperPlayer.overVerify()
         }.getOrElse { throwable ->
@@ -511,8 +540,18 @@ class OfflineAuthService(
         val prompts = ArrayList<String>()
 
         if (entry == null) {
+            val normalizedName = hyperPlayer.clientOriginalName.lowercase()
+            val hasPendingOfflineRegistration = hyperPlayer.getSubmittedCredentials()
+                .asSequence()
+                .filterIsInstance<OfflineHyperZoneCredential>()
+                .any { it.pendingRegistrationIdOrNull() != null && it.matchesNormalizedName(normalizedName) }
+            if (hasPendingOfflineRegistration) {
+                prompts += "§8[§6玩家系统§8] §7当前离线注册信息已暂存，请使用 /bindcode use <绑定码> 完成绑定"
+                return prompts
+            }
+
             prompts += OfflineAuthMessages.REGISTER_REQUEST
-            if (!profileService.canResolveOrCreateProfile(hyperPlayer)) {
+            if (!profileService.canResolveOrCreateProfile(hyperPlayer.clientOriginalName)) {
                 prompts += OfflineAuthMessages.REGISTER_BIND_HINT
             }
             return prompts
@@ -555,8 +594,9 @@ class OfflineAuthService(
         }
 
         val entry = resolveEntryByPlayer(player) ?: return null
+        val profileId = entry.profileId
         if (isTotpEnabled(entry) && !OfflineAuthConfigLoader.getConfig().totp.allowSessionBypass) {
-            repository.clearSession(entry.profileId)
+            repository.clearSession(profileId)
             publishAuthFailure(
                 player = player,
                 authType = AuthenticationFailureEvent.AuthType.OFFLINE,
@@ -573,7 +613,7 @@ class OfflineAuthService(
         val invalidByTime = sessionExpiresAt <= now || sessionIssuedAt > sessionExpiresAt
         val invalidByIp = sessionConfig.bindIp && !entry.sessionIp.isNullOrBlank() && entry.sessionIp != currentIp
         if (invalidByTime || invalidByIp) {
-            repository.clearSession(entry.profileId)
+            repository.clearSession(profileId)
             publishAuthFailure(
                 player = player,
                 authType = AuthenticationFailureEvent.AuthType.OFFLINE,
@@ -583,7 +623,7 @@ class OfflineAuthService(
             return SessionCheckResult(false, OfflineAuthMessages.SESSION_INVALID)
         }
 
-        hyperPlayer.submitCredential(offlineCredential(entry.name, entry.profileId))
+        hyperPlayer.submitCredential(offlineCredential(entry.name, profileId))
         runCatching {
             hyperPlayer.overVerify()
         }.getOrElse { throwable ->
@@ -651,6 +691,30 @@ class OfflineAuthService(
         return repository.getByName(hyperPlayer.clientOriginalName.lowercase())
     }
 
+    private fun createPendingOfflineCredential(
+        hyperZonePlayer: icu.h2l.api.player.HyperZonePlayer,
+        normalizedName: String,
+        password: String
+    ): OfflineHyperZoneCredential {
+        val pendingRegistrationId = hyperZonePlayer.getSubmittedCredentials()
+            .asSequence()
+            .filterIsInstance<OfflineHyperZoneCredential>()
+            .firstOrNull { it.pendingRegistrationIdOrNull() != null && it.matchesNormalizedName(normalizedName) }
+            ?.pendingRegistrationIdOrNull()
+            ?: UUID.randomUUID()
+
+        pendingRegistrations.put(
+            PendingOfflineRegistrationManager.PendingOfflineRegistration(
+                credentialUuid = pendingRegistrationId,
+                normalizedName = normalizedName,
+                passwordHash = hashPassword(password),
+                hashFormat = HASH_FORMAT_SHA256
+            )
+        )
+
+        return offlineCredential(normalizedName = normalizedName, pendingRegistrationId = pendingRegistrationId)
+    }
+
     private fun normalizeEmail(email: String): String? {
         val candidate = email.trim().lowercase(Locale.ROOT)
         if (!EMAIL_PATTERN.matches(candidate)) {
@@ -702,7 +766,7 @@ class OfflineAuthService(
         return result
     }
 
-    private fun issueSession(profileId: java.util.UUID, player: Player) {
+    private fun issueSession(profileId: UUID, player: Player) {
         val sessionConfig = OfflineAuthConfigLoader.getConfig().session
         val entry = repository.getByProfileId(profileId)
         if (entry != null && isTotpEnabled(entry) && !OfflineAuthConfigLoader.getConfig().totp.allowSessionBypass) {
@@ -756,19 +820,25 @@ class OfflineAuthService(
     }
 
     companion object {
-        private const val OFFLINE_CHANNEL_ID = "offline"
         private const val HASH_FORMAT_PLAIN = "plain"
         private const val HASH_FORMAT_SHA256 = "sha256"
         private const val HASH_FORMAT_AUTHME = "authme"
         private val EMAIL_PATTERN = Regex("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$")
         private const val RECOVERY_CODE_CHARS = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
+        private const val REGISTER_BIND_PENDING_MESSAGE = "§a注册成功，但当前名称无法直接分配档案。请使用 /bindcode use <绑定码> 完成绑定"
+    }
 
-        private fun offlineCredential(credentialId: String, profileId: java.util.UUID): HyperZoneCredential {
-            return HyperZoneCredential(
-                channelId = OFFLINE_CHANNEL_ID,
-                credentialId = credentialId,
-                profileId = profileId
-            )
-        }
+    private fun offlineCredential(
+        normalizedName: String,
+        profileId: UUID? = null,
+        pendingRegistrationId: UUID? = null
+    ): OfflineHyperZoneCredential {
+        return OfflineHyperZoneCredential(
+            repository = repository,
+            pendingRegistrations = pendingRegistrations,
+            normalizedName = normalizedName,
+            knownProfileId = profileId,
+            pendingRegistrationId = pendingRegistrationId
+        )
     }
 }
