@@ -111,6 +111,10 @@ class BackendAuthHoldListener(
         }
     }
 
+    override fun isPlayerInWaitingArea(player: Player): Boolean {
+        return isOnBackendAuthServer(player)
+    }
+
     @Subscribe
     fun onInitialServerChoose(event: PlayerChooseInitialServerEvent) {
         if (!isEnabled()) return

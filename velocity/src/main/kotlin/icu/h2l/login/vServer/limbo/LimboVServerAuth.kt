@@ -97,6 +97,10 @@ class LimboVServerAuth(server: ProxyServer) : HyperZoneVServerAdapter {
         limboAuthServer.spawnPlayer(player, newHandler)
     }
 
+    override fun isPlayerInWaitingArea(player: Player): Boolean {
+        return limboSessions.containsKey(player.getChannel())
+    }
+
     override fun exitWaitingArea(player: Player): Boolean {
         /**
          * Limbo 的退出语义和后端等待服不同：

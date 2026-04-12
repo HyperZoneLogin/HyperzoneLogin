@@ -49,9 +49,17 @@ object HyperZonePlayerManager : HyperZonePlayerAccessor {
        return getByChannel(player.getChannel())
     }
 
+    fun getByPlayerOrNull(player: Player): VelocityHyperZonePlayer? {
+        return getByChannelOrNull(player.getChannel())
+    }
+
     override fun getByChannel(channel: Channel): HyperZonePlayer {
         return playersByPlayer[channel]
             ?: throw IllegalStateException("未找到对应的 HyperZonePlayer：channel=$channel")
+    }
+
+    fun getByChannelOrNull(channel: Channel): VelocityHyperZonePlayer? {
+        return playersByPlayer[channel]
     }
 
     fun remove(player: Player) {

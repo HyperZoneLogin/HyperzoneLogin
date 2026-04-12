@@ -26,11 +26,14 @@ import com.velocitypowered.api.util.GameProfile
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.profile.HyperZoneCredential
 import icu.h2l.login.HyperZoneLoginMain
+import icu.h2l.login.manager.HyperZonePlayerManager
 import net.kyori.adventure.text.Component
 import java.util.*
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * `HyperZonePlayer` 的 Velocity 实现。
@@ -50,6 +53,10 @@ class VelocityHyperZonePlayer(
     override val clientOriginalUUID: UUID,
     override val isOnlinePlayer: Boolean,
 ) : HyperZonePlayer {
+
+    companion object {
+        private val readyTransitionOwners = ConcurrentHashMap<UUID, VelocityHyperZonePlayer>()
+    }
 
 
     private var proxyPlayer: Player? = null
@@ -72,6 +79,7 @@ class VelocityHyperZonePlayer(
      * 玩家进入可收消息阶段前缓存的提示消息。
      */
     private val messageQueue = ConcurrentLinkedQueue<Component>()
+    private val lastReadyConflictPlayerIds = AtomicReference<Set<UUID>>(emptySet())
 
     /**
      * 等待区转发用的临时档案。
@@ -131,6 +139,7 @@ class VelocityHyperZonePlayer(
         isVerifiedState.set(false)
         hasNotifiedReadyState.set(false)
         submittedCredentials.clear()
+        lastReadyConflictPlayerIds.set(emptySet())
     }
 
     override fun sendMessage(message: Component) {
@@ -180,12 +189,74 @@ class VelocityHyperZonePlayer(
             return
         }
 
-        if (!hasNotifiedReadyState.compareAndSet(false, true)) {
+        val player = proxyPlayer ?: return
+        val main = HyperZoneLoginMain.getInstance()
+        val profileService = main.profileService
+        val attachedProfileId = profileService.getAttachedProfileId(this) ?: return
+
+        val transitionOwner = readyTransitionOwners.putIfAbsent(attachedProfileId, this)
+        if (transitionOwner != null && transitionOwner !== this) {
+            notifyProfileConflict(listOf(transitionOwner))
             return
         }
 
-        proxyPlayer?.let { player ->
-            HyperZoneLoginMain.getInstance().serverAdapter?.onVerified(player)
+        try {
+            val conflictingPlayers = main.proxy.allPlayers.asSequence()
+                .mapNotNull { onlinePlayer ->
+                    val otherHyperPlayer = HyperZonePlayerManager.getByPlayerOrNull(onlinePlayer) ?: return@mapNotNull null
+                    if (otherHyperPlayer === this) {
+                        return@mapNotNull null
+                    }
+
+                    if (profileService.getAttachedProfileId(otherHyperPlayer) != attachedProfileId) {
+                        return@mapNotNull null
+                    }
+
+                    val isStillInWaitingArea = main.serverAdapter?.isPlayerInWaitingArea(onlinePlayer) == true
+                    if (isStillInWaitingArea && !otherHyperPlayer.hasNotifiedReadyState.get()) {
+                        return@mapNotNull null
+                    }
+
+                    otherHyperPlayer
+                }
+                .toList()
+
+            if (conflictingPlayers.isNotEmpty()) {
+                notifyProfileConflict(conflictingPlayers)
+                return
+            }
+
+            lastReadyConflictPlayerIds.set(emptySet())
+            if (!hasNotifiedReadyState.compareAndSet(false, true)) {
+                return
+            }
+
+            main.serverAdapter?.onVerified(player)
+        } finally {
+            readyTransitionOwners.remove(attachedProfileId, this)
+        }
+    }
+
+    private fun notifyProfileConflict(conflictingPlayers: List<VelocityHyperZonePlayer>) {
+        val conflictPlayerIds = conflictingPlayers.asSequence()
+            .filter { it !== this }
+            .map { it.clientOriginalUUID }
+            .toSet()
+        if (conflictPlayerIds.isEmpty()) {
+            return
+        }
+
+        val previousConflictPlayerIds = lastReadyConflictPlayerIds.getAndSet(conflictPlayerIds)
+        if (previousConflictPlayerIds == conflictPlayerIds) {
+            return
+        }
+
+        sendMessage(Component.text("§c当前已有同档案玩家正在游玩或正在进入游戏区，已阻止你进入游戏区。"))
+        conflictingPlayers.forEach { conflictingPlayer ->
+            if (conflictingPlayer === this) {
+                return@forEach
+            }
+            conflictingPlayer.sendMessage(Component.text("§e检测到同档案再次尝试登入，系统已阻止该会话进入游戏区。"))
         }
     }
 }

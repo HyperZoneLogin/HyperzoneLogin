@@ -47,6 +47,10 @@ class VelocityHyperZoneProfileService(
         return databaseHelper.getProfile(profileId)
     }
 
+    fun getAttachedProfileId(player: HyperZonePlayer): UUID? {
+        return attachedProfiles[player]
+    }
+
     override fun canResolveOrCreateProfile(userName: String, uuid: UUID?): Boolean {
         val resolvedUuid = resolveRequestedUuid(userName, uuid)
         val resolved = databaseHelper.resolveTrustedProfile(userName, resolvedUuid)
