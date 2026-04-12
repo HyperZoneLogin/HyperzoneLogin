@@ -61,15 +61,14 @@ class EventListener {
         val textures = event.textures ?: return
 
         /**
-         * 这里故意只在 ProfileSkinPreprocessEvent 的高优先级阶段“预存” self 皮肤替换数据：
+         * 这里在 `ProfileSkinPreprocessEvent` 高优先级阶段直接记录并尝试补发 self `ADD_PLAYER`：
          * 1. 该事件已经拿到了正版认证返回的最初皮肤；
-         * 2. 我们先尽快把整份 `ProfileSkinTextures` 原样记下来；
-         * 3. 真正发包不在这里做，而是在拦截到原始 self `ADD_PLAYER` 时再替换；
-         * 4. 这样可以精确复用原始 self 包的时机与附带字段，并在替换完成后立即退役拦截器。
+         * 2. 我们先把整份 `ProfileSkinTextures` 原样记下来，供后续 configuration replay 复用；
+         * 3. 如果此时玩家连接已经可写，就立刻发送一次 self `ADD_PLAYER`，不再依赖 Netty 拦截器。
          *
          * 注意：这不是通用资料同步入口，只是当前“客户端自皮肤修复”的专用补包点。
          */
-        velocityPlayer.armSelfSkinAddPlayerReplacementFromPreprocess(textures)
+        velocityPlayer.sendSelfAddPlayerFromPreprocess(textures)
     }
 
     @Subscribe
@@ -88,7 +87,7 @@ class EventListener {
          *
          * 因此这里的职责是：
          * - 把 `PlayerFinishConfigurationEvent` 视为“客户端 self PlayerInfo 可能已被重置”的信号；
-         * - 基于最近一次缓存的 self 皮肤数据，重新计划一次 self `ADD_PLAYER` replay；
+         * - 基于最近一次缓存的 self 皮肤数据，重新直接补发一次 self `ADD_PLAYER`；
          * - 让客户端在新的 `ClientPacketListener` 生命周期里，再拿到一份属于自己的 `PlayerInfo`。
          *
          * 注意：
@@ -106,8 +105,8 @@ class EventListener {
         }.getOrNull() as? VelocityHyperZonePlayer ?: return
 
         // configuration 完成后，客户端可能已经换了一套新的 PlayerInfo 生命周期，
-        // 所以这里显式请求一次 self `ADD_PLAYER` replay，而不是依赖更早阶段的补包结果继续存在。
-        velocityPlayer.requestSelfAddPlayerReplayAfterConfigurationFinish()
+        // 所以这里显式再补发一次 self `ADD_PLAYER`，而不是依赖更早阶段的补包结果继续存在。
+        velocityPlayer.replaySelfAddPlayerAfterConfigurationFinish()
     }
 
     @Subscribe

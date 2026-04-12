@@ -28,7 +28,6 @@ import com.velocitypowered.proxy.network.ConnectionManager
 import com.velocitypowered.proxy.network.Endpoint
 import icu.h2l.login.inject.network.netty.NettyLoginSessionHandler
 import icu.h2l.login.inject.network.netty.SeverChannelAcceptAdapter
-import icu.h2l.login.inject.network.netty.SelfAddPlayerPacketReplacer
 import icu.h2l.login.inject.network.netty.ServerLoginSuccessPacketReplacer
 import icu.h2l.login.inject.network.netty.ToBackendPacketReplacer
 import icu.h2l.login.inject.network.netty.ViaChannelInitializer
@@ -45,7 +44,6 @@ class VelocityNetworkInjectorImpl(
     companion object {
         private const val SERVER_INJECTED_PIPELINE_NAME = "s_init_h2l"
         private const val LOGIN_HANDLER = "h2l_login_handler"
-        internal const val SELF_ADD_PLAYER_REPLACER_HANDLER = "h2l_self_add_player_replace"
     }
 
     private val endpoints: VelocityEndpointMap = ConnectionManager::class.java.getDeclaredField("endpoints").also {
@@ -82,7 +80,6 @@ class VelocityNetworkInjectorImpl(
                     )
                 )
                 channel.pipeline().addLast("h2l_login_success_profile", ServerLoginSuccessPacketReplacer(channel))
-                channel.pipeline().addLast(SELF_ADD_PLAYER_REPLACER_HANDLER, SelfAddPlayerPacketReplacer(channel))
             }
         })
     }
