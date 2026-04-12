@@ -23,16 +23,13 @@ package icu.h2l.login.listener
 
 import com.velocitypowered.api.event.Subscribe
 import com.velocitypowered.api.event.player.GameProfileRequestEvent
-import com.velocitypowered.api.event.player.configuration.PlayerFinishConfigurationEvent
 import icu.h2l.api.connection.disconnectWithMessage
 import icu.h2l.api.event.connection.OpenStartAuthEvent
-import icu.h2l.api.event.profile.ProfileSkinPreprocessEvent
 import icu.h2l.api.event.connection.OpenPreLoginEvent
 import icu.h2l.api.event.profile.ProfileResolveEvent
 import icu.h2l.api.util.RemapUtils
 import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.manager.HyperZonePlayerManager
-import icu.h2l.login.player.VelocityHyperZonePlayer
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
 
@@ -51,63 +48,6 @@ class EventListener {
         HyperZonePlayerManager.create(event.channel, event.userName, event.uuid, event.isOnline)
     }
 
-    @Subscribe(priority = Short.MAX_VALUE)
-    fun onProfileSkinPreprocess(event: ProfileSkinPreprocessEvent) {
-        if (!HyperZoneLoginMain.getMiscConfig().enableReplaceGameProfile) {
-            return
-        }
-
-        val velocityPlayer = event.hyperZonePlayer as? VelocityHyperZonePlayer ?: return
-        val textures = event.textures ?: return
-
-        /**
-         * 这里在 `ProfileSkinPreprocessEvent` 高优先级阶段直接记录并尝试补发 self `ADD_PLAYER`：
-         * 1. 该事件已经拿到了正版认证返回的最初皮肤；
-         * 2. 我们先把整份 `ProfileSkinTextures` 原样记下来，供后续 configuration replay 复用；
-         * 3. 如果此时玩家连接已经可写，就立刻发送一次 self `ADD_PLAYER`，不再依赖 Netty 拦截器。
-         *
-         * 注意：这不是通用资料同步入口，只是当前“客户端自皮肤修复”的专用补包点。
-         */
-        velocityPlayer.sendSelfAddPlayerFromPreprocess(textures)
-    }
-
-    @Subscribe
-    fun onPlayerFinishConfiguration(event: PlayerFinishConfigurationEvent) {
-        /**
-         * 这里必须在 `PlayerFinishConfigurationEvent` 再补一次 self `ADD_PLAYER` 计划，
-         * 原因不是服务端逻辑变化，而是 vanilla 客户端自己的状态机会把之前那份 self `PlayerInfo` 丢掉。
-         *
-         * 当前问题链路是：
-         * 1. 后端/代理触发 `ClientboundFinishConfigurationPacket`；
-         * 2. 客户端配置阶段结束后，会重建新的 `ClientPacketListener`；
-         * 3. 旧 listener 上持有的 `playerInfoMap` 以及本地缓存的 self `PlayerInfo` 会随之失效；
-         * 4. 这意味着我们在更早阶段补进去的 self `ADD_PLAYER`，即使当时已经生效，
-         *    也可能在 finish configuration 之后被客户端侧状态重建“吃掉”；
-         * 5. 结果就是：登录阶段明明已经补过皮肤，但客户端在 configuration 完成后又重新看不到自己皮肤。
-         *
-         * 因此这里的职责是：
-         * - 把 `PlayerFinishConfigurationEvent` 视为“客户端 self PlayerInfo 可能已被重置”的信号；
-         * - 基于最近一次缓存的 self 皮肤数据，重新直接补发一次 self `ADD_PLAYER`；
-         * - 让客户端在新的 `ClientPacketListener` 生命周期里，再拿到一份属于自己的 `PlayerInfo`。
-         *
-         * 注意：
-         * 1. 这里不是通用重同步逻辑，只针对 self 皮肤修复；
-         * 2. 这里也不是重新改身份，而是把已经确定好的 `clientSendUUID` / `clientSendName`
-         *    与最近一次可用 `textures` 再发一遍；
-         * 3. 只有开启 `enableReplaceGameProfile` 时才需要做这件事。
-         */
-        if (!HyperZoneLoginMain.getMiscConfig().enableReplaceGameProfile) {
-            return
-        }
-
-        val velocityPlayer = runCatching {
-            HyperZonePlayerManager.getByPlayer(event.player())
-        }.getOrNull() as? VelocityHyperZonePlayer ?: return
-
-        // configuration 完成后，客户端可能已经换了一套新的 PlayerInfo 生命周期，
-        // 所以这里显式再补发一次 self `ADD_PLAYER`，而不是依赖更早阶段的补包结果继续存在。
-        velocityPlayer.replaySelfAddPlayerAfterConfigurationFinish()
-    }
 
     @Subscribe
     fun onProfileResolve(event: ProfileResolveEvent) {

@@ -26,7 +26,6 @@ import icu.h2l.api.log.debug
 import icu.h2l.api.log.error
 import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.manager.HyperZonePlayerManager
-import icu.h2l.login.player.VelocityHyperZonePlayer
 import io.netty.channel.Channel
 import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.ChannelOutboundHandlerAdapter
@@ -55,16 +54,7 @@ class ServerLoginSuccessPacketReplacer(
                 return
             }
 
-            val velocityPlayer = hyperPlayer as? VelocityHyperZonePlayer
-            if (velocityPlayer == null) {
-                debug {
-                    "[ProfileSkinFlow] login success passthrough: unexpected hyper player type=${hyperPlayer::class.java.name}"
-                }
-                super.write(ctx, msg, promise)
-                return
-            }
-
-            msg.uuid = velocityPlayer.clientSendUUID
+            msg.uuid = hyperPlayer.getClientOriginalUUID()
 
             ctx.pipeline().remove(this)
             super.write(ctx, msg, promise)

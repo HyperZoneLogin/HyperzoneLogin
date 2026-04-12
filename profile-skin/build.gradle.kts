@@ -29,6 +29,7 @@ dependencies {
 
     compileOnly(libs.velocityApi)
     compileOnly(libs.velocityProxy)
+    compileOnly(libs.nettyAll)
     compileOnly(libs.exposedCore)
     compileOnly(libs.configurateHocon)
     compileOnly(libs.configurateExtraKotlin)

@@ -30,11 +30,13 @@ import icu.h2l.login.profile.skin.config.ProfileSkinConfigLoader
 import icu.h2l.login.profile.skin.db.ProfileSkinCacheRepository
 import icu.h2l.login.profile.skin.db.ProfileSkinCacheTable
 import icu.h2l.login.profile.skin.db.ProfileSkinCacheTableManager
+import icu.h2l.login.profile.skin.service.ProfileSkinSelfReplayService
 import icu.h2l.login.profile.skin.service.ProfileSkinService
 class ProfileSkinSubModule : HyperSubModule {
     lateinit var tableManager: ProfileSkinCacheTableManager
     lateinit var repository: ProfileSkinCacheRepository
     lateinit var service: ProfileSkinService
+    lateinit var selfReplayService: ProfileSkinSelfReplayService
 
     override fun register(api: HyperZoneApi) {
         val proxy = api.proxy
@@ -49,12 +51,14 @@ class ProfileSkinSubModule : HyperSubModule {
         tableManager = ProfileSkinCacheTableManager(databaseManager, table)
         repository = ProfileSkinCacheRepository(databaseManager, table)
         service = ProfileSkinService(config, repository)
+        selfReplayService = ProfileSkinSelfReplayService(api, config)
 
         tableManager.createTable()
         proxy.eventManager.register(api, tableManager)
         proxy.eventManager.register(api, service)
+        proxy.eventManager.register(api, selfReplayService)
 
-        info { "ProfileSkinSubModule 已加载，皮肤缓存与修复监听器已注册" }
+        info { "ProfileSkinSubModule 已加载，皮肤缓存、修复与 self replay 监听器已注册" }
     }
 }
 

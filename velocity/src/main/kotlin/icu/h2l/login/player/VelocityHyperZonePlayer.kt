@@ -23,20 +23,15 @@ package icu.h2l.login.player
 
 import com.velocitypowered.api.proxy.Player
 import com.velocitypowered.api.util.GameProfile
-import com.velocitypowered.proxy.connection.client.ConnectedPlayer
 import icu.h2l.api.db.Profile
 import icu.h2l.api.event.profile.ProfileResolveEvent
-import icu.h2l.api.log.error
-import icu.h2l.api.log.warn
 import icu.h2l.api.player.HyperZonePlayer
-import icu.h2l.api.profile.skin.ProfileSkinTextures
 import icu.h2l.api.util.RemapUtils
 import icu.h2l.login.HyperZoneLoginMain
 import net.kyori.adventure.text.Component
 import java.util.*
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicReference
 
 /**
  * `HyperZonePlayer` 的 Velocity 实现。
@@ -65,7 +60,7 @@ class VelocityHyperZonePlayer(
      * 警告：严禁将该字段作为通用身份字段或对外 API 使用。
      * 如有其他需求想读取它，请先重新审视设计，而不是直接复用。
      */
-    internal val clientSendName: String = userName
+    private val clientOriginalName: String = userName
 
     /**
      * 仅用于客户端自皮肤修复链路的“回传给客户端的 UUID”。
@@ -76,7 +71,7 @@ class VelocityHyperZonePlayer(
      * 警告：严禁将该字段作为通用身份字段或对外 API 使用。
      * 如有其他需求想读取它，请先重新审视设计，而不是直接复用。
      */
-    internal val clientSendUUID: UUID = uuid
+    private val clientOriginalUUID: UUID = uuid
 
     private var proxyPlayer: Player? = null
 
@@ -105,8 +100,6 @@ class VelocityHyperZonePlayer(
      */
     private val messageQueue = ConcurrentLinkedQueue<Component>()
     private val onlineState = AtomicBoolean(isOnline)
-    private val selfSkinAddPlayerSent = AtomicBoolean(false)
-    private val latestSelfSkinTextures = AtomicReference<ProfileSkinTextures?>(null)
 
     /**
      * 等待区转发用的临时档案。
@@ -221,6 +214,18 @@ class VelocityHyperZonePlayer(
         messageQueue.offer(message)
     }
 
+    override fun getProxyPlayerOrNull(): Player? {
+        return proxyPlayer
+    }
+
+    override fun getClientOriginalName(): String {
+        return clientOriginalName
+    }
+
+    override fun getClientOriginalUUID(): UUID {
+        return clientOriginalUUID
+    }
+
     override fun getTemporaryGameProfile(): GameProfile {
         return temporaryGameProfile
             ?: throw IllegalStateException("玩家 $userName 尚未生成临时档案，无法在等待区使用可信身份")
@@ -252,100 +257,6 @@ class VelocityHyperZonePlayer(
 
     fun setOnlinePlayer(isOnline: Boolean) {
         onlineState.set(isOnline)
-    }
-
-
-    /**
-     * 仅供 `ProfileSkinPreprocessEvent` 监听器调用：
-     * 记录最新的 self 皮肤资料，并在连接已经可写时直接补发一次 self `ADD_PLAYER`。
-     */
-    internal fun sendSelfAddPlayerFromPreprocess(textures: ProfileSkinTextures) {
-        if (!HyperZoneLoginMain.getMiscConfig().enableReplaceGameProfile) {
-            return
-        }
-        if (textures.value.isBlank()) {
-            return
-        }
-
-        latestSelfSkinTextures.set(textures)
-        if (selfSkinAddPlayerSent.get()) {
-            return
-        }
-
-        sendSelfAddPlayer(textures, forceReplay = false, failureLabel = "Preprocess")
-    }
-
-    /**
-     * `ClientboundFinishConfigurationPacket` 之后客户端会重建 `ClientPacketListener`，
-     * 原先 self `PlayerInfo` 可能随之丢失。
-     *
-     * 因此在 Velocity 的 `PlayerFinishConfigurationEvent` 到来后，
-     * 这里会基于最近一次可用的 self 皮肤资料重新补发一次 self `ADD_PLAYER`。
-     */
-    internal fun replaySelfAddPlayerAfterConfigurationFinish() {
-        if (!HyperZoneLoginMain.getMiscConfig().enableReplaceGameProfile) {
-            return
-        }
-
-        val textures = latestSelfSkinTextures.get() ?: return
-        if (textures.value.isBlank()) {
-            return
-        }
-
-        sendSelfAddPlayer(textures, forceReplay = true, failureLabel = "Post-configuration replay")
-    }
-
-    private fun sendSelfAddPlayer(
-        textures: ProfileSkinTextures,
-        forceReplay: Boolean,
-        failureLabel: String
-    ) {
-        if (!forceReplay && selfSkinAddPlayerSent.get()) {
-            return
-        }
-
-        val connectedPlayer = proxyPlayer as? ConnectedPlayer ?: return
-        if (!connectedPlayer.isActive || connectedPlayer.connection.isClosed) {
-            return
-        }
-
-        val property = textures.toPropertyOrNull() ?: run {
-            warn {
-                "[ProfileSkinFlow] $failureLabel self ADD_PLAYER skipped due to incomplete textures: player=$userName, valueLength=${textures.value.length}, signed=${textures.isSigned}"
-            }
-            return
-        }
-
-        if (!forceReplay && !selfSkinAddPlayerSent.compareAndSet(false, true)) {
-            return
-        }
-
-        val replayProfile = GameProfile(
-            clientSendUUID,
-            clientSendName,
-            listOf(property)
-        )
-
-        connectedPlayer.connection.eventLoop().execute {
-            try {
-                if (!connectedPlayer.isActive || connectedPlayer.connection.isClosed) {
-                    if (!forceReplay) {
-                        selfSkinAddPlayerSent.set(false)
-                    }
-                    return@execute
-                }
-
-                SelfPlayerInfoSkinSender.sendAddPlayer(connectedPlayer, replayProfile)
-                selfSkinAddPlayerSent.set(true)
-            } catch (throwable: Throwable) {
-                if (!forceReplay) {
-                    selfSkinAddPlayerSent.set(false)
-                }
-                error(throwable) {
-                    "$failureLabel self ADD_PLAYER failed for player=$userName: ${throwable.message}"
-                }
-            }
-        }
     }
 }
 

@@ -21,6 +21,7 @@
 
 package icu.h2l.api.player
 
+import com.velocitypowered.api.proxy.Player
 import com.velocitypowered.api.util.GameProfile
 import icu.h2l.api.db.Profile
 import net.kyori.adventure.text.Component
@@ -145,6 +146,36 @@ interface HyperZonePlayer {
      * 发送消息给玩家。
      */
     fun sendMessage(message: Component)
+
+    /**
+     * 获取当前连接关联的代理层玩家对象。
+     *
+     * 仅供需要直接向客户端连接补发协议包的场景使用；
+     * 在玩家尚未进入可写阶段时，允许返回 null。
+     */
+    fun getProxyPlayerOrNull(): Player? {
+        return null
+    }
+
+    /**
+     * 获取客户端最初进入登录链路时携带的原始用户名。
+     *
+     * 该值仅用于需要“回放给客户端自己”的资料修复链路，
+     * 不能替代统一登录身份字段 `userName`。
+     */
+    fun getClientOriginalName(): String {
+        return userName
+    }
+
+    /**
+     * 获取客户端最初进入登录链路时携带的原始 UUID。
+     *
+     * 该值仅用于需要“回放给客户端自己”的资料修复链路，
+     * 不能替代统一登录身份字段 `uuid`。
+     */
+    fun getClientOriginalUUID(): UUID {
+        return uuid
+    }
 
 
     /**

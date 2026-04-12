@@ -36,6 +36,7 @@ interface HyperZoneApi :
     val proxy: ProxyServer
     val dataDirectory: Path
     val databaseManager: HyperZoneDatabaseManager
+    val isGameProfileReplacementEnabled: Boolean
 
     fun registerModule(module: HyperSubModule)
 }
