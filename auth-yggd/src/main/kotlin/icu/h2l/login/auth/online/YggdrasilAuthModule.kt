@@ -270,9 +270,11 @@ class YggdrasilAuthModule(
             return null
         }
 
-        if (profileService.canResolveOrCreateProfile(result.profile.name, result.profile.id)) {
+        val profileResolveUuid = resolveProfileResolveUuid(result)
+
+        if (profileService.canResolveOrCreateProfile(result.profile.name, profileResolveUuid)) {
             val resolvedProfile = try {
-                profileService.resolveOrCreateProfile(handler, result.profile.name, result.profile.id)
+                profileService.resolveOrCreateProfile(handler, result.profile.name, profileResolveUuid)
             } catch (throwable: IllegalStateException) {
                 return throwable.message ?: "创建 Profile 失败"
             }
@@ -304,6 +306,22 @@ class YggdrasilAuthModule(
             )
         )
         return null
+    }
+
+    private fun resolveProfileResolveUuid(result: YggdrasilAuthResult.Success): UUID? {
+        val entryConfig = entryConfigManager.getConfigById(result.entryId)
+        if (entryConfig == null) {
+            debug {
+                "[YggdrasilFlow] 未找到 Entry ${result.entryId} 的配置，Profile 解析回退为透传远端 UUID: ${result.profile.id}"
+            }
+            return result.profile.id
+        }
+
+        return if (entryConfig.yggdrasil.passYggdrasilUuidToProfileResolve) {
+            result.profile.id
+        } else {
+            null
+        }
     }
 
     private fun clearTransientStateAfterDispatch(player: Player) {

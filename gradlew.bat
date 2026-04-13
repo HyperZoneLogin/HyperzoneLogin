@@ -69,6 +69,18 @@ goto fail
 
 set CLASSPATH=%APP_HOME%\gradle\wrapper\gradle-wrapper.jar
 
+set JAVA_SPEC_VERSION=
+set JAVA_VERSION_FILE=%TEMP%\gradle-java-version-%RANDOM%.tmp
+"%JAVA_EXE%" -XshowSettings:properties -version >"%JAVA_VERSION_FILE%" 2>&1
+for /f "tokens=3" %%v in ('findstr /C:"java.specification.version = " "%JAVA_VERSION_FILE%"') do set JAVA_SPEC_VERSION=%%v
+del "%JAVA_VERSION_FILE%" >NUL 2>&1
+
+set JAVA_SPEC_MAJOR=
+if defined JAVA_SPEC_VERSION set JAVA_SPEC_MAJOR=%JAVA_SPEC_VERSION%
+if "%JAVA_SPEC_VERSION:~0,2%"=="1." set JAVA_SPEC_MAJOR=%JAVA_SPEC_VERSION:~2%
+for /f "tokens=1 delims=." %%m in ("%JAVA_SPEC_MAJOR%") do set JAVA_SPEC_MAJOR=%%m
+if defined JAVA_SPEC_MAJOR if %JAVA_SPEC_MAJOR% GEQ 21 set DEFAULT_JVM_OPTS=%DEFAULT_JVM_OPTS% "--enable-native-access=ALL-UNNAMED"
+
 
 @rem Execute Gradle
 "%JAVA_EXE%" %DEFAULT_JVM_OPTS% %JAVA_OPTS% %GRADLE_OPTS% "-Dorg.gradle.appname=%APP_BASE_NAME%" -classpath "%CLASSPATH%" org.gradle.wrapper.GradleWrapperMain %*

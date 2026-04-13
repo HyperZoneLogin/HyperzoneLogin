@@ -291,7 +291,7 @@ class EntryConfigManager(
     /**
      * 根据 ID 获取配置
      */
-    fun getConfigById(id: String): EntryConfig? = entryConfigs.values.find { it.id == id }
+    fun getConfigById(id: String): EntryConfig? = entryConfigs.values.find { it.id.equals(id, ignoreCase = true) }
 
     /**
      * 重新加载所有配置

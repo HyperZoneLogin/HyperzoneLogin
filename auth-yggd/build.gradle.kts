@@ -38,9 +38,29 @@ dependencies {
 
     testImplementation(platform(libs.junitBom))
     testImplementation(libs.junitJupiter)
+    testImplementation(project(":api"))
+    testImplementation(libs.velocityApi)
+    testImplementation(libs.velocityProxy)
+    testImplementation(libs.exposedCore)
+    testImplementation(libs.configurateHocon)
+    testImplementation(libs.configurateExtraKotlin)
     testRuntimeOnly(libs.junitPlatformLauncher)
 }
 
 tasks.test {
     useJUnitPlatform()
+    val currentJavaMajor = JavaVersion.current().majorVersion.toIntOrNull() ?: 0
+    if (currentJavaMajor >= 21) {
+        jvmArgs("--enable-native-access=ALL-UNNAMED")
+    }
+    if (currentJavaMajor >= 24) {
+        jvmArgs("--sun-misc-unsafe-memory-access=allow")
+    }
+    testLogging {
+        showStandardStreams = false
+    }
+    reports.junitXml.apply {
+        includeSystemOutLog = false
+        includeSystemErrLog = false
+    }
 }

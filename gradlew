@@ -139,6 +139,25 @@ Please set the JAVA_HOME variable in your environment to match the
 location of your Java installation."
 fi
 
+java_spec_version=$(
+    "$JAVACMD" -XshowSettings:properties -version 2>&1 |
+        sed -n 's/^[[:space:]]*java.specification.version = //p' |
+        head -n 1
+)
+java_spec_major=$java_spec_version
+case $java_spec_major in
+  1.*) java_spec_major=${java_spec_major#1.} ;;
+esac
+java_spec_major=${java_spec_major%%.*}
+case $java_spec_major in
+  '' | *[!0-9]*) ;;
+  *)
+    if [ "$java_spec_major" -ge 21 ]; then
+        DEFAULT_JVM_OPTS=$DEFAULT_JVM_OPTS' "--enable-native-access=ALL-UNNAMED"'
+    fi
+    ;;
+esac
+
 # Increase the maximum file descriptors if we can.
 if ! "$cygwin" && ! "$darwin" && ! "$nonstop" ; then
     case $MAX_FD in #(

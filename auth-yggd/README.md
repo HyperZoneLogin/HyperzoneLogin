@@ -24,12 +24,14 @@ Auth Yggdrasil 模块 (hzl-auth-yggd)
 - 验证流程：
   - `YggdrasilAuthModule` 负责发起并管理并发的验证请求，使用 Java HttpClient（超时配置）、协程（kotlinx.coroutines）做异步并发处理，并维护 per-player 的临时状态（authResults、inFlightAuthJobs 等）。
   - 验证分两批：第一批优先查询数据库中已有的 Entry 记录并向这些 Entry 发起请求；若未命中或失败，再向所有配置的 Entry 并发请求。成功后会回调 Limbo handler 并可能创建/绑定 profile。
+  - 每个 `entry/*.conf` 都可以单独配置 `yggdrasil.passYggdrasilUuidToProfileResolve`；默认 `true`，表示在 `canResolveOrCreateProfile(...)` / `resolveOrCreateProfile(...)` 时透传远端可信 UUID，关闭后改传 `null`，由核心侧回退到本地 remap UUID。
 
 配置文件位置 & 行为
 ------------------
 - 数据目录下的 `entry/`：放置每个 Entry 的配置文件（例如 `mojang.conf`）。
 - `entry/example/`：示例配置不会被加载，作为模板保留。
 - 在首次创建 `mojang.conf` 时，默认会写入 Mojang 官方 session URL（用于默认验证）。
+- `entry/*.conf` 中的 `yggdrasil.passYggdrasilUuidToProfileResolve` 为逐 Entry 生效：你可以只对某些正版源透传 UUID，而让另一些源关闭透传。
 
 命令与权限
 -----------
