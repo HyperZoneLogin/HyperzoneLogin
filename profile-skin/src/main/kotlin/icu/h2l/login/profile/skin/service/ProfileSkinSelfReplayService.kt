@@ -132,11 +132,6 @@ class ProfileSkinSelfReplayService(
             api.hyperZonePlayers.getByPlayer(event.player)
         }.getOrNull()?.let {
             replayStates.remove(it)
-            return
-        }
-
-        replayStates.entries.removeIf { entry ->
-            entry.key.getProxyPlayerOrNull() == event.player
         }
     }
 

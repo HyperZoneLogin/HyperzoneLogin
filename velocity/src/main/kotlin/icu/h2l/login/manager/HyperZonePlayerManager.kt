@@ -28,6 +28,7 @@ import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.player.HyperZonePlayerAccessor
 import icu.h2l.api.player.getChannel
 import icu.h2l.login.HyperZoneLoginMain
+import icu.h2l.login.listener.PlayerAreaLifecycleListener
 import icu.h2l.login.player.VelocityHyperZonePlayer
 import io.netty.channel.Channel
 import java.util.*
@@ -73,6 +74,7 @@ object HyperZonePlayerManager : HyperZonePlayerAccessor {
     @Subscribe
     fun onDisconnect(event: DisconnectEvent) {
         val player = event.player
+        getByPlayerOrNull(player)?.let { PlayerAreaLifecycleListener.onDisconnect(player, it) }
         remove(player)
     }
 }

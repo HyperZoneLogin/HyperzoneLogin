@@ -23,9 +23,11 @@ package icu.h2l.login.player
 
 import com.velocitypowered.api.proxy.Player
 import com.velocitypowered.api.util.GameProfile
+import icu.h2l.api.event.area.PlayerAreaTransitionReason
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.profile.HyperZoneCredential
 import icu.h2l.login.HyperZoneLoginMain
+import icu.h2l.login.listener.PlayerAreaLifecycleListener
 import icu.h2l.login.manager.HyperZonePlayerManager
 import icu.h2l.login.message.MessageKeys
 import net.kyori.adventure.text.Component
@@ -61,6 +63,7 @@ class VelocityHyperZonePlayer(
 
 
     private var proxyPlayer: Player? = null
+    private val hasBoundProxyPlayer = AtomicBoolean(false)
 
     /**
      * 认证链路状态，仅表示子模块是否认可本次登录。
@@ -90,15 +93,33 @@ class VelocityHyperZonePlayer(
     @Volatile
     private var temporaryGameProfile: GameProfile? = null
 
-    fun update(player: Player) {
-        proxyPlayer = player
-        if (hasSpawned.compareAndSet(false, true)) {
-            while (messageQueue.isNotEmpty()) {
-                val message = messageQueue.poll() ?: continue
-                proxyPlayer?.sendMessage(message)
-            }
+    /**
+     * 绑定当前登录会话对应的代理层 Player。
+     *
+     * 注意：每个 `VelocityHyperZonePlayer` 只允许绑定一次。
+     * - Backend 模式：在 `PlayerChooseInitialServerEvent` 中绑定；
+     * - Limbo 模式：由 Limbo 自己的接入流程更早完成绑定，不能再等 `PlayerChooseInitialServerEvent`。
+     */
+    fun injectProxyPlayer(player: Player) {
+        if (!hasBoundProxyPlayer.compareAndSet(false, true)) {
+            throw IllegalStateException("玩家 $clientOriginalName 的代理玩家对象只能绑定一次")
         }
-        tryNotifyReady()
+        proxyPlayer = player
+    }
+
+    internal fun suspendMessageDelivery() {
+        hasSpawned.set(false)
+    }
+
+    internal fun resumeMessageDelivery() {
+        if (!hasSpawned.compareAndSet(false, true)) {
+            return
+        }
+
+        while (messageQueue.isNotEmpty()) {
+            val message = messageQueue.poll() ?: continue
+            proxyPlayer?.sendMessage(message)
+        }
     }
 
     override fun hasAttachedProfile(): Boolean {
@@ -126,11 +147,6 @@ class VelocityHyperZonePlayer(
 
     override fun overVerify() {
         HyperZoneLoginMain.getInstance().profileService.attachVerifiedCredentialProfile(this)
-        if (!isVerifiedState.compareAndSet(false, true)) {
-            return
-        }
-
-        tryNotifyReady()
         if (!hasAttachedProfile()) {
             sendMessage(HyperZoneLoginMain.getInstance().messageService.render(this, MessageKeys.Player.VERIFIED_UNBOUND))
         }
@@ -182,10 +198,14 @@ class VelocityHyperZonePlayer(
     }
 
     internal fun onAttachedProfileAvailable() {
-        tryNotifyReady()
+        if (!isVerifiedState.compareAndSet(false, true)) {
+            return
+        }
+        tryLeaveWaiting()
     }
 
-    private fun tryNotifyReady() {
+    private fun tryLeaveWaiting() {
+
         if (!isVerifiedState.get() || !hasAttachedProfile()) {
             return
         }
@@ -232,6 +252,7 @@ class VelocityHyperZonePlayer(
                 return
             }
 
+            PlayerAreaLifecycleListener.markWaitingAreaLeavePending(player, PlayerAreaTransitionReason.VERIFIED)
             main.serverAdapter?.onVerified(player)
         } finally {
             readyTransitionOwners.remove(attachedProfileId, this)

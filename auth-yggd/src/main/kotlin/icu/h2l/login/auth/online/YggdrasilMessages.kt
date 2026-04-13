@@ -29,6 +29,14 @@ import net.kyori.adventure.text.Component
 object YggdrasilMessages {
     private const val NAMESPACE = "auth-yggd"
 
+    fun authInProgress(player: HyperZonePlayer): Component {
+        return render(player, "auth-in-progress", "正在进行 Yggdrasil 验证，请稍候…")
+    }
+
+    fun authSucceeded(player: HyperZonePlayer): Component {
+        return render(player, "auth-succeeded", "Yggdrasil 验证通过，正在准备档案与皮肤信息…")
+    }
+
     fun profileResolveFailed(player: HyperZonePlayer, reason: String): Component {
         return render(player, "profile-resolve-failed", reason, HyperZoneMessagePlaceholder.text("reason", reason))
     }
@@ -37,8 +45,8 @@ object YggdrasilMessages {
         return render(player, "verify-complete-failed", "认证成功，但 Profile 绑定失败", HyperZoneMessagePlaceholder.text("reason", reason))
     }
 
-    fun authFailed(player: HyperZonePlayer, username: String): Component {
-        return render(player, "auth-failed", "玩家 <username> Yggdrasil 验证失败", HyperZoneMessagePlaceholder.text("username", username))
+    fun authFailed(player: HyperZonePlayer, reason: String): Component {
+        return render(player, "auth-failed", "Yggdrasil 验证失败：<reason>", HyperZoneMessagePlaceholder.text("reason", reason))
     }
 
     fun firstBatchFailed(player: HyperZonePlayer, reason: String, statusCode: Int?): Component {

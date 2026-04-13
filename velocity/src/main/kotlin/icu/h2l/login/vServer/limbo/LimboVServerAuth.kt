@@ -27,6 +27,7 @@ import com.velocitypowered.api.event.Subscribe
 import com.velocitypowered.api.event.connection.DisconnectEvent
 import com.velocitypowered.api.plugin.PluginContainer
 import com.velocitypowered.api.proxy.Player
+import icu.h2l.api.event.area.PlayerAreaTransitionReason
 import com.velocitypowered.api.proxy.ProxyServer
 import icu.h2l.api.command.HyperChatCommandInvocation
 import icu.h2l.api.command.HyperChatCommandRegistration
@@ -36,6 +37,7 @@ import icu.h2l.api.vServer.HyperZoneVServerAdapter
 import icu.h2l.login.vServer.limbo.handler.LimboAuthSessionHandler
 import icu.h2l.login.manager.HyperZonePlayerManager
 import icu.h2l.login.HyperZoneLoginMain
+import icu.h2l.login.listener.PlayerAreaLifecycleListener
 import icu.h2l.login.player.VelocityHyperZonePlayer
 import net.elytrium.limboapi.api.Limbo
 import net.elytrium.limboapi.api.LimboFactory
@@ -77,22 +79,50 @@ class LimboVServerAuth(server: ProxyServer) : HyperZoneVServerAdapter {
 
     @Subscribe
     fun onLoginLimboRegister(event: LoginLimboRegisterEvent) {
-        event.addOnJoinCallback { authPlayer(event.player) }
+        event.addOnJoinCallback { handleInitialJoin(event.player) }
     }
 
-    override fun authPlayer(player: Player) {
+    override fun reJoin(player: Player) {
         val hyperZonePlayer = HyperZonePlayerManager.getByPlayer(player)
 
-        val VServerAuthStartEvent = VServerAuthStartEvent(player, hyperZonePlayer)
-        HyperZoneLoginMain.getInstance().proxy.eventManager.fire(VServerAuthStartEvent).join()
-        if (VServerAuthStartEvent.pass) {
+        val authStartEvent = VServerAuthStartEvent(player, hyperZonePlayer)
+        HyperZoneLoginMain.getInstance().proxy.eventManager.fire(authStartEvent).join()
+        if (authStartEvent.pass) {
+            return
+        }
+
+        (hyperZonePlayer as? VelocityHyperZonePlayer)?.suspendMessageDelivery()
+        spawnIntoLimbo(player, hyperZonePlayer)
+    }
+
+    private fun handleInitialJoin(player: Player) {
+        val hyperZonePlayer = HyperZonePlayerManager.getByPlayer(player)
+
+        /**
+         * Limbo 会在 `PlayerChooseInitialServerEvent` 之前自行创建并接管玩家实体，
+         * 因此 Limbo 模式必须在这里完成唯一一次 `update(...)` 绑定。
+         *
+         * Backend 才是在 `PlayerChooseInitialServerEvent` 中绑定；
+         * Limbo 若也等到那个阶段再绑定，会导致时序错误或重复绑定。
+         */
+        (hyperZonePlayer as? VelocityHyperZonePlayer)?.injectProxyPlayer(player)
+
+        val authStartEvent = VServerAuthStartEvent(player, hyperZonePlayer)
+        HyperZoneLoginMain.getInstance().proxy.eventManager.fire(authStartEvent).join()
+        if (authStartEvent.pass) {
             factory.passLoginLimbo(player)
             return
         }
 
+        (hyperZonePlayer as? VelocityHyperZonePlayer)?.suspendMessageDelivery()
+
+        spawnIntoLimbo(player, hyperZonePlayer)
+    }
+
+    private fun spawnIntoLimbo(player: Player, hyperZonePlayer: icu.h2l.api.player.HyperZonePlayer) {
         val newHandler = LimboAuthSessionHandler(player, hyperZonePlayer) { proxyPlayer, zonePlayer, limboPlayer ->
             bindSession(proxyPlayer, limboPlayer)
-            (zonePlayer as? VelocityHyperZonePlayer)?.update(limboPlayer.proxyPlayer)
+            (zonePlayer as? VelocityHyperZonePlayer)?.resumeMessageDelivery()
         }
         limboAuthServer.spawnPlayer(player, newHandler)
     }
@@ -107,11 +137,13 @@ class LimboVServerAuth(server: ProxyServer) : HyperZoneVServerAdapter {
          * 对 Limbo 来说，断开当前 Limbo 会话本身就是“离开等待区”的原生实现。
          */
         val limboPlayer = limboSessions.remove(player.getChannel()) ?: return false
+        PlayerAreaLifecycleListener.markWaitingAreaLeavePending(player, PlayerAreaTransitionReason.EXIT_REQUEST)
         limboPlayer.disconnect()
         return true
     }
 
     override fun onVerified(player: Player) {
+        HyperZonePlayerManager.getByPlayerOrNull(player)?.suspendMessageDelivery()
         limboSessions.remove(player.getChannel())?.disconnect()
     }
 

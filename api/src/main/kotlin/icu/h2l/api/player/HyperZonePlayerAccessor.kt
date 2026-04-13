@@ -33,7 +33,19 @@ interface HyperZonePlayerAccessor {
      * 如果同一 channel 重复创建，调用方应视为流程错误。
      */
     fun create(channel: Channel, userName: String, uuid: UUID, isOnline: Boolean): HyperZonePlayer
+
+    /**
+     * 根据代理层 `Player` 获取当前登录期 `HyperZonePlayer`。
+     *
+     * 在 `DisconnectEvent`、切服事件、状态清理等代理事件回调中，
+     * 应优先使用该方法回到登录态对象，而不是遍历所有 `HyperZonePlayer`
+     * 并比较 `getProxyPlayerOrNull()` 做反向定位。
+     */
     fun getByPlayer(player: Player): HyperZonePlayer
+
+    /**
+     * 根据底层连接 channel 获取当前登录期 `HyperZonePlayer`。
+     */
     fun getByChannel(channel: Channel): HyperZonePlayer
 }
 

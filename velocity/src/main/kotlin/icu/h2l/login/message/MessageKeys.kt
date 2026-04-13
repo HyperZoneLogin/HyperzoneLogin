@@ -73,6 +73,10 @@ object MessageKeys {
     }
 
     object Player {
+        const val ENTER_WAITING_AREA = "player.enter-waiting-area"
+        const val LEAVE_WAITING_AREA = "player.leave-waiting-area"
+        const val ENTER_GAME_AREA = "player.enter-game-area"
+        const val LEAVE_GAME_AREA = "player.leave-game-area"
         const val VERIFIED_UNBOUND = "player.verified-unbound"
         const val PROFILE_CONFLICT_SELF = "player.profile-conflict-self"
         const val PROFILE_CONFLICT_OTHER = "player.profile-conflict-other"

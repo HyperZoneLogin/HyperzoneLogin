@@ -118,7 +118,7 @@ class HyperZoneLoginCommand(
         }
 
         messages.send(sender, MessageKeys.HzlCommand.REAUTH_START)
-        HyperZoneLoginMain.getInstance().triggerVServerAuthForPlayer(sender)
+        HyperZoneLoginMain.getInstance().triggerVServerReJoinForPlayer(sender)
         return Command.SINGLE_SUCCESS
     }
 

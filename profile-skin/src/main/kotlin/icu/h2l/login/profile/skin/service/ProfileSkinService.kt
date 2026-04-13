@@ -32,6 +32,7 @@ import icu.h2l.api.event.profile.ProfileSkinPreprocessEvent
 import icu.h2l.api.log.debug
 import icu.h2l.api.log.error
 import icu.h2l.api.log.warn
+import icu.h2l.api.player.HyperZonePlayerAccessor
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.profile.HyperZoneProfileService
 import icu.h2l.api.profile.skin.ProfileSkinModel
@@ -144,9 +145,11 @@ class ProfileSkinService(
     private val config: ProfileSkinConfig,
     private val cacheRepository: ProfileSkinCacheRepository,
     private val profileRepository: ProfileSkinProfileRepository,
-    private val profileService: HyperZoneProfileService
+    private val profileService: HyperZoneProfileService,
+    private val playerAccessor: HyperZonePlayerAccessor
 ) {
     private val pendingSkinBindings = ConcurrentHashMap<HyperZonePlayer, UUID>()
+    private val playersWithSkinProcessingPrompt = ConcurrentHashMap.newKeySet<HyperZonePlayer>()
 
     private val httpClient: HttpClient = HttpClient.newBuilder()
         .connectTimeout(Duration.ofMillis(config.mineSkin.timeoutMillis))
@@ -156,6 +159,8 @@ class ProfileSkinService(
     @Subscribe
     fun onPreprocess(event: ProfileSkinPreprocessEvent) {
         if (!config.enabled) return
+
+        notifyProcessingStarted(event.hyperZonePlayer)
 
         val upstreamTextures = event.textures ?: extractTextures(event.authenticatedProfile)
         val source = (event.source ?: extractSkinSource(upstreamTextures))?.normalized()
@@ -183,6 +188,7 @@ class ProfileSkinService(
                 "trusted signed upstream"
             )
             event.textures = trustedUpstreamTextures
+            notifyProcessingReady(event.hyperZonePlayer)
             return
         }
 
@@ -200,6 +206,7 @@ class ProfileSkinService(
                         "[ProfileSkinFlow] source cache hit: skin=${cached.skinId}, clientOriginal=${event.hyperZonePlayer.clientOriginalName}, sourceHash=${shortHash(sourceHash)}, source=${describeSource(source)}"
                     }
                     event.textures = cached.textures
+                    notifyProcessingReady(event.hyperZonePlayer)
                     return
                 }
             }
@@ -220,6 +227,7 @@ class ProfileSkinService(
                     "restored textures"
                 )
                 event.textures = restored
+                notifyProcessingReady(event.hyperZonePlayer)
                 return
             }.onFailure { throwable ->
                 error(throwable) {
@@ -253,10 +261,12 @@ class ProfileSkinService(
                 "upstream fallback"
             )
             event.textures = fallbackTextures
+            notifyProcessingReadyWithFallback(event.hyperZonePlayer)
         } else {
             debug {
                 "[ProfileSkinFlow] preprocess finished without textures: clientOriginal=${event.hyperZonePlayer.clientOriginalName}, entry=${event.entryId}, source=${describeSource(source)}"
             }
+            notifyNoSkin(event.hyperZonePlayer)
         }
     }
 
@@ -280,8 +290,11 @@ class ProfileSkinService(
 
     @Subscribe
     fun onDisconnect(event: DisconnectEvent) {
-        pendingSkinBindings.entries.removeIf { entry ->
-            entry.key.getProxyPlayerOrNull() == event.player
+        runCatching {
+            playerAccessor.getByPlayer(event.player)
+        }.getOrNull()?.let { hyperZonePlayer ->
+            pendingSkinBindings.remove(hyperZonePlayer)
+            playersWithSkinProcessingPrompt.remove(hyperZonePlayer)
         }
     }
 
@@ -537,5 +550,26 @@ class ProfileSkinService(
         debug {
             "[ProfileSkinFlow] skin cache ${result.action.name.lowercase()}: skin=${result.record.skinId}, reason=$reason, sourceHash=${shortHash(sourceHash)}, reusable=${result.record.sourceCacheEligible}, source=${describeSource(source)}"
         }
+    }
+
+    private fun notifyProcessingStarted(player: HyperZonePlayer) {
+        if (playersWithSkinProcessingPrompt.add(player)) {
+            player.sendMessage(ProfileSkinMessages.processing(player))
+        }
+    }
+
+    private fun notifyProcessingReady(player: HyperZonePlayer) {
+        playersWithSkinProcessingPrompt.remove(player)
+        player.sendMessage(ProfileSkinMessages.ready(player))
+    }
+
+    private fun notifyProcessingReadyWithFallback(player: HyperZonePlayer) {
+        playersWithSkinProcessingPrompt.remove(player)
+        player.sendMessage(ProfileSkinMessages.readyWithFallback(player))
+    }
+
+    private fun notifyNoSkin(player: HyperZonePlayer) {
+        playersWithSkinProcessingPrompt.remove(player)
+        player.sendMessage(ProfileSkinMessages.noSkin(player))
     }
 }

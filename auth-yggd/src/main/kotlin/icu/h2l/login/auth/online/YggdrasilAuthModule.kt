@@ -132,6 +132,12 @@ class YggdrasilAuthModule(
                 return
             }
 
+            runCatching {
+                playerAccessor.getByPlayer(player)
+            }.getOrNull()?.let { hyperZonePlayer ->
+                hyperZonePlayer.sendMessage(YggdrasilMessages.authInProgress(hyperZonePlayer))
+            }
+
             val job = coroutineScope.launch {
                 try {
                     debug { "[YggdrasilFlow] 验证任务开始执行: user=$username" }
@@ -211,6 +217,7 @@ class YggdrasilAuthModule(
                 }
 
                 info { "玩家 $username 通过 Yggdrasil 验证，Entry: ${result.entryId}" }
+                handler.sendMessage(YggdrasilMessages.authSucceeded(handler))
                 fireProfileSkinPreprocessEvent(handler, result)
                 if (handler.isInWaitingArea()) {
                     runCatching {
@@ -234,7 +241,7 @@ class YggdrasilAuthModule(
                 is YggdrasilAuthResult.NoEntriesConfigured -> "No entries configured"
             }
             publishAuthFailure(player, username, result)
-            handler.sendMessage(YggdrasilMessages.authFailed(handler, username))
+            handler.sendMessage(YggdrasilMessages.authFailed(handler, failureReason))
             info { "玩家 $username Yggdrasil 验证失败" }
             debug { "玩家 $username Yggdrasil 验证失败原因: $failureReason" }
         } finally {

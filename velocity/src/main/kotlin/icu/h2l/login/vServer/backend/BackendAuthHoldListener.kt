@@ -29,16 +29,17 @@ import com.velocitypowered.api.event.player.ServerPreConnectEvent
 import com.velocitypowered.api.proxy.Player
 import com.velocitypowered.api.proxy.ProxyServer
 import com.velocitypowered.api.proxy.server.RegisteredServer
+import icu.h2l.api.event.area.PlayerAreaTransitionReason
 import icu.h2l.api.event.vServer.VServerAuthStartEvent
 import icu.h2l.api.event.vServer.VServerJoinEvent
 import icu.h2l.api.message.HyperZoneMessagePlaceholder
 import icu.h2l.api.player.getChannel
 import icu.h2l.api.vServer.HyperZoneVServerAdapter
 import icu.h2l.login.HyperZoneLoginMain
+import icu.h2l.login.listener.PlayerAreaLifecycleListener
 import icu.h2l.login.manager.HyperZonePlayerManager
 import icu.h2l.login.message.MessageKeys
 import icu.h2l.login.player.VelocityHyperZonePlayer
-import net.kyori.adventure.text.Component
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 
@@ -60,13 +61,12 @@ class BackendAuthHoldListener(
      *
      * `returnTargetServerName` 不能在 `onVerified()` 时直接丢掉，
      * 因为玩家完成认证后仍可能再次停留/回到等待区服，此时 `/exit` 应优先把玩家送回
-     * `authPlayer(...)` 将其转入等待区前的目标服，而不是直接断开连接。
+     * `reJoin(...)` 将其转入等待区前的目标服，而不是直接断开连接。
      */
     private data class BackendHoldState(
         var authServerName: String,
         var returnTargetServerName: String? = null,
         var inAuthHold: Boolean = true,
-        var joinAnnounced: Boolean = false
     )
 
     private val logger
@@ -77,7 +77,7 @@ class BackendAuthHoldListener(
         return configuredAuthServerName().isNotBlank()
     }
 
-    override fun authPlayer(player: Player) {
+    override fun reJoin(player: Player) {
         val messages = HyperZoneLoginMain.getInstance().messageService
         val hyperPlayer = getHyperPlayer(player) ?: return
         val authServer = resolveAuthServer() ?: run {
@@ -97,12 +97,15 @@ class BackendAuthHoldListener(
         }
 
         if (currentServerName.equals(authServer.serverInfo.name, ignoreCase = true)) {
-            fireJoinIfNeeded(player, hyperPlayer, authServer)
+            fireJoin(player, hyperPlayer)
             return
         }
 
+        hyperPlayer.suspendMessageDelivery()
+
         player.createConnectionRequest(authServer).connect().whenComplete { result, throwable ->
             if (throwable != null) {
+                hyperPlayer.resumeMessageDelivery()
                 player.sendMessage(
                     messages.render(
                         player,
@@ -114,6 +117,7 @@ class BackendAuthHoldListener(
             }
 
             if (result == null || !result.isSuccessful) {
+                hyperPlayer.resumeMessageDelivery()
                 val reason = result?.reasonComponent?.map { it.toString() }?.orElse("未知原因") ?: "未知原因"
                 player.sendMessage(
                     messages.render(
@@ -137,7 +141,14 @@ class BackendAuthHoldListener(
         val player = event.player
         val messages = HyperZoneLoginMain.getInstance().messageService
         val hyperPlayer = getHyperPlayer(player) ?: return
-        hyperPlayer.update(player)
+
+        /**
+         * Backend 等待服不会像 Limbo 那样在更早阶段自行构造并接管玩家实体，
+         * 因此这里就是 Backend 模式唯一合法的 `update(...)` 绑定点。
+         *
+         * Limbo 模式绝不能复用这条路径；否则会在其更早绑定之后再次调用 `update(...)`。
+         */
+        hyperPlayer.injectProxyPlayer(player)
 
         if (!hyperPlayer.isInWaitingArea()) return
 
@@ -154,6 +165,7 @@ class BackendAuthHoldListener(
             return
         }
 
+        hyperPlayer.suspendMessageDelivery()
         event.setInitialServer(authServer)
     }
 
@@ -162,7 +174,6 @@ class BackendAuthHoldListener(
         val player = event.player
         val messages = HyperZoneLoginMain.getInstance().messageService
         val hyperPlayer = getHyperPlayer(player) ?: return
-        hyperPlayer.update(player)
 
         if (!isInBackendAuthHold(player, hyperPlayer)) return
 
@@ -194,10 +205,8 @@ class BackendAuthHoldListener(
     fun onServerConnected(event: ServerConnectedEvent) {
         val player = event.player
         val hyperPlayer = getHyperPlayer(player) ?: return
-        hyperPlayer.update(player)
-
-        if (!isInBackendAuthHold(player, hyperPlayer)) return
-        fireJoinIfNeeded(player, hyperPlayer, event.server)
+        if (!event.server.serverInfo.name.equals(configuredAuthServerName(), ignoreCase = true)) return
+        fireJoin(player, hyperPlayer)
     }
 
     @Subscribe
@@ -212,7 +221,6 @@ class BackendAuthHoldListener(
         targetServerName: String?
     ): Boolean {
         val resolvedTarget = resolvePostAuthTarget(player, authServer, targetServerName)
-        hyperPlayer.update(player)
         beginBackendAuthHold(player, authServer.serverInfo.name, resolvedTarget)
 
         val authStartEvent = VServerAuthStartEvent(player, hyperPlayer)
@@ -267,15 +275,10 @@ class BackendAuthHoldListener(
             ?.name
     }
 
-    private fun fireJoinIfNeeded(
+    private fun fireJoin(
         player: Player,
         hyperPlayer: VelocityHyperZonePlayer,
-        server: RegisteredServer
     ) {
-        if (!markBackendAuthJoinHandled(player, server.serverInfo.name)) {
-            return
-        }
-
         this.server.eventManager.fire(VServerJoinEvent(player, hyperPlayer))
     }
 
@@ -299,9 +302,11 @@ class BackendAuthHoldListener(
             return false
         }
 
+        PlayerAreaLifecycleListener.markWaitingAreaLeavePending(player, PlayerAreaTransitionReason.EXIT_REQUEST)
+
         /**
          * 后端等待服和 Limbo 不同：
-         * 玩家“退出等待区”不应被直接断开，而应尽量送回 `authPlayer(...)`
+         * 玩家“退出等待区”不应被直接断开，而应尽量送回 `reJoin(...)`
          * 把他转入等待区之前的目标服。
          *
          * 只有 Limbo 才是“断开 Limbo 会话 = 退出等待区”。
@@ -325,7 +330,6 @@ class BackendAuthHoldListener(
     override fun onVerified(player: Player) {
         val state = backendHoldStates[player.getChannel()] ?: return
         state.inAuthHold = false
-        state.joinAnnounced = false
 
         connectPlayerToTarget(
             player = player,
@@ -361,7 +365,6 @@ class BackendAuthHoldListener(
             authServerName = authServerName,
             returnTargetServerName = rememberedTarget,
             inAuthHold = true,
-            joinAnnounced = false
         )
     }
 
@@ -375,20 +378,6 @@ class BackendAuthHoldListener(
             existing.returnTargetServerName = resolved
             existing
         }
-    }
-
-    private fun markBackendAuthJoinHandled(player: Player, serverName: String): Boolean {
-        var handled = false
-        backendHoldStates.computeIfPresent(player.getChannel()) { _, existing ->
-            if (!existing.inAuthHold || !existing.authServerName.equals(serverName, ignoreCase = true) || existing.joinAnnounced) {
-                return@computeIfPresent existing
-            }
-
-            existing.joinAnnounced = true
-            handled = true
-            existing
-        }
-        return handled
     }
 
     private fun clearBackendAuthHold(player: Player) {
@@ -452,14 +441,19 @@ class BackendAuthHoldListener(
         val resolvedTarget = targetServerName
             ?.takeUnless { it.isBlank() || it.equals(authServerName, ignoreCase = true) }
             ?: resolveFallbackTargetServerName(player, authServerName)
+        val hyperPlayer = getHyperPlayer(player)
 
         if (resolvedTarget == null) {
+            PlayerAreaLifecycleListener.clearPendingWaitingAreaLeave(player)
+            hyperPlayer?.resumeMessageDelivery()
             player.sendMessage(messages.render(player, missingTargetKey))
             return false
         }
 
         val target = server.getServer(resolvedTarget).orElse(null)
         if (target == null) {
+            PlayerAreaLifecycleListener.clearPendingWaitingAreaLeave(player)
+            hyperPlayer?.resumeMessageDelivery()
             player.sendMessage(
                 messages.render(
                     player,
@@ -470,8 +464,12 @@ class BackendAuthHoldListener(
             return false
         }
 
+        hyperPlayer?.suspendMessageDelivery()
+
         player.createConnectionRequest(target).connect().whenComplete { result, throwable ->
             if (throwable != null) {
+                PlayerAreaLifecycleListener.clearPendingWaitingAreaLeave(player)
+                hyperPlayer?.resumeMessageDelivery()
                 player.sendMessage(
                     messages.render(
                         player,
@@ -483,6 +481,8 @@ class BackendAuthHoldListener(
             }
 
             if (result == null || !result.isSuccessful) {
+                PlayerAreaLifecycleListener.clearPendingWaitingAreaLeave(player)
+                hyperPlayer?.resumeMessageDelivery()
                 val reason = result?.reasonComponent?.map { component ->
                     component.toString()
                 }?.orElse("未知原因") ?: "未知原因"

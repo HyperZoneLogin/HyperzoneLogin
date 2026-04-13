@@ -62,7 +62,13 @@ class ProfileSkinSubModule : HyperSubModule {
         tableManager = ProfileSkinCacheTableManager(databaseManager, cacheTable, profileTable)
         cacheRepository = ProfileSkinCacheRepository(databaseManager, cacheTable)
         profileRepository = ProfileSkinProfileRepository(databaseManager, profileTable)
-        service = ProfileSkinService(config, cacheRepository, profileRepository, HyperZoneProfileServiceProvider.get())
+        service = ProfileSkinService(
+            config,
+            cacheRepository,
+            profileRepository,
+            HyperZoneProfileServiceProvider.get(),
+            api.hyperZonePlayers
+        )
         selfReplayService = ProfileSkinSelfReplayService(
             api,
             config,

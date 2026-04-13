@@ -128,6 +128,11 @@ interface HyperZonePlayer {
      *
      * 仅供需要直接向客户端连接补发协议包的场景使用；
      * 在玩家尚未进入可写阶段时，允许返回 null。
+     *
+     * 注意：该方法不是“根据 Player 反查 HyperZonePlayer”的入口。
+     * 在 `DisconnectEvent`、切服事件、状态清理等场景中，
+     * 不要通过遍历所有 `HyperZonePlayer` 并比较 `getProxyPlayerOrNull()` 的方式做反向定位；
+     * 应优先使用 `HyperZonePlayerAccessor.getByPlayer(...)` 或 `getByChannel(...)` 做正向映射。
      */
     fun getProxyPlayerOrNull(): Player? {
         return null

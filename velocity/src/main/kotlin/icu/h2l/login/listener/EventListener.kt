@@ -56,6 +56,7 @@ class EventListener {
         HyperZonePlayerManager.getByChannel(event.channel).setTemporaryGameProfile(randomProfile)
     }
 
+
     @Subscribe
     fun onGameProfileRequestEvent(event: GameProfileRequestEvent) {
 //            不进行后端转发的情况下要准许使用原有的

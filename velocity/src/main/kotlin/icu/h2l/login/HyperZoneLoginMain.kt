@@ -49,6 +49,7 @@ import icu.h2l.login.vServer.backend.BackendAuthHoldListener
 import icu.h2l.login.vServer.limbo.LimboVServerAuth
 import icu.h2l.login.vServer.command.ExitVServerCommand
 import icu.h2l.login.listener.EventListener
+import icu.h2l.login.listener.PlayerAreaLifecycleListener
 import icu.h2l.login.manager.HyperChatCommandManagerImpl
 import icu.h2l.login.manager.HyperZonePlayerManager
 import icu.h2l.login.message.MessageKeys
@@ -197,6 +198,7 @@ class HyperZoneLoginMain(
         val hzlCommandMeta = proxy.commandManager.metaBuilder(hzlCommand).build()
         proxy.commandManager.register(hzlCommandMeta, hzlCommand)
         proxy.eventManager.register(plugin, EventListener())
+        proxy.eventManager.register(plugin, PlayerAreaLifecycleListener)
         proxy.eventManager.register(plugin, HyperZonePlayerManager)
 
         logInternalTestWarning()
@@ -250,16 +252,21 @@ class HyperZoneLoginMain(
     }
 
     /**
-     * Trigger authentication flow in the active waiting-area implementation.
+     * Trigger re-join authentication flow in the active waiting-area implementation.
      */
-    fun triggerVServerAuthForPlayer(player: com.velocitypowered.api.proxy.Player) {
-        serverAdapter?.authPlayer(player)
+    fun triggerVServerReJoinForPlayer(player: com.velocitypowered.api.proxy.Player) {
+        serverAdapter?.reJoin(player)
             ?: messageService.send(player, MessageKeys.HzlCommand.AUTH_FLOW_UNAVAILABLE)
     }
 
-    @Deprecated("Use triggerVServerAuthForPlayer(player) instead")
+    @Deprecated("Use triggerVServerReJoinForPlayer(player) instead")
+    fun triggerVServerAuthForPlayer(player: com.velocitypowered.api.proxy.Player) {
+        triggerVServerReJoinForPlayer(player)
+    }
+
+    @Deprecated("Use triggerVServerReJoinForPlayer(player) instead")
     fun triggerLimboAuthForPlayer(player: com.velocitypowered.api.proxy.Player) {
-        triggerVServerAuthForPlayer(player)
+        triggerVServerReJoinForPlayer(player)
     }
 
     private fun logInternalTestWarning() {

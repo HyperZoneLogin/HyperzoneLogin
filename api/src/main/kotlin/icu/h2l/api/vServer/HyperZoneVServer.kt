@@ -38,7 +38,27 @@ import icu.h2l.api.command.HyperChatCommandRegistration
 interface HyperZoneVServerAdapter {
     fun isEnabled(): Boolean = true
 
-    fun authPlayer(player: Player)
+    /**
+     * 让一个已经在线的玩家重新进入等待区流程。
+     *
+     * 该入口主要用于：
+     * - `/hzl re` 之类的主动重新认证；
+     * - 已在代理内的玩家重新回到等待区。
+     *
+     * 初次进入代理时的等待区接入，应由具体实现监听原生登录/选服事件自行处理。
+     */
+    fun reJoin(player: Player)
+
+    /**
+     * 兼容旧接口名。
+     */
+    @Deprecated(
+        message = "Use reJoin(player) instead",
+        replaceWith = ReplaceWith("reJoin(player)")
+    )
+    fun authPlayer(player: Player) {
+        reJoin(player)
+    }
 
     /**
      * 判断玩家当前是否仍物理处于等待区实现内部。
