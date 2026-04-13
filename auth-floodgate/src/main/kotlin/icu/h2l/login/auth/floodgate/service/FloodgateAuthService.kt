@@ -25,6 +25,7 @@ import icu.h2l.api.HyperZoneApi
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.profile.HyperZoneProfileService
 import icu.h2l.api.profile.HyperZoneProfileServiceProvider
+import icu.h2l.api.util.RemapUtils
 import icu.h2l.login.auth.floodgate.config.FloodgateAuthConfig
 import icu.h2l.login.auth.floodgate.credential.FloodgateHyperZoneCredential
 import io.netty.channel.Channel
@@ -64,15 +65,31 @@ class FloodgateAuthService(
 
         sessionHolder.remember(channel, normalizedUserName, userUUID)
 
-        try {
+        val hyperZonePlayer = try {
             api.hyperZonePlayers.create(channel, normalizedUserName, userUUID, FLOODGATE_CHANNEL_PLACEHOLDER_MODE)
         } catch (throwable: Throwable) {
             val isDuplicateCreate = throwable.message?.contains("重复创建 HyperZonePlayer") == true
-            if (!isDuplicateCreate) {
+            if (isDuplicateCreate) {
+                runCatching { api.hyperZonePlayers.getByChannel(channel) }.getOrElse { lookupError ->
+                    logger.warning(
+                        "Floodgate 玩家 $normalizedUserName($userUUID) 初始化登录对象重复后回收失败: ${lookupError.message}"
+                    )
+                    sessionHolder.remove(channel)
+                    return VerifyResult.Failed("Floodgate 登录失败：登录对象初始化失败。")
+                }
+            } else {
                 logger.warning("Floodgate 玩家 $normalizedUserName($userUUID) 初始化登录对象失败: ${throwable.message}")
                 sessionHolder.remove(channel)
                 return VerifyResult.Failed("Floodgate 登录失败：登录对象初始化失败。")
             }
+        }
+
+        try {
+            hyperZonePlayer.setTemporaryGameProfile(RemapUtils.randomProfile())
+        } catch (throwable: Throwable) {
+            logger.warning("Floodgate 玩家 $normalizedUserName($userUUID) 生成临时档案失败: ${throwable.message}")
+            sessionHolder.remove(channel)
+            return VerifyResult.Failed("Floodgate 登录失败：临时档案初始化失败。")
         }
 
         return VerifyResult.Accepted
