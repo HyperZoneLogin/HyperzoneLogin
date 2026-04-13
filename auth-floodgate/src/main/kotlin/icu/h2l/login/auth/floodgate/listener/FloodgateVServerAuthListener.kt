@@ -25,9 +25,8 @@ import com.velocitypowered.api.event.Subscribe
 import com.velocitypowered.api.event.connection.DisconnectEvent
 import icu.h2l.api.event.vServer.VServerAuthStartEvent
 import icu.h2l.api.player.getChannel
+import icu.h2l.login.auth.floodgate.FloodgateMessages
 import icu.h2l.login.auth.floodgate.service.FloodgateAuthService
-import net.kyori.adventure.text.Component
-import net.kyori.adventure.text.format.NamedTextColor
 
 class FloodgateVServerAuthListener(
     private val authService: FloodgateAuthService
@@ -40,10 +39,10 @@ class FloodgateVServerAuthListener(
         }
         if (!result.passed) {
             if (result.disconnectOnFailure) {
-                event.proxyPlayer.disconnect(Component.text(result.userMessage ?: "Floodgate 登录失败。", NamedTextColor.RED))
+                event.proxyPlayer.disconnect(result.userMessage ?: FloodgateMessages.genericDisconnect())
             } else {
                 result.userMessage?.let {
-                    event.hyperZonePlayer.sendMessage(Component.text(it, NamedTextColor.YELLOW))
+                    event.hyperZonePlayer.sendMessage(it)
                 }
             }
             return

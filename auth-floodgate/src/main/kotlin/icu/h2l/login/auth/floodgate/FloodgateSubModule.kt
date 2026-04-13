@@ -23,6 +23,7 @@ package icu.h2l.login.auth.floodgate
 
 import icu.h2l.api.HyperZoneApi
 import icu.h2l.api.log.info
+import icu.h2l.api.message.HyperZoneModuleMessageResources
 import icu.h2l.api.module.HyperSubModule
 import icu.h2l.login.auth.floodgate.config.FloodgateAuthConfigLoader
 import icu.h2l.login.auth.floodgate.listener.FloodgateGameProfileListener
@@ -33,6 +34,7 @@ import icu.h2l.login.auth.floodgate.service.FloodgateSessionHolder
 
 class FloodgateSubModule : HyperSubModule {
     override fun register(api: HyperZoneApi) {
+        HyperZoneModuleMessageResources.copyBundledLocales(api.dataDirectory, "auth-floodgate", javaClass.classLoader)
         val config = FloodgateAuthConfigLoader.load(api.dataDirectory)
         val authService = FloodgateAuthService(api, FloodgateApiHolder(), FloodgateSessionHolder(), config = config)
         api.proxy.eventManager.register(api, FloodgateGameProfileListener(authService))

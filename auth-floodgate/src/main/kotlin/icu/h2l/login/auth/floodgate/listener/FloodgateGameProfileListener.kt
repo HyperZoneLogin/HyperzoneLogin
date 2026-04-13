@@ -26,8 +26,6 @@ import icu.h2l.api.connection.disconnectWithMessage
 import icu.h2l.api.connection.getNettyChannel
 import icu.h2l.api.event.profile.VerifyInitialGameProfileEvent
 import icu.h2l.login.auth.floodgate.service.FloodgateAuthService
-import net.kyori.adventure.text.Component
-import net.kyori.adventure.text.format.NamedTextColor
 
 class FloodgateGameProfileListener(
     private val authService: FloodgateAuthService
@@ -45,7 +43,7 @@ class FloodgateGameProfileListener(
         ) {
             FloodgateAuthService.VerifyResult.NotFloodgate -> return
             is FloodgateAuthService.VerifyResult.Failed -> {
-                event.connection.disconnectWithMessage(Component.text(result.userMessage, NamedTextColor.RED))
+                event.connection.disconnectWithMessage(result.userMessage)
                 return
             }
             FloodgateAuthService.VerifyResult.Accepted -> {

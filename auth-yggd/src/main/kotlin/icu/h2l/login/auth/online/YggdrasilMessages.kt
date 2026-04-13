@@ -38,11 +38,21 @@ object YggdrasilMessages {
     }
 
     fun profileResolveFailed(player: HyperZonePlayer, reason: String): Component {
-        return render(player, "profile-resolve-failed", reason, HyperZoneMessagePlaceholder.text("reason", reason))
+        return render(
+            player,
+            "profile-resolve-failed",
+            "$reason。若当前是建档名称冲突，请使用 /rename [新注册名]；若要绑定已有档案，请使用 /bindcode use [绑定码]。",
+            HyperZoneMessagePlaceholder.text("reason", reason)
+        )
     }
 
     fun verifyCompleteFailed(player: HyperZonePlayer, reason: String): Component {
-        return render(player, "verify-complete-failed", "认证成功，但 Profile 绑定失败", HyperZoneMessagePlaceholder.text("reason", reason))
+        return render(
+            player,
+            "verify-complete-failed",
+            "认证成功，但 Profile 绑定失败：$reason。若当前是建档名称冲突，请使用 /rename [新注册名]；若要绑定已有档案，请使用 /bindcode use [绑定码]。",
+            HyperZoneMessagePlaceholder.text("reason", reason)
+        )
     }
 
     fun authFailed(player: HyperZonePlayer, reason: String): Component {

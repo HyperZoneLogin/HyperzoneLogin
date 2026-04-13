@@ -27,8 +27,10 @@ import icu.h2l.api.profile.HyperZoneProfileService
 import icu.h2l.api.profile.HyperZoneProfileServiceProvider
 import icu.h2l.api.util.RemapUtils
 import icu.h2l.login.auth.floodgate.config.FloodgateAuthConfig
+import icu.h2l.login.auth.floodgate.FloodgateMessages
 import icu.h2l.login.auth.floodgate.credential.FloodgateHyperZoneCredential
 import io.netty.channel.Channel
+import net.kyori.adventure.text.Component
 import java.util.UUID
 
 class FloodgateAuthService(
@@ -43,14 +45,14 @@ class FloodgateAuthService(
     sealed interface VerifyResult {
         data object NotFloodgate : VerifyResult
         data object Accepted : VerifyResult
-        data class Failed(val userMessage: String) : VerifyResult
+        data class Failed(val userMessage: Component) : VerifyResult
     }
 
     data class CompleteResult(
         val handled: Boolean,
         val passed: Boolean,
         val disconnectOnFailure: Boolean = false,
-        val userMessage: String? = null
+        val userMessage: Component? = null
     )
 
     /**
@@ -76,12 +78,12 @@ class FloodgateAuthService(
                         "Floodgate 玩家 $normalizedUserName($userUUID) 初始化登录对象重复后回收失败: ${lookupError.message}"
                     )
                     sessionHolder.remove(channel)
-                    return VerifyResult.Failed("Floodgate 登录失败：登录对象初始化失败。")
+                    return VerifyResult.Failed(FloodgateMessages.initPlayerFailed())
                 }
             } else {
                 logger.warning("Floodgate 玩家 $normalizedUserName($userUUID) 初始化登录对象失败: ${throwable.message}")
                 sessionHolder.remove(channel)
-                return VerifyResult.Failed("Floodgate 登录失败：登录对象初始化失败。")
+                return VerifyResult.Failed(FloodgateMessages.initPlayerFailed())
             }
         }
 
@@ -90,7 +92,7 @@ class FloodgateAuthService(
         } catch (throwable: Throwable) {
             logger.warning("Floodgate 玩家 $normalizedUserName($userUUID) 生成临时档案失败: ${throwable.message}")
             sessionHolder.remove(channel)
-            return VerifyResult.Failed("Floodgate 登录失败：临时档案初始化失败。")
+            return VerifyResult.Failed(FloodgateMessages.temporaryProfileFailed())
         }
 
         return VerifyResult.Accepted
@@ -125,7 +127,7 @@ class FloodgateAuthService(
                         handled = true,
                         passed = false,
                         disconnectOnFailure = false,
-                        userMessage = "Floodgate 已完成可信认证，但当前注册名无法创建 Profile。请使用 /rename <新注册名> 或 /bindcode use <绑定码>。"
+                        userMessage = FloodgateMessages.createBlocked(hyperZonePlayer)
                     )
                 }
             }
@@ -138,7 +140,7 @@ class FloodgateAuthService(
                 handled = true,
                 passed = false,
                 disconnectOnFailure = true,
-                userMessage = "Floodgate 登录失败：认证完成阶段出错。"
+                userMessage = FloodgateMessages.completeFailed(hyperZonePlayer)
             )
         }
     }
