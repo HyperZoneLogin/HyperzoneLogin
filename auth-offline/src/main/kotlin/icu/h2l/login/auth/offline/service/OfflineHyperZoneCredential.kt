@@ -23,20 +23,31 @@ package icu.h2l.login.auth.offline.service
 
 import icu.h2l.api.profile.HyperZoneCredential
 import icu.h2l.login.auth.offline.db.OfflineAuthRepository
+import icu.h2l.login.auth.offline.util.ExtraUuidUtils
 import java.util.UUID
 
 class OfflineHyperZoneCredential(
     private val repository: OfflineAuthRepository,
     private val pendingRegistrations: PendingOfflineRegistrationManager,
+    private var registrationName: String,
     private val normalizedName: String,
     private val knownProfileId: UUID? = null,
-    private val pendingRegistrationId: UUID? = null
+    private val pendingRegistrationId: UUID? = null,
+    private val passProfileCreateUuid: Boolean = false
 ) : HyperZoneCredential {
     override val channelId: String = CHANNEL_ID
     override val credentialId: String = pendingRegistrationId?.toString() ?: normalizedName
 
     override fun getBoundProfileId(): UUID? {
         return knownProfileId ?: repository.getByName(effectiveNormalizedName())?.profileId
+    }
+
+    override fun getSuggestedProfileCreateUuid(): UUID? {
+        if (!passProfileCreateUuid) {
+            return null
+        }
+
+        return ExtraUuidUtils.getNormalOfflineUUID(registrationName)
     }
 
     override fun validateBind(profileId: UUID): String? {
@@ -91,6 +102,7 @@ class OfflineHyperZoneCredential(
     }
 
     override fun onRegistrationNameChanged(newRegistrationName: String) {
+        registrationName = newRegistrationName
         val registrationId = pendingRegistrationId ?: return
         pendingRegistrations.rename(registrationId, newRegistrationName.lowercase())
     }

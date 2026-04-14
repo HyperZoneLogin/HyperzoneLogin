@@ -46,6 +46,9 @@ class OfflineAuthConfig {
     @JvmField
     val session = SessionConfig()
 
+    @Comment("是否透传标准离线 UUID")
+    var passOfflineUuidToProfileResolve: Boolean = false
+
     @Comment("TOTP 二步验证")
     @JvmField
     val totp = TotpConfig()

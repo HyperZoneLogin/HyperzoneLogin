@@ -25,6 +25,7 @@ import icu.h2l.api.db.HyperZoneDatabaseManager
 import icu.h2l.api.db.table.ProfileTable
 import icu.h2l.login.auth.offline.api.db.OfflineAuthTable
 import icu.h2l.login.auth.offline.db.OfflineAuthRepository
+import icu.h2l.login.auth.offline.util.ExtraUuidUtils
 import java.util.UUID
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.SchemaUtils
@@ -81,8 +82,10 @@ class OfflineHyperZoneCredentialTest {
         credential = OfflineHyperZoneCredential(
             repository = repository,
             pendingRegistrations = pendingRegistrations,
+            registrationName = "Alice",
             normalizedName = "alice",
-            pendingRegistrationId = pendingRegistrationId
+            pendingRegistrationId = pendingRegistrationId,
+            passProfileCreateUuid = true
         )
     }
 
@@ -105,6 +108,32 @@ class OfflineHyperZoneCredentialTest {
         assertTrue(credential.bind(profileId))
         assertNull(pendingRegistrations.get(pendingRegistrationId))
         assertEquals(profileId, repository.getByName("alice_new")?.profileId)
+    }
+
+    @Test
+    fun `suggested profile create uuid follows current registration name when passthrough is enabled`() {
+        assertEquals(ExtraUuidUtils.getNormalOfflineUUID("Alice"), credential.getSuggestedProfileCreateUuid())
+
+        credential.onRegistrationNameChanged("Alice_Renamed")
+
+        assertEquals(
+            ExtraUuidUtils.getNormalOfflineUUID("Alice_Renamed"),
+            credential.getSuggestedProfileCreateUuid()
+        )
+    }
+
+    @Test
+    fun `suggested profile create uuid is null when passthrough is disabled`() {
+        val disabledCredential = OfflineHyperZoneCredential(
+            repository = repository,
+            pendingRegistrations = pendingRegistrations,
+            registrationName = "Alice",
+            normalizedName = "alice",
+            pendingRegistrationId = pendingRegistrationId,
+            passProfileCreateUuid = false
+        )
+
+        assertNull(disabledCredential.getSuggestedProfileCreateUuid())
     }
 }
 

@@ -35,6 +35,7 @@ import icu.h2l.login.auth.offline.config.OfflineAuthConfigLoader
 import icu.h2l.login.auth.offline.db.OfflineAuthRepository
 import icu.h2l.login.auth.offline.mail.OfflineAuthEmailSender
 import icu.h2l.login.auth.offline.totp.OfflineTotpAuthenticator
+import icu.h2l.login.auth.offline.util.ExtraUuidUtils
 import io.mockk.*
 import java.nio.file.Path
 import java.util.UUID
@@ -136,6 +137,25 @@ class OfflineAuthServiceRegisterTest {
             })
         }
         verify(exactly = 1) { hyperZonePlayer.overVerify() }
+    }
+
+    @Test
+    fun `register passes normal offline uuid to profile resolve when passthrough is enabled`() {
+        enableOfflineUuidPassthrough()
+        insertProfile()
+
+        val offlineUuid = ExtraUuidUtils.getNormalOfflineUUID(USERNAME)
+        every { profileService.getAttachedProfile(hyperZonePlayer) } returns null
+        every { profileService.canCreate(USERNAME, offlineUuid) } returns true
+        every { profileService.create(USERNAME, offlineUuid) } returns PROFILE
+
+        val result = service.register(player, VALID_PASSWORD)
+
+        assertTrue(result.success)
+        assertEquals(OfflineAuthMessages.REGISTER_SUCCESS, result.message)
+        verify(exactly = 1) { profileService.canCreate(USERNAME, offlineUuid) }
+        verify(exactly = 1) { profileService.create(USERNAME, offlineUuid) }
+        verify(exactly = 0) { profileService.create(USERNAME, null) }
     }
 
     @Test
@@ -276,6 +296,33 @@ class OfflineAuthServiceRegisterTest {
         assertEquals(PROFILE.id, savedAfterBind.profileId)
     }
 
+    @Test
+    fun `register pending credential keeps offline uuid suggestion across rename when passthrough is enabled`() {
+        enableOfflineUuidPassthrough()
+
+        val offlineUuid = ExtraUuidUtils.getNormalOfflineUUID(USERNAME)
+        every { profileService.getAttachedProfile(hyperZonePlayer) } returns null
+        every { profileService.canCreate(USERNAME, offlineUuid) } returns false
+
+        val credentialSlot = slot<OfflineHyperZoneCredential>()
+        every { hyperZonePlayer.submitCredential(capture(credentialSlot)) } just Runs
+
+        val result = service.register(player, VALID_PASSWORD)
+
+        assertTrue(result.success)
+        assertEquals(OfflineAuthMessages.REGISTER_BIND_PENDING, result.message)
+        assertTrue(credentialSlot.isCaptured)
+        assertEquals(offlineUuid, credentialSlot.captured.getSuggestedProfileCreateUuid())
+
+        credentialSlot.captured.onRegistrationNameChanged("Alice_Renamed")
+
+        assertEquals(
+            ExtraUuidUtils.getNormalOfflineUUID("Alice_Renamed"),
+            credentialSlot.captured.getSuggestedProfileCreateUuid()
+        )
+        verify(exactly = 1) { profileService.canCreate(USERNAME, offlineUuid) }
+    }
+
     private fun insertProfile() {
         transaction(database) {
             profileTable.insert {
@@ -284,6 +331,10 @@ class OfflineAuthServiceRegisterTest {
                 it[uuid] = PROFILE.uuid
             }
         }
+    }
+
+    private fun enableOfflineUuidPassthrough() {
+        OfflineAuthConfigLoader.getConfig().passOfflineUuidToProfileResolve = true
     }
 
     private object NoopEmailSender : OfflineAuthEmailSender {

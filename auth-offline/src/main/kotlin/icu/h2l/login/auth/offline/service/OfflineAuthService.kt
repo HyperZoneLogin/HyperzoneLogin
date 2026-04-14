@@ -32,6 +32,7 @@ import icu.h2l.login.auth.offline.api.db.OfflineAuthEntry
 import icu.h2l.login.auth.offline.db.OfflineAuthRepository
 import icu.h2l.login.auth.offline.mail.OfflineAuthEmailSender
 import icu.h2l.login.auth.offline.totp.OfflineTotpAuthenticator
+import icu.h2l.login.auth.offline.util.ExtraUuidUtils
 import net.kyori.adventure.text.Component
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
@@ -71,9 +72,10 @@ class OfflineAuthService(
             return bindExistingProfile(player, hyperZonePlayer, attachedProfile, username, normalizedName, password)
         }
 
-        if (profileService.canCreate(username)) {
+        val profileCreateUuid = resolveProfileCreateUuid(username)
+        if (profileService.canCreate(username, profileCreateUuid)) {
             val profile = try {
-                profileService.create(username)
+                profileService.create(username, profileCreateUuid)
             } catch (throwable: IllegalStateException) {
                 return Result(false, componentFromThrowable(throwable, OfflineAuthMessages.REGISTER_FAILED))
             }
@@ -92,7 +94,12 @@ class OfflineAuthService(
             )
         }
 
-        val pendingCredential = createPendingOfflineCredential(hyperZonePlayer, normalizedName, password)
+        val pendingCredential = createPendingOfflineCredential(
+            hyperZonePlayer = hyperZonePlayer,
+            registrationName = username,
+            normalizedName = normalizedName,
+            password = password
+        )
         hyperZonePlayer.submitCredential(pendingCredential)
         runCatching {
             hyperZonePlayer.overVerify()
@@ -154,7 +161,7 @@ class OfflineAuthService(
         )
         return if (created) {
             if (markVerified) {
-                hyperZonePlayer.submitCredential(offlineCredential(normalizedName, profileId))
+                hyperZonePlayer.submitCredential(offlineCredential(normalizedName, profileId = profileId))
                 runCatching {
                     hyperZonePlayer.overVerify()
                 }.getOrElse { throwable ->
@@ -249,7 +256,7 @@ class OfflineAuthService(
             }
         }
 
-        hyperPlayer.submitCredential(offlineCredential(entry.name, entry.profileId))
+        hyperPlayer.submitCredential(offlineCredential(entry.name, profileId = entry.profileId))
         runCatching {
             hyperPlayer.overVerify()
         }.getOrElse { throwable ->
@@ -531,7 +538,7 @@ class OfflineAuthService(
             return Result(false, OfflineAuthMessages.PASSWORD_RESET_FAILED)
         }
 
-        hyperPlayer.submitCredential(offlineCredential(entry.name, profileId))
+        hyperPlayer.submitCredential(offlineCredential(entry.name, profileId = profileId))
         runCatching {
             hyperPlayer.overVerify()
         }.getOrElse { throwable ->
@@ -632,7 +639,7 @@ class OfflineAuthService(
             return SessionCheckResult(false, OfflineAuthMessages.SESSION_INVALID)
         }
 
-        hyperPlayer.submitCredential(offlineCredential(entry.name, profileId))
+        hyperPlayer.submitCredential(offlineCredential(entry.name, profileId = profileId))
         runCatching {
             hyperPlayer.overVerify()
         }.getOrElse { throwable ->
@@ -723,6 +730,7 @@ class OfflineAuthService(
 
     private fun createPendingOfflineCredential(
         hyperZonePlayer: icu.h2l.api.player.HyperZonePlayer,
+        registrationName: String,
         normalizedName: String,
         password: String
     ): OfflineHyperZoneCredential {
@@ -742,7 +750,19 @@ class OfflineAuthService(
             )
         )
 
-        return offlineCredential(normalizedName = normalizedName, pendingRegistrationId = pendingRegistrationId)
+        return offlineCredential(
+            normalizedName = normalizedName,
+            registrationName = registrationName,
+            pendingRegistrationId = pendingRegistrationId
+        )
+    }
+
+    private fun resolveProfileCreateUuid(registrationName: String): UUID? {
+        return if (OfflineAuthConfigLoader.getConfig().passOfflineUuidToProfileResolve) {
+            ExtraUuidUtils.getNormalOfflineUUID(registrationName)
+        } else {
+            null
+        }
     }
 
     private fun normalizeEmail(email: String): String? {
@@ -868,15 +888,18 @@ class OfflineAuthService(
 
     private fun offlineCredential(
         normalizedName: String,
+        registrationName: String = normalizedName,
         profileId: UUID? = null,
         pendingRegistrationId: UUID? = null
     ): OfflineHyperZoneCredential {
         return OfflineHyperZoneCredential(
             repository = repository,
             pendingRegistrations = pendingRegistrations,
+            registrationName = registrationName,
             normalizedName = normalizedName,
             knownProfileId = profileId,
-            pendingRegistrationId = pendingRegistrationId
+            pendingRegistrationId = pendingRegistrationId,
+            passProfileCreateUuid = OfflineAuthConfigLoader.getConfig().passOfflineUuidToProfileResolve
         )
     }
 }

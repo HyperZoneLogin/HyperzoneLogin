@@ -86,6 +86,7 @@ Auth Offline 模块 (hzl-auth-offline)
 - 首次启动会生成 `offline-auth.conf`；若要启用真实邮件发送，请将 `email.deliveryMode` 改为 `SMTP` 并完整填写 `email.smtp.*` 配置。
 - 首次加载模块时，还会在主插件数据目录下生成 `messages/auth-offline/*.conf` 文案文件；它们用于控制游戏内提示，不影响 SMTP 邮件模板本身。
 - short session 自动登录默认关闭；如需启用，请编辑 `offline-auth.conf` 中的 `session.enabled`、`session.expireMinutes`、`session.bindIp`、`session.issueOnRegister`。
+- `passOfflineUuidToProfileResolve` 用于透传标准离线 UUID。
 - TOTP 二步验证由 `offline-auth.conf` 中的 `totp.*` 控制；默认启用功能，但仅在玩家主动使用 `/totp add` 后才会生效到账号。
 
 开发者提示
