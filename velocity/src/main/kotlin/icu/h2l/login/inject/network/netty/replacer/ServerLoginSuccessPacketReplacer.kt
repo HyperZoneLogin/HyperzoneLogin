@@ -22,6 +22,7 @@
 package icu.h2l.login.inject.network.netty.replacer
 
 import com.velocitypowered.proxy.protocol.packet.ServerLoginSuccessPacket
+import icu.h2l.api.event.profile.ServerLoginSuccessEvent
 import icu.h2l.api.log.debug
 import icu.h2l.api.log.error
 import icu.h2l.login.HyperZoneLoginMain
@@ -54,7 +55,19 @@ class ServerLoginSuccessPacketReplacer(
                 return
             }
 
-            msg.uuid = hyperPlayer.clientOriginalUUID
+            val event = ServerLoginSuccessEvent(
+                hyperZonePlayer = hyperPlayer,
+                currentUuid = msg.uuid,
+                currentUsername = msg.username,
+                currentProperties = msg.properties
+            )
+            HyperZoneLoginMain.getInstance().proxy.eventManager.fire(event).join()
+
+            if (event.rewritePacket) {
+                msg.uuid = event.uuid
+                msg.username = event.username
+                msg.properties = event.properties
+            }
 
             ctx.pipeline().remove(this)
             super.write(ctx, msg, promise)

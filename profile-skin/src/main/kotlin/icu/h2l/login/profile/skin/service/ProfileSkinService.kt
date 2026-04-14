@@ -29,6 +29,7 @@ import com.velocitypowered.api.util.GameProfile
 import icu.h2l.api.event.profile.ProfileAttachedEvent
 import icu.h2l.api.event.profile.ProfileSkinApplyEvent
 import icu.h2l.api.event.profile.ProfileSkinPreprocessEvent
+import icu.h2l.api.event.profile.ServerLoginSuccessEvent
 import icu.h2l.api.log.debug
 import icu.h2l.api.log.error
 import icu.h2l.api.log.warn
@@ -314,6 +315,14 @@ class ProfileSkinService(
             event.textures = cached.textures
             return
         }
+    }
+
+    @Subscribe
+    fun onServerLoginSuccess(event: ServerLoginSuccessEvent) {
+        if (!config.enabled) return
+
+        event.rewritePacket = true
+        event.uuid = event.hyperZonePlayer.clientOriginalUUID
     }
 
     private fun restoreTextures(source: ProfileSkinSource): ProfileSkinTextures {
