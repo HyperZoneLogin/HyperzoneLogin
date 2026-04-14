@@ -45,6 +45,16 @@ object MessageKeys {
         const val EVENT_FAILED = "rename.event-failed"
     }
 
+    object ReUuid {
+        const val USAGE = "reuuid.usage"
+        const val NOT_IN_WAITING_AREA = "reuuid.not-in-waiting-area"
+        const val ALREADY_BOUND = "reuuid.already-bound"
+        const val CREATE_BLOCKED = "reuuid.create-blocked"
+        const val CONTEXT_CONFLICT = "reuuid.context-conflict"
+        const val SUCCESS = "reuuid.success"
+        const val EVENT_FAILED = "reuuid.event-failed"
+    }
+
     object BindCode {
         const val COMMAND_USAGE = "bindcode.command-usage"
         const val COMMAND_USE_USAGE = "bindcode.command-use-usage"

@@ -36,6 +36,7 @@ import icu.h2l.api.player.HyperZonePlayerAccessor
 import icu.h2l.login.command.BindCodeCommandRegistrar
 import icu.h2l.login.command.HyperZoneLoginCommand
 import icu.h2l.login.command.RenameCommand
+import icu.h2l.login.command.ReUuidCommand
 import icu.h2l.login.database.BindingCodeRepository
 import icu.h2l.login.config.BackendServerConfig
 import icu.h2l.login.config.DatabaseSourceConfig
@@ -56,6 +57,7 @@ import icu.h2l.login.manager.HyperZonePlayerManager
 import icu.h2l.login.message.MessageKeys
 import icu.h2l.login.message.MessageService
 import icu.h2l.login.listener.LoginRenameListener
+import icu.h2l.login.listener.LoginReUuidListener
 import icu.h2l.login.module.EmbeddedModuleRegistry
 import icu.h2l.login.module.EmbeddedModuleSpec
 import icu.h2l.login.profile.ProfileBindingCodeService
@@ -194,6 +196,14 @@ class HyperZoneLoginMain(
                 brigadier = RenameCommand.brigadier()
             )
         )
+        chatCommandManager.register(
+            HyperChatCommandRegistration(
+                name = "reUUID",
+                aliases = setOf("reuuid", "reUuid"),
+                executor = ReUuidCommand(),
+                brigadier = ReUuidCommand.brigadier()
+            )
+        )
         BindCodeCommandRegistrar.register(chatCommandManager, bindingCodeService)
 
 //        最后加载模块
@@ -208,6 +218,7 @@ class HyperZoneLoginMain(
         proxy.commandManager.register(hzlCommandMeta, hzlCommand)
         proxy.eventManager.register(plugin, ProfileLayerVerifyListener())
         proxy.eventManager.register(plugin, LoginRenameListener())
+        proxy.eventManager.register(plugin, LoginReUuidListener())
         proxy.eventManager.register(plugin, PlayerAreaLifecycleListener)
         proxy.eventManager.register(plugin, HyperZonePlayerManager)
 
