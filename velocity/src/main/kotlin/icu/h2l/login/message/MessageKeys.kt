@@ -42,6 +42,8 @@ object MessageKeys {
         const val CREATE_BLOCKED = "rename.create-blocked"
         const val CONTEXT_CONFLICT = "rename.context-conflict"
         const val SUCCESS = "rename.success"
+        const val REMEMBER_NAME = "rename.remember-name"
+        const val REUUID_REQUIRED = "rename.reuuid-required"
         const val EVENT_FAILED = "rename.event-failed"
     }
 

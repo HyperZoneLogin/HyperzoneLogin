@@ -77,6 +77,15 @@ class VelocityHyperZoneProfileService(
         return getReUuidBlockedReason(userName) == null
     }
 
+    fun getRenameBlockedReason(userName: String, uuid: UUID? = null): String? {
+        val resolvedUuid = resolveRequestedUuid(userName, uuid)
+        return RenameProfileCreatePolicy.getBlockedReason(
+            requestedName = userName,
+            requestedUuid = resolvedUuid,
+            existingByName = databaseHelper.getProfileByName(userName)
+        )
+    }
+
     fun getReUuidBlockedReason(
         userName: String,
         remapPrefix: String = HyperZoneLoginMain.getRemapConfig().prefix

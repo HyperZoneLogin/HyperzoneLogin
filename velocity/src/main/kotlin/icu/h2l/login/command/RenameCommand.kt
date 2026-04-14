@@ -80,7 +80,7 @@ class RenameCommand : HyperChatCommandExecutor {
             messages.send(source, MessageKeys.Rename.CONTEXT_CONFLICT)
             return
         }
-        val createBlockedReason = main.profileService.getCreateBlockedReason(
+        val createBlockedReason = main.profileService.getRenameBlockedReason(
             newRegistrationName,
             pendingContext.suggestedUuid
         )
@@ -104,9 +104,33 @@ class RenameCommand : HyperChatCommandExecutor {
         }.onSuccess {
             messages.send(
                 source,
-                MessageKeys.Rename.SUCCESS,
+                MessageKeys.Rename.REMEMBER_NAME,
                 HyperZoneMessagePlaceholder.text("name", newRegistrationName)
             )
+
+            val remainingCreateBlockedReason = main.profileService.getCreateBlockedReason(
+                newRegistrationName,
+                pendingContext.suggestedUuid
+            )
+            if (hyperZonePlayer.hasAttachedProfile()) {
+                messages.send(
+                    source,
+                    MessageKeys.Rename.SUCCESS,
+                    HyperZoneMessagePlaceholder.text("name", newRegistrationName)
+                )
+            } else if (remainingCreateBlockedReason != null) {
+                messages.send(
+                    source,
+                    MessageKeys.Rename.REUUID_REQUIRED,
+                    HyperZoneMessagePlaceholder.text("reason", remainingCreateBlockedReason)
+                )
+            } else {
+                messages.send(
+                    source,
+                    MessageKeys.Rename.SUCCESS,
+                    HyperZoneMessagePlaceholder.text("name", newRegistrationName)
+                )
+            }
         }.onFailure { throwable ->
             hyperZonePlayer.registrationName = oldRegistrationName
             hyperZonePlayer.getSubmittedCredentials().forEach { credential ->
