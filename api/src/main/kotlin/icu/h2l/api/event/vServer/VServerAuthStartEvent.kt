@@ -27,15 +27,16 @@ import icu.h2l.api.player.HyperZonePlayer
 /**
  * 玩家进入等待区实现并开始认证流程前触发的事件。
  *
+ * 该事件只用于通知“等待区认证即将开始”；
+ * 不再承载是否允许离开等待区的结果。
+ *
+ * 玩家是否可以离开等待区，统一以当前登录态是否仍在 waiting area
+ *（例如是否已 attach Profile）为准。
+ *
  * @property proxyPlayer 当前代理层玩家对象
  * @property hyperZonePlayer 当前登录态玩家对象
  */
 class VServerAuthStartEvent(
     val proxyPlayer: Player,
     val hyperZonePlayer: HyperZonePlayer
-) {
-    /**
-     * 监听器可设为 `true`，表示当前等待区实现已接受并开始认证流程。
-     */
-    var pass: Boolean = false
-}
+)

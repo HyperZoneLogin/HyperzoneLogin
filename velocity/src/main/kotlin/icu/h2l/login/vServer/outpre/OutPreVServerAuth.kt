@@ -97,13 +97,6 @@ class OutPreVServerAuth(
             return
         }
 
-        val authStartEvent = VServerAuthStartEvent(player, hyperPlayer)
-        server.eventManager.fire(authStartEvent).join()
-        if (authStartEvent.pass) {
-            handler.completeAfterVerification(null)
-            return
-        }
-
         val state = OutPreState(
             authTargetLabel = configuredAuthTargetLabel(),
             initialFlowPending = true,
@@ -111,6 +104,20 @@ class OutPreVServerAuth(
         states[player.getChannel()] = state
         pendingInitialHandlers[player.getChannel()] = handler
         hyperPlayer.suspendMessageDelivery()
+
+        val authStartEvent = VServerAuthStartEvent(player, hyperPlayer)
+        server.eventManager.fire(authStartEvent).join()
+
+        if (!player.isActive) {
+            clearInitialJoinState(player, state, hyperPlayer)
+            return
+        }
+
+        if (!hyperPlayer.isInWaitingArea()) {
+            state.inAuthHold = false
+            state.verifiedExitPending = true
+        }
+
         connectToAuthBridge(player, hyperPlayer, createBridge(player), state)
     }
 
@@ -142,7 +149,7 @@ class OutPreVServerAuth(
 
         val authStartEvent = VServerAuthStartEvent(player, hyperPlayer)
         server.eventManager.fire(authStartEvent).join()
-        if (authStartEvent.pass) {
+        if (!hyperPlayer.isInWaitingArea()) {
             return
         }
 
@@ -271,6 +278,17 @@ class OutPreVServerAuth(
                 return@whenCompleteAsync
             }
         }, player.connection.eventLoop())
+    }
+
+    private fun clearInitialJoinState(
+        player: ConnectedPlayer,
+        state: OutPreState,
+        hyperPlayer: VelocityHyperZonePlayer,
+    ) {
+        pendingInitialHandlers.remove(player.getChannel())
+        initialBridges.remove(player.getChannel())?.disconnect()
+        states.remove(player.getChannel(), state)
+        hyperPlayer.resumeMessageDelivery()
     }
 
     fun onInitialBridgeJoined(bridge: OutPreBackendBridge, player: ConnectedPlayer) {

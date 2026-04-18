@@ -47,7 +47,6 @@ class FloodgateVServerAuthListener(
             }
             return
         }
-        event.pass = true
     }
 
     @Subscribe

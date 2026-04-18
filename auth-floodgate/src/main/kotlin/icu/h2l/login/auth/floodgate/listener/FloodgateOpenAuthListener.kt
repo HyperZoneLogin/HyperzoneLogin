@@ -41,7 +41,6 @@ class FloodgateOpenAuthListener(
             event.proxyPlayer.disconnect(result.userMessage ?: FloodgateMessages.genericDisconnect())
             return
         }
-        event.pass = true
     }
 
     @Subscribe

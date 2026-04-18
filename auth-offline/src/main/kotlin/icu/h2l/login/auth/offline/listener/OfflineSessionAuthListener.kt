@@ -34,15 +34,11 @@ class OfflineSessionAuthListener(
             return
         }
         if (!event.hyperZonePlayer.isInWaitingArea()) {
-            event.pass = true
             return
         }
 
         val result = authService.tryAutoLogin(event.proxyPlayer) ?: return
         result.message?.let { event.hyperZonePlayer.sendMessage(it) }
-        if (result.passed) {
-            event.pass = true
-        }
     }
 }
 

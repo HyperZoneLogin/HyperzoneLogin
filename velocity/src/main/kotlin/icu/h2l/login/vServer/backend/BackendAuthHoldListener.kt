@@ -226,7 +226,7 @@ class BackendAuthHoldListener(
 
         val authStartEvent = VServerAuthStartEvent(player, hyperPlayer)
         server.eventManager.fire(authStartEvent).join()
-        if (authStartEvent.pass && state.inAuthHold) {
+        if (!hyperPlayer.isInWaitingArea() && state.inAuthHold) {
             state.inAuthHold = false
             state.verifiedExitPending = true
         }
