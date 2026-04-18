@@ -21,6 +21,7 @@
 
 package icu.h2l.login.vServer.outpre
 
+import com.velocitypowered.api.proxy.ServerConnection
 import com.velocitypowered.proxy.protocol.MinecraftPacket
 import com.velocitypowered.proxy.protocol.packet.AvailableCommandsPacket
 import com.velocitypowered.proxy.protocol.packet.UpsertPlayerInfoPacket
@@ -30,6 +31,11 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class OutPreBackendBridgeSessionHandlerTest {
+    @Test
+    fun `outpre backend bridge remains compatible with server connection api`() {
+        assertTrue(ServerConnection::class.java.isAssignableFrom(OutPreBackendBridge::class.java))
+    }
+
     @Test
     fun `outpre backend bridge drops player info packets directly`() {
         assertTrue(shouldDropOutPreBackendPacket(mockk<UpsertPlayerInfoPacket>(relaxed = true)))

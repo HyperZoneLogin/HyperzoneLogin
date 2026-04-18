@@ -42,7 +42,7 @@ class OfflineAuthConfig {
     val session = SessionConfig()
 
     @Comment("是否透传标准离线 UUID")
-    var passOfflineUuidToProfileResolve: Boolean = false
+    var passOfflineUuidToProfileResolve: Boolean = true
 
     @Comment("TOTP 二步验证")
     val totp = TotpConfig()

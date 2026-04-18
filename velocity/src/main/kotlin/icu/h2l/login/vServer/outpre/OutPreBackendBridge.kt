@@ -23,6 +23,12 @@ package icu.h2l.login.vServer.outpre
 
 import com.velocitypowered.api.network.HandshakeIntent
 import com.velocitypowered.api.network.ProtocolVersion
+import com.velocitypowered.api.proxy.Player
+import com.velocitypowered.api.proxy.ServerConnection
+import com.velocitypowered.api.proxy.messages.ChannelIdentifier
+import com.velocitypowered.api.proxy.messages.PluginMessageEncoder
+import com.velocitypowered.api.proxy.server.RegisteredServer
+import com.velocitypowered.api.proxy.server.ServerInfo
 import com.velocitypowered.proxy.VelocityServer
 import com.velocitypowered.proxy.connection.MinecraftConnection
 import com.velocitypowered.proxy.connection.MinecraftConnectionAssociation
@@ -30,13 +36,17 @@ import com.velocitypowered.proxy.connection.client.ConnectedPlayer
 import com.velocitypowered.proxy.network.Connections
 import com.velocitypowered.proxy.protocol.StateRegistry
 import com.velocitypowered.proxy.protocol.packet.HandshakePacket
+import com.velocitypowered.proxy.protocol.packet.PluginMessagePacket
 import com.velocitypowered.proxy.protocol.packet.ServerLoginPacket
 import com.velocitypowered.proxy.protocol.packet.config.FinishedUpdatePacket
 import icu.h2l.login.HyperZoneLoginMain
+import io.netty.buffer.Unpooled
 import io.netty.channel.ChannelFutureListener
+import com.google.common.io.ByteStreams
 import java.net.InetSocketAddress
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.Optional
 
 class OutPreBackendBridge(
     val proxyServer: VelocityServer,
@@ -44,7 +54,7 @@ class OutPreBackendBridge(
     private val authTargetAddress: InetSocketAddress,
     val player: ConnectedPlayer,
     private val owner: OutPreVServerAuth,
-) : MinecraftConnectionAssociation {
+) : MinecraftConnectionAssociation, ServerConnection {
     enum class Phase {
         IDLE,
         CONNECTING,
@@ -60,6 +70,7 @@ class OutPreBackendBridge(
     private val connectFuture = CompletableFuture<Void>()
     private val playReadyFuture = CompletableFuture<Void>()
     private val phaseListeners = CopyOnWriteArrayList<(Phase) -> Unit>()
+    private val outPreServerInfo = ServerInfo(authTargetLabel, authTargetAddress)
     @Volatile
     private var bridgeSessionHandler: OutPreBackendBridgeSessionHandler? = null
     @Volatile
@@ -72,6 +83,39 @@ class OutPreBackendBridge(
     fun targetServerName(): String = authTargetLabel
 
     fun targetAddress(): InetSocketAddress = authTargetAddress
+
+    override fun getServer(): RegisteredServer {
+        return proxyServer.getServer(outPreServerInfo.name).orElseThrow {
+            IllegalStateException("OutPre auth endpoint '$authTargetLabel' is not a registered Velocity server")
+        }
+    }
+
+    override fun getPreviousServer(): Optional<RegisteredServer> {
+        return player.currentServer.map { it.server }
+    }
+
+    override fun getServerInfo(): ServerInfo {
+        return outPreServerInfo
+    }
+
+    override fun getPlayer(): Player {
+        return player
+    }
+
+    override fun sendPluginMessage(identifier: ChannelIdentifier, data: ByteArray): Boolean {
+        val backendConnection = connection ?: return false
+        if (backendConnection.isClosed) {
+            return false
+        }
+        backendConnection.write(PluginMessagePacket(identifier.id, Unpooled.wrappedBuffer(data)))
+        return true
+    }
+
+    override fun sendPluginMessage(identifier: ChannelIdentifier, dataEncoder: PluginMessageEncoder): Boolean {
+        val output = ByteStreams.newDataOutput()
+        dataEncoder.encode(output)
+        return sendPluginMessage(identifier, output.toByteArray())
+    }
 
     fun connect(): CompletableFuture<Void> {
         if (connectStarted) {

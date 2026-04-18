@@ -71,6 +71,7 @@ class OfflineAuthServiceRegisterTest {
     @BeforeEach
     fun setUp() {
         OfflineAuthConfigLoader.load(tempDir)
+        OfflineAuthConfigLoader.getConfig().passOfflineUuidToProfileResolve = false
 
         database = Database.connect(
             url = "jdbc:h2:mem:${UUID.randomUUID()};MODE=MySQL;DB_CLOSE_DELAY=-1",
