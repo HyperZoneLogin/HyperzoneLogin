@@ -19,33 +19,30 @@
  *
  */
 
-package icu.h2l.login.auth.floodgate.service
+package icu.h2l.login.auth.floodgate.db
 
-import io.netty.channel.Channel
+import icu.h2l.api.db.table.ProfileTable
+import org.jetbrains.exposed.sql.Table
 import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
 
-class FloodgateSessionHolder {
-    private val sessions = ConcurrentHashMap<Channel, FloodgateSession>()
+data class FloodgateAuthEntry(
+    val id: Int,
+    val name: String,
+    val xuid: Long,
+    val profileId: UUID,
+)
 
-    data class FloodgateSession(
-        val userName: String,
-        val userUUID: UUID,
-        val xuid: Long,
-    )
+class FloodgateAuthTable(prefix: String, profileTable: ProfileTable) : Table("${prefix}floodgate_auth") {
+    val id = integer("id").autoIncrement()
+    val name = varchar("name", 32)
+    val xuid = long("xuid")
+    val profileId = uuid("profile_id").references(profileTable.id)
 
-    fun remember(channel: Channel, userName: String, userUUID: UUID, xuid: Long): FloodgateSession {
-        return sessions.computeIfAbsent(channel) {
-            FloodgateSession(userName, userUUID, xuid)
-        }
+    init {
+        uniqueIndex("${tableName}_xuid", xuid)
+        uniqueIndex("${tableName}_profile_id", profileId)
     }
 
-    fun get(channel: Channel): FloodgateSession? {
-        return sessions[channel]
-    }
-
-    fun remove(channel: Channel): FloodgateSession? {
-        return sessions.remove(channel)
-    }
+    override val primaryKey = PrimaryKey(id)
 }
 

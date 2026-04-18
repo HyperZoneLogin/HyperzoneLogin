@@ -22,19 +22,22 @@
 package icu.h2l.login.auth.floodgate.credential
 
 import icu.h2l.api.profile.HyperZoneCredential
+import icu.h2l.login.auth.floodgate.db.FloodgateAuthRepository
 import java.util.UUID
 
 class FloodgateHyperZoneCredential(
+    private val repository: FloodgateAuthRepository,
     private val trustedName: String,
     private val trustedUuid: UUID,
+    private val xuid: Long,
     private val suggestedProfileCreateUuid: UUID?,
-    private var knownProfileId: UUID? = null
+    private val knownProfileId: UUID? = null
 ) : HyperZoneCredential {
     override val channelId: String = CHANNEL_ID
     override val credentialId: String = trustedUuid.toString()
 
     override fun getBoundProfileId(): UUID? {
-        return knownProfileId
+        return knownProfileId ?: repository.findProfileIdByXuid(xuid)
     }
 
     override fun getSuggestedProfileCreateUuid(): UUID? {
@@ -42,19 +45,15 @@ class FloodgateHyperZoneCredential(
     }
 
     override fun validateBind(profileId: UUID): String? {
-        if (knownProfileId != null && profileId != knownProfileId) {
-            return "Floodgate 凭证 $trustedName($trustedUuid) 已绑定到其他 Profile: $knownProfileId"
+        val currentProfileId = getBoundProfileId()
+        if (currentProfileId != null && profileId != currentProfileId) {
+            return "Floodgate 凭证 $trustedName($xuid) 已绑定到其他 Profile: $currentProfileId"
         }
         return null
     }
 
     override fun bind(profileId: UUID): Boolean {
-        if (knownProfileId != null) {
-            return profileId == knownProfileId
-        }
-
-        knownProfileId = profileId
-        return true
+        return repository.createOrUpdate(trustedName, xuid, profileId)
     }
 
     fun matches(uuid: UUID): Boolean {

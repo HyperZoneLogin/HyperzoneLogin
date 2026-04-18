@@ -27,10 +27,12 @@ import icu.h2l.api.connection.getNettyChannel
 import icu.h2l.api.event.profile.VerifyInitialGameProfileEvent
 import icu.h2l.api.log.HyperZoneDebugType
 import icu.h2l.api.log.debug
+import icu.h2l.login.auth.floodgate.service.FloodgateApiHolder
 import icu.h2l.login.auth.floodgate.service.FloodgateAuthService
 
 class FloodgateGameProfileListener(
-    private val authService: FloodgateAuthService
+    private val authService: FloodgateAuthService,
+    private val floodgateApiHolder: FloodgateApiHolder,
 ) {
 
     @Subscribe
@@ -38,13 +40,16 @@ class FloodgateGameProfileListener(
         debug(HyperZoneDebugType.OUTPRE_TRACE) {
             "onVerifyInitialGameProfile channel=${event.connection.getNettyChannel()} profileName=${event.gameProfile.name} profileId=${event.gameProfile.id}"
         }
-        // Floodgate 会跳过 HZL 自订的 OpenPreLogin/OpenStartAuth，
-        // 所以必须在这里提前创建登录期 HyperZonePlayer 并记录渠道会话。
+
+        val playerIp = event.connection.remoteAddress.address.hostAddress
+        val resolvedIdentity = floodgateApiHolder.resolveLoginIdentity(event.gameProfile.name, playerIp) ?: return
+
         when (
             val result = authService.acceptInitialProfile(
                 channel = event.connection.getNettyChannel(),
-                userName = event.gameProfile.name,
-                userUUID = event.gameProfile.id
+                userName = resolvedIdentity.userName,
+                userUUID = resolvedIdentity.userUUID,
+                xuid = resolvedIdentity.xuid
             )
         ) {
             FloodgateAuthService.VerifyResult.NotFloodgate -> {

@@ -36,7 +36,7 @@ class FloodgateOpenStartAuthListener(
     fun onOpenStartAuth(event: OpenStartAuthEvent) {
         val resolvedIdentity = floodgateApiHolder.resolveLoginIdentity(event.userName, event.playerIp) ?: return
         debug(HyperZoneDebugType.OUTPRE_TRACE) {
-            "onOpenStartAuth resolved channel=${event.channel} loginName=${event.userName} playerIp=${event.playerIp} floodgateName=${resolvedIdentity.userName} floodgateUuid=${resolvedIdentity.userUUID}"
+            "onOpenStartAuth resolved channel=${event.channel} loginName=${event.userName} playerIp=${event.playerIp} floodgateName=${resolvedIdentity.userName} floodgateUuid=${resolvedIdentity.userUUID} xuid=${resolvedIdentity.xuid}"
         }
 
         when (
@@ -44,6 +44,7 @@ class FloodgateOpenStartAuthListener(
                 channel = event.channel,
                 userName = resolvedIdentity.userName,
                 userUUID = resolvedIdentity.userUUID,
+                xuid = resolvedIdentity.xuid,
             )
         ) {
             FloodgateAuthService.VerifyResult.NotFloodgate -> {

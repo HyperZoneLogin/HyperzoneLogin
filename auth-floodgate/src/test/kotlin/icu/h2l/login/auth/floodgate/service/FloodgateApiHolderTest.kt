@@ -41,6 +41,7 @@ class FloodgateApiHolderTest {
             javaUsername = ".ktese",
             correctUsername = ".ktese",
             correctUniqueId = UUID.fromString("00000000-0000-0000-0009-01fb2b9f0a50"),
+            xuid = "1234567890",
             socketAddress = InetSocketAddress("192.168.9.203", 19132),
         )
         every { api.players } returns listOf(player)
@@ -51,6 +52,7 @@ class FloodgateApiHolderTest {
 
         assertEquals(".ktese", resolved?.userName)
         assertEquals(UUID.fromString("00000000-0000-0000-0009-01fb2b9f0a50"), resolved?.userUUID)
+        assertEquals("1234567890".toLong(), resolved?.xuid)
     }
 
     @Test
@@ -61,6 +63,7 @@ class FloodgateApiHolderTest {
             javaUsername = ".ktese",
             correctUsername = ".ktese",
             correctUniqueId = UUID.fromString("00000000-0000-0000-0009-01fb2b9f0a50"),
+            xuid = "1234567890",
             socketAddress = InetSocketAddress("192.168.9.201", 19132),
         )
         val second = floodgatePlayer(
@@ -68,6 +71,7 @@ class FloodgateApiHolderTest {
             javaUsername = ".ktese",
             correctUsername = ".ktese",
             correctUniqueId = UUID.fromString("00000000-0000-0000-0009-01fb2b9f0a51"),
+            xuid = "0987654321",
             socketAddress = InetSocketAddress("192.168.9.202", 19132),
         )
         every { api.players } returns listOf(first, second)
@@ -84,6 +88,7 @@ class FloodgateApiHolderTest {
         javaUsername: String,
         correctUsername: String,
         correctUniqueId: UUID,
+        xuid: String,
         socketAddress: InetSocketAddress,
     ): FloodgatePlayer {
         val player = mockk<FloodgatePlayer>()
@@ -91,6 +96,7 @@ class FloodgateApiHolderTest {
         every { player.javaUsername } returns javaUsername
         every { player.correctUsername } returns correctUsername
         every { player.correctUniqueId } returns correctUniqueId
+        every { player.xuid } returns xuid
         every { player.hasProperty(PropertyKey.SOCKET_ADDRESS) } returns true
         every { player.getProperty<Any?>(PropertyKey.SOCKET_ADDRESS) } returns socketAddress
         return player

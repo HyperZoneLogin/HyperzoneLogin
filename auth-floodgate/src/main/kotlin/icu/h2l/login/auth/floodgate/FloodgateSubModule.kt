@@ -22,10 +22,13 @@
 package icu.h2l.login.auth.floodgate
 
 import icu.h2l.api.HyperZoneApi
+import icu.h2l.api.db.table.ProfileTable
 import icu.h2l.api.log.info
 import icu.h2l.api.message.HyperZoneModuleMessageResources
 import icu.h2l.api.module.HyperSubModule
 import icu.h2l.login.auth.floodgate.config.FloodgateAuthConfigLoader
+import icu.h2l.login.auth.floodgate.db.FloodgateAuthRepository
+import icu.h2l.login.auth.floodgate.db.FloodgateAuthTableManager
 import icu.h2l.login.auth.floodgate.listener.FloodgateGameProfileListener
 import icu.h2l.login.auth.floodgate.listener.FloodgateOpenStartAuthListener
 import icu.h2l.login.auth.floodgate.listener.FloodgateVServerAuthListener
@@ -37,13 +40,31 @@ class FloodgateSubModule : HyperSubModule {
     override fun register(api: HyperZoneApi) {
         HyperZoneModuleMessageResources.copyBundledLocales(api.dataDirectory, "auth-floodgate", javaClass.classLoader)
         val config = FloodgateAuthConfigLoader.load(api.dataDirectory)
+        val profileTable = ProfileTable(api.databaseManager.tablePrefix)
+        val tableManager = FloodgateAuthTableManager(
+            databaseManager = api.databaseManager,
+            tablePrefix = api.databaseManager.tablePrefix,
+            profileTable = profileTable,
+        )
+        val repository = FloodgateAuthRepository(
+            databaseManager = api.databaseManager,
+            table = tableManager.floodgateAuthTable,
+        )
         val floodgateApiHolder = FloodgateApiHolder()
-        val authService = FloodgateAuthService(api, floodgateApiHolder, FloodgateSessionHolder(), config = config)
+        val authService = FloodgateAuthService(
+            api = api,
+            floodgateApiHolder = floodgateApiHolder,
+            sessionHolder = FloodgateSessionHolder(),
+            repository = repository,
+            config = config,
+        )
+        tableManager.createTable()
+        api.proxy.eventManager.register(api, tableManager)
         api.proxy.eventManager.register(api, FloodgateOpenStartAuthListener(authService, floodgateApiHolder))
-        api.proxy.eventManager.register(api, FloodgateGameProfileListener(authService))
+        api.proxy.eventManager.register(api, FloodgateGameProfileListener(authService, floodgateApiHolder))
         api.proxy.eventManager.register(api, FloodgateVServerAuthListener(authService))
         info {
-            "FloodgateSubModule 已加载；该渠道会跳过标准初始档案校验时机，因此已在 OpenStartAuth 与初始档案校验阶段补注册 Floodgate 接管监听器；自动去除 Floodgate API 玩家名前缀=${config.stripUsernamePrefix}；Profile 解析透传 Floodgate UUID=${config.passFloodgateUuidToProfileResolve}"
+            "FloodgateSubModule 已加载；已创建 Floodgate 专属凭证绑定表，并在 OpenStartAuth 与初始档案校验阶段补注册 Floodgate 接管监听器；自动去除 Floodgate API 玩家名前缀=${config.stripUsernamePrefix}；Profile 解析透传 Floodgate UUID=${config.passFloodgateUuidToProfileResolve}"
         }
     }
 }

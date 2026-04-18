@@ -33,6 +33,7 @@ open class FloodgateApiHolder(
     data class ResolvedFloodgateIdentity(
         val userName: String,
         val userUUID: UUID,
+        val xuid: Long,
     )
 
     open fun isFloodgatePlayer(uuid: UUID): Boolean {
@@ -59,6 +60,7 @@ open class FloodgateApiHolder(
         return ResolvedFloodgateIdentity(
             userName = resolvedPlayer.correctUsername,
             userUUID = resolvedPlayer.correctUniqueId,
+            xuid = resolvedPlayer.xuid?.toLongOrNull() ?: 0L,
         )
     }
 

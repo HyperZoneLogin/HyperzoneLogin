@@ -28,6 +28,7 @@ import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.profile.HyperZoneProfileService
 import icu.h2l.api.profile.HyperZoneProfileServiceProvider
 import icu.h2l.login.auth.floodgate.config.FloodgateAuthConfig
+import icu.h2l.login.auth.floodgate.db.FloodgateAuthRepository
 import icu.h2l.login.auth.floodgate.FloodgateMessages
 import icu.h2l.login.auth.floodgate.credential.FloodgateHyperZoneCredential
 import io.netty.channel.Channel
@@ -38,6 +39,7 @@ class FloodgateAuthService(
     private val api: HyperZoneApi,
     private val floodgateApiHolder: FloodgateApiHolder,
     private val sessionHolder: FloodgateSessionHolder,
+    private val repository: FloodgateAuthRepository,
     private val config: FloodgateAuthConfig = FloodgateAuthConfig(),
     private val profileService: HyperZoneProfileService = HyperZoneProfileServiceProvider.get()
 ) {
@@ -64,9 +66,9 @@ class FloodgateAuthService(
      * Floodgate 会跳过 HZL 自订的 OpenPreLogin/OpenStartAuth 事件，
      * 因此这里只负责：识别 Floodgate、创建登录期玩家对象、记录会话。
      */
-    fun acceptInitialProfile(channel: Channel, userName: String, userUUID: UUID): VerifyResult {
+    fun acceptInitialProfile(channel: Channel, userName: String, userUUID: UUID, xuid: Long): VerifyResult {
         trace(
-            "acceptInitialProfile start channel=$channel userName=$userName userUUID=$userUUID adapter=${api.serverAdapter?.javaClass?.name ?: "null"}"
+            "acceptInitialProfile start channel=$channel userName=$userName userUUID=$userUUID xuid=$xuid adapter=${api.serverAdapter?.javaClass?.name ?: "null"}"
         )
         if (!floodgateApiHolder.isFloodgatePlayer(userUUID)) {
             trace("acceptInitialProfile ignored: not floodgate channel=$channel userUUID=$userUUID")
@@ -75,11 +77,11 @@ class FloodgateAuthService(
 
         val normalizedUserName = normalizeUserName(userName)
         trace(
-            "acceptInitialProfile floodgate detected channel=$channel rawName=$userName normalizedName=$normalizedUserName userUUID=$userUUID"
+            "acceptInitialProfile floodgate detected channel=$channel rawName=$userName normalizedName=$normalizedUserName userUUID=$userUUID xuid=$xuid"
         )
 
-        sessionHolder.remember(channel, normalizedUserName, userUUID)
-        trace("acceptInitialProfile session remembered channel=$channel normalizedName=$normalizedUserName userUUID=$userUUID")
+        sessionHolder.remember(channel, normalizedUserName, userUUID, xuid)
+        trace("acceptInitialProfile session remembered channel=$channel normalizedName=$normalizedUserName userUUID=$userUUID xuid=$xuid")
 
         try {
             api.hyperZonePlayers.create(channel, normalizedUserName, userUUID, FLOODGATE_CHANNEL_PLACEHOLDER_MODE)
@@ -121,19 +123,17 @@ class FloodgateAuthService(
         return try {
             if (session != null && findCredential(hyperZonePlayer, session.userUUID) == null) {
                 val suggestedProfileCreateUuid = resolveProfileUuid(session.userUUID)
-                val knownProfileId = profileService.getAttachedProfile(hyperZonePlayer)?.id
-                    ?: if (profileService.canCreate(hyperZonePlayer.registrationName, suggestedProfileCreateUuid)) {
-                        profileService.create(hyperZonePlayer.registrationName, suggestedProfileCreateUuid).id
-                    } else {
-                        null
-                    }
+                val knownProfileId = resolveKnownProfileId(hyperZonePlayer, session)
+                    ?: createAndBindProfileIfAllowed(hyperZonePlayer, session, suggestedProfileCreateUuid)
                 trace(
-                    "complete preparing credential channel=$channel player=${hyperZonePlayer.clientOriginalName} sessionName=${session.userName} sessionUuid=${session.userUUID} suggestedProfileCreateUuid=$suggestedProfileCreateUuid knownProfileId=$knownProfileId"
+                    "complete preparing credential channel=$channel player=${hyperZonePlayer.clientOriginalName} sessionName=${session.userName} sessionUuid=${session.userUUID} xuid=${session.xuid} suggestedProfileCreateUuid=$suggestedProfileCreateUuid knownProfileId=$knownProfileId"
                 )
                 hyperZonePlayer.submitCredential(
                     FloodgateHyperZoneCredential(
+                        repository = repository,
                         trustedName = session.userName,
                         trustedUuid = session.userUUID,
+                        xuid = session.xuid,
                         suggestedProfileCreateUuid = suggestedProfileCreateUuid,
                         knownProfileId = knownProfileId
                     )
@@ -179,6 +179,39 @@ class FloodgateAuthService(
 
     private fun hasFloodgateCredential(hyperZonePlayer: HyperZonePlayer): Boolean {
         return hyperZonePlayer.getSubmittedCredentials().any { it is FloodgateHyperZoneCredential }
+    }
+
+    private fun resolveKnownProfileId(
+        hyperZonePlayer: HyperZonePlayer,
+        session: FloodgateSessionHolder.FloodgateSession,
+    ): UUID? {
+        val attachedProfileId = profileService.getAttachedProfile(hyperZonePlayer)?.id
+        if (attachedProfileId != null) {
+            repository.createOrUpdate(session.userName, session.xuid, attachedProfileId)
+            return attachedProfileId
+        }
+
+        val repositoryProfileId = repository.findProfileIdByXuid(session.xuid) ?: return null
+        repository.updateEntryName(session.xuid, session.userName)
+        return repositoryProfileId
+    }
+
+    private fun createAndBindProfileIfAllowed(
+        hyperZonePlayer: HyperZonePlayer,
+        session: FloodgateSessionHolder.FloodgateSession,
+        suggestedProfileCreateUuid: UUID?,
+    ): UUID? {
+        if (!profileService.canCreate(hyperZonePlayer.registrationName, suggestedProfileCreateUuid)) {
+            return null
+        }
+
+        val createdProfile = profileService.create(hyperZonePlayer.registrationName, suggestedProfileCreateUuid)
+        if (!repository.createOrUpdate(session.userName, session.xuid, createdProfile.id)) {
+            throw IllegalStateException(
+                "Floodgate 玩家 ${session.userName}(${session.xuid}) Profile 已创建，但模块绑定写入失败"
+            )
+        }
+        return createdProfile.id
     }
 
     private fun findCredential(hyperZonePlayer: HyperZonePlayer, userUUID: UUID): FloodgateHyperZoneCredential? {

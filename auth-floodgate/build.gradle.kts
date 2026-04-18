@@ -29,6 +29,7 @@ dependencies {
     compileOnly(libs.velocityApi)
     compileOnly(libs.floodgateApi)
     compileOnly(libs.nettyAll)
+    compileOnly(libs.exposedCore)
     compileOnly(libs.configurateHocon)
 
     testImplementation(platform(libs.junitBom))
@@ -37,6 +38,9 @@ dependencies {
     testImplementation(libs.velocityApi)
     testImplementation(libs.floodgateApi)
     testImplementation(libs.nettyAll)
+    testImplementation(libs.exposedCore)
+    testImplementation(libs.exposedJdbc)
+    testImplementation(libs.h2)
     testImplementation("io.mockk:mockk:1.13.17")
     testRuntimeOnly(libs.junitPlatformLauncher)
 }
