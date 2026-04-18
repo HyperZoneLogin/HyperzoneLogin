@@ -25,19 +25,19 @@ import com.velocitypowered.api.event.Subscribe
 import icu.h2l.api.connection.disconnectWithMessage
 import icu.h2l.api.connection.getNettyChannel
 import icu.h2l.api.event.profile.VerifyInitialGameProfileEvent
+import icu.h2l.api.log.HyperZoneDebugType
+import icu.h2l.api.log.debug
 import icu.h2l.login.auth.floodgate.service.FloodgateAuthService
-import java.util.logging.Logger
 
 class FloodgateGameProfileListener(
     private val authService: FloodgateAuthService
 ) {
-    private val logger = Logger.getLogger("hzl-auth-floodgate")
 
     @Subscribe
     fun onVerifyInitialGameProfile(event: VerifyInitialGameProfileEvent) {
-        logger.info(
-            "[FG-OUTPRE-TRACE] onVerifyInitialGameProfile channel=${event.connection.getNettyChannel()} profileName=${event.gameProfile.name} profileId=${event.gameProfile.id}"
-        )
+        debug(HyperZoneDebugType.OUTPRE_TRACE) {
+            "onVerifyInitialGameProfile channel=${event.connection.getNettyChannel()} profileName=${event.gameProfile.name} profileId=${event.gameProfile.id}"
+        }
         // Floodgate 会跳过 HZL 自订的 OpenPreLogin/OpenStartAuth，
         // 所以必须在这里提前创建登录期 HyperZonePlayer 并记录渠道会话。
         when (
@@ -48,23 +48,23 @@ class FloodgateGameProfileListener(
             )
         ) {
             FloodgateAuthService.VerifyResult.NotFloodgate -> {
-                logger.info(
-                    "[FG-OUTPRE-TRACE] onVerifyInitialGameProfile ignored channel=${event.connection.getNettyChannel()} profileName=${event.gameProfile.name}: not floodgate"
-                )
+                debug(HyperZoneDebugType.OUTPRE_TRACE) {
+                    "onVerifyInitialGameProfile ignored channel=${event.connection.getNettyChannel()} profileName=${event.gameProfile.name}: not floodgate"
+                }
                 return
             }
             is FloodgateAuthService.VerifyResult.Failed -> {
-                logger.info(
-                    "[FG-OUTPRE-TRACE] onVerifyInitialGameProfile failed channel=${event.connection.getNettyChannel()} profileName=${event.gameProfile.name}"
-                )
+                debug(HyperZoneDebugType.OUTPRE_TRACE) {
+                    "onVerifyInitialGameProfile failed channel=${event.connection.getNettyChannel()} profileName=${event.gameProfile.name}"
+                }
                 event.connection.disconnectWithMessage(result.userMessage)
                 return
             }
             FloodgateAuthService.VerifyResult.Accepted -> {
                 event.pass = true
-                logger.info(
-                    "[FG-OUTPRE-TRACE] onVerifyInitialGameProfile accepted channel=${event.connection.getNettyChannel()} profileName=${event.gameProfile.name} pass=${event.pass}"
-                )
+                debug(HyperZoneDebugType.OUTPRE_TRACE) {
+                    "onVerifyInitialGameProfile accepted channel=${event.connection.getNettyChannel()} profileName=${event.gameProfile.name} pass=${event.pass}"
+                }
             }
         }
     }

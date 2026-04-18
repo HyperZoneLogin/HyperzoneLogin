@@ -32,6 +32,8 @@ import com.velocitypowered.proxy.connection.client.ConnectedPlayer
 import icu.h2l.api.event.area.PlayerAreaTransitionReason
 import icu.h2l.api.event.vServer.VServerAuthStartEvent
 import icu.h2l.api.event.vServer.VServerJoinEvent
+import icu.h2l.api.log.HyperZoneDebugType
+import icu.h2l.api.log.debug
 import icu.h2l.api.message.HyperZoneMessagePlaceholder
 import icu.h2l.api.player.getChannel
 import icu.h2l.api.vServer.HyperZoneVServerAdapter
@@ -68,7 +70,7 @@ class OutPreVServerAuth(
     private val initialBridges = ConcurrentHashMap<Channel, OutPreBackendBridge>()
 
     private fun trace(message: String) {
-        logger.info("[FG-OUTPRE-TRACE] $message")
+        debug(HyperZoneDebugType.OUTPRE_TRACE, message)
     }
 
     private fun describeState(state: OutPreState?): String {

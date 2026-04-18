@@ -24,6 +24,8 @@ package icu.h2l.login.player
 import com.velocitypowered.api.proxy.Player
 import com.velocitypowered.api.util.GameProfile
 import icu.h2l.api.event.area.PlayerAreaTransitionReason
+import icu.h2l.api.log.HyperZoneDebugType
+import icu.h2l.api.log.debug
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.profile.HyperZoneCredential
 import icu.h2l.api.util.RemapUtils
@@ -159,23 +161,15 @@ class VelocityHyperZonePlayer(
             return
         }
 
-        HyperZoneLoginMain.getInstance().logger.info(
-            "[FG-OUTPRE-TRACE] hyperPlayer.overVerify before player={} verified={} attachedProfile={} credentials={} proxyBound={} ",
-            clientOriginalName,
-            isVerifiedState.get(),
-            hasAttachedProfile(),
-            submittedCredentials.map { it.javaClass.simpleName },
-            proxyPlayer != null,
-        )
+        debug(HyperZoneDebugType.OUTPRE_TRACE) {
+            "hyperPlayer.overVerify before player=$clientOriginalName verified=${isVerifiedState.get()} attachedProfile=${hasAttachedProfile()} credentials=${submittedCredentials.map { it.javaClass.simpleName }} proxyBound=${proxyPlayer != null}"
+        }
 
         HyperZoneLoginMain.getInstance().profileService.attachVerifiedCredentialProfile(this)
         isVerifiedState.set(true)
-        HyperZoneLoginMain.getInstance().logger.info(
-            "[FG-OUTPRE-TRACE] hyperPlayer.overVerify after-attach player={} verified={} attachedProfile={} ",
-            clientOriginalName,
-            isVerifiedState.get(),
-            hasAttachedProfile(),
-        )
+        debug(HyperZoneDebugType.OUTPRE_TRACE) {
+            "hyperPlayer.overVerify after-attach player=$clientOriginalName verified=${isVerifiedState.get()} attachedProfile=${hasAttachedProfile()}"
+        }
         if (!hasAttachedProfile()) {
             sendMessage(HyperZoneLoginMain.getInstance().messageService.render(this, MessageKeys.Player.VERIFIED_UNBOUND))
         }
@@ -235,13 +229,9 @@ class VelocityHyperZonePlayer(
     }
 
     private fun tryLeaveWaiting() {
-        HyperZoneLoginMain.getInstance().logger.info(
-            "[FG-OUTPRE-TRACE] hyperPlayer.tryLeaveWaiting player={} verified={} attachedProfile={} proxyBound={} ",
-            clientOriginalName,
-            isVerifiedState.get(),
-            hasAttachedProfile(),
-            proxyPlayer != null,
-        )
+        debug(HyperZoneDebugType.OUTPRE_TRACE) {
+            "hyperPlayer.tryLeaveWaiting player=$clientOriginalName verified=${isVerifiedState.get()} attachedProfile=${hasAttachedProfile()} proxyBound=${proxyPlayer != null}"
+        }
 
         if (!isVerifiedState.get() || !hasAttachedProfile()) {
             return

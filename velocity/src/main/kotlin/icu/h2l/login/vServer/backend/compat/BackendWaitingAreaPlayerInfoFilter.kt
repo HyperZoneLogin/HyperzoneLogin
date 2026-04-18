@@ -25,6 +25,7 @@ import com.velocitypowered.api.proxy.Player
 import com.velocitypowered.proxy.connection.MinecraftConnection
 import com.velocitypowered.proxy.connection.backend.VelocityServerConnection
 import com.velocitypowered.proxy.protocol.packet.UpsertPlayerInfoPacket
+import icu.h2l.api.log.HyperZoneDebugType
 import icu.h2l.api.log.debug
 import icu.h2l.login.HyperZoneLoginMain
 import io.netty.channel.ChannelHandlerContext
@@ -47,7 +48,7 @@ class BackendWaitingAreaPlayerInfoFilter : ChannelInboundHandlerAdapter() {
 
         if (player == null && msg is UpsertPlayerInfoPacket && !unresolvedPlayerLogged) {
             unresolvedPlayerLogged = true
-            debug {
+            debug(HyperZoneDebugType.BACKEND_COMPAT) {
                 "[BackendWaitingAreaPlayerInfoFilter] upsert passthrough before player resolved: channel=${ctx.channel().id().asShortText()}, packet=${describePacket(msg)}"
             }
         }
@@ -58,7 +59,7 @@ class BackendWaitingAreaPlayerInfoFilter : ChannelInboundHandlerAdapter() {
                 return
             }
             val nextPacketName = msg?.javaClass?.simpleName ?: "null"
-            debug {
+            debug(HyperZoneDebugType.BACKEND_COMPAT) {
                 "[BackendWaitingAreaPlayerInfoFilter] retire filter after backend waiting area: player=${resolvedPlayer.username}, uuid=${resolvedPlayer.uniqueId}, currentServer=${currentServerName(resolvedPlayer)}, nextPacket=$nextPacketName"
             }
             retire(ctx)
@@ -71,7 +72,7 @@ class BackendWaitingAreaPlayerInfoFilter : ChannelInboundHandlerAdapter() {
                 ReferenceCountUtil.safeRelease(msg)
                 return
             }
-            debug {
+            debug(HyperZoneDebugType.BACKEND_COMPAT) {
                 "[BackendWaitingAreaPlayerInfoFilter] drop backend waiting-area upsert: player=${resolvedPlayer.username}, uuid=${resolvedPlayer.uniqueId}, currentServer=${currentServerName(resolvedPlayer)}, packet=${describePacket(msg)}"
             }
             ReferenceCountUtil.safeRelease(msg)
@@ -92,7 +93,7 @@ class BackendWaitingAreaPlayerInfoFilter : ChannelInboundHandlerAdapter() {
             else -> return
         }
         unresolvedPlayerLogged = false
-        debug {
+        debug(HyperZoneDebugType.BACKEND_COMPAT) {
             "[BackendWaitingAreaPlayerInfoFilter] resolved backend player for player-info filter: player=${proxyPlayer?.username}, uuid=${proxyPlayer?.uniqueId}, channel=${ctx.channel().id().asShortText()}"
         }
     }

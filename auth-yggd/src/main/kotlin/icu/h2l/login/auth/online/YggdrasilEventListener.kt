@@ -25,6 +25,7 @@ import com.velocitypowered.api.event.Subscribe
 import com.velocitypowered.api.event.connection.DisconnectEvent
 import icu.h2l.api.event.connection.OpenStartAuthEvent
 import icu.h2l.api.event.vServer.VServerJoinEvent
+import icu.h2l.api.log.HyperZoneDebugType
 import icu.h2l.api.log.debug
 import icu.h2l.api.player.getChannel
 import io.netty.channel.Channel
@@ -46,7 +47,7 @@ class YggdrasilEventListener(
             serverId = event.serverId,
             playerIp = event.playerIp
         )
-        debug {
+        debug(HyperZoneDebugType.YGGDRASIL_AUTH) {
             "[YggdrasilFlow] OnlineAuthEvent 收到，等待等待区进入事件触发验证: addr=${event.channel}, user=${event.userName}"
         }
     }
@@ -59,12 +60,12 @@ class YggdrasilEventListener(
         val channel = event.proxyPlayer.getChannel()
         val pending = pendingContexts.remove(channel)
         if (pending == null) {
-            debug { "[YggdrasilFlow] WaitingAreaJoin 未找到待验证上下文，跳过: addr=$channel" }
+            debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "[YggdrasilFlow] WaitingAreaJoin 未找到待验证上下文，跳过: addr=$channel" }
             return
         }
 
         val username = event.proxyPlayer.username
-        debug { "[YggdrasilFlow] WaitingAreaJoin 收到，开始验证: user=$username" }
+        debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "[YggdrasilFlow] WaitingAreaJoin 收到，开始验证: user=$username" }
         yggdrasilAuthModule.startYggdrasilAuth(
             player = event.proxyPlayer,
             username = pending.username,

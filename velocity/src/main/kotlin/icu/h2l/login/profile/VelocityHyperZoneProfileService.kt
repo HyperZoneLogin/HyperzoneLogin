@@ -23,6 +23,8 @@ package icu.h2l.login.profile
 
 import icu.h2l.api.db.Profile
 import icu.h2l.api.event.profile.ProfileAttachedEvent
+import icu.h2l.api.log.HyperZoneDebugType
+import icu.h2l.api.log.debug
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.profile.HyperZoneProfileService
 import icu.h2l.api.util.RemapUtils
@@ -157,13 +159,9 @@ class VelocityHyperZoneProfileService(
 
     override fun attachProfile(player: HyperZonePlayer, profileId: UUID): Profile? {
         val profile = databaseHelper.getProfile(profileId) ?: return null
-        HyperZoneLoginMain.getInstance().logger.info(
-            "[FG-OUTPRE-TRACE] profileService.attachProfile player={} profileId={} profileName={} profileUuid={} ",
-            player.clientOriginalName,
-            profile.id,
-            profile.name,
-            profile.uuid,
-        )
+        debug(HyperZoneDebugType.OUTPRE_TRACE) {
+            "profileService.attachProfile player=${player.clientOriginalName} profileId=${profile.id} profileName=${profile.name} profileUuid=${profile.uuid}"
+        }
         attachedProfiles[player] = profile.id
         runCatching {
             HyperZoneLoginMain.getInstance().proxy.eventManager.fire(
@@ -183,11 +181,9 @@ class VelocityHyperZoneProfileService(
         getAttachedProfile(player)?.let { return it }
 
         val credentials = player.getSubmittedCredentials()
-        HyperZoneLoginMain.getInstance().logger.info(
-            "[FG-OUTPRE-TRACE] profileService.attachVerifiedCredentialProfile player={} credentials={} ",
-            player.clientOriginalName,
-            credentials.map { "${it.javaClass.simpleName}:${it.getBoundProfileId()}" },
-        )
+        debug(HyperZoneDebugType.OUTPRE_TRACE) {
+            "profileService.attachVerifiedCredentialProfile player=${player.clientOriginalName} credentials=${credentials.map { "${it.javaClass.simpleName}:${it.getBoundProfileId()}" }}"
+        }
         if (credentials.isEmpty()) {
             throw IllegalStateException("玩家 ${player.clientOriginalName} 尚未提交任何认证凭证，无法完成 Profile 绑定")
         }

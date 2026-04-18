@@ -24,6 +24,7 @@ package icu.h2l.login.auth.online.req
 import com.google.common.net.UrlEscapers
 import com.google.gson.Gson
 import com.velocitypowered.api.util.GameProfile
+import icu.h2l.api.log.HyperZoneDebugType
 import icu.h2l.api.log.debug
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -50,7 +51,7 @@ class MojangStyleAuthRequest(
     ): AuthenticationResult = withContext(Dispatchers.IO) {
         try {
             val url = buildAuthUrl(username, serverId, playerIp)
-            debug { "[YggdrasilAuth] 即将发起在线认证请求: entry=${config.name}, url=$url" }
+            debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "[YggdrasilAuth] 即将发起在线认证请求: entry=${config.name}, url=$url" }
             val request = buildHttpRequest(url)
             
             val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())

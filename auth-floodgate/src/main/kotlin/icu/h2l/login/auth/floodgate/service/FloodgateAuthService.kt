@@ -22,6 +22,8 @@
 package icu.h2l.login.auth.floodgate.service
 
 import icu.h2l.api.HyperZoneApi
+import icu.h2l.api.log.HyperZoneDebugType
+import icu.h2l.api.log.debug
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.profile.HyperZoneProfileService
 import icu.h2l.api.profile.HyperZoneProfileServiceProvider
@@ -42,7 +44,7 @@ class FloodgateAuthService(
     private val logger = java.util.logging.Logger.getLogger("hzl-auth-floodgate")
 
     private fun trace(message: String) {
-        logger.info("[FG-OUTPRE-TRACE] $message")
+        debug(HyperZoneDebugType.OUTPRE_TRACE, message)
     }
 
     sealed interface VerifyResult {

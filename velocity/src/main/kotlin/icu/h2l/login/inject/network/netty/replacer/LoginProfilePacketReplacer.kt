@@ -32,6 +32,7 @@ import com.velocitypowered.proxy.connection.PlayerDataForwarding
 import com.velocitypowered.proxy.protocol.ProtocolUtils
 import com.velocitypowered.proxy.protocol.packet.LoginPluginResponsePacket
 import com.velocitypowered.proxy.protocol.packet.ServerLoginPacket
+import icu.h2l.api.log.HyperZoneDebugType
 import icu.h2l.api.log.debug
 import icu.h2l.api.log.error
 import icu.h2l.api.player.HyperZonePlayer
@@ -122,7 +123,7 @@ class LoginProfilePacketReplacer(
 
     private fun resolveRequestedForwardingVersion(content: ByteBuf?): Int {
         if (content == null) {
-            debug {
+            debug(HyperZoneDebugType.NETWORK_REWRITE) {
                 "[ProfileSkinFlow] modern forwarding version missing content, fallback=${PlayerDataForwarding.MODERN_DEFAULT}, target=$targetServerName"
             }
             return PlayerDataForwarding.MODERN_DEFAULT
@@ -130,7 +131,7 @@ class LoginProfilePacketReplacer(
 
         val readableBytes = content.readableBytes()
         if (readableBytes <= MODERN_FORWARDING_SIGNATURE_LENGTH) {
-            debug {
+            debug(HyperZoneDebugType.NETWORK_REWRITE) {
                 "[ProfileSkinFlow] modern forwarding version payload too short, fallback=${PlayerDataForwarding.MODERN_DEFAULT}, readableBytes=$readableBytes, target=$targetServerName"
             }
             return PlayerDataForwarding.MODERN_DEFAULT
@@ -141,7 +142,7 @@ class LoginProfilePacketReplacer(
         return runCatching {
             ProtocolUtils.readVarInt(duplicate)
         }.onFailure { throwable ->
-            debug {
+            debug(HyperZoneDebugType.NETWORK_REWRITE) {
                 "[ProfileSkinFlow] modern forwarding version decode failed, fallback=${PlayerDataForwarding.MODERN_DEFAULT}, readableBytes=$readableBytes, target=$targetServerName, reason=${throwable.message}"
             }
         }.getOrDefault(PlayerDataForwarding.MODERN_DEFAULT)

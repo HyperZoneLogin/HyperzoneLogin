@@ -23,6 +23,7 @@ package icu.h2l.login.player
 
 import com.velocitypowered.api.util.GameProfile
 import icu.h2l.api.event.profile.ProfileSkinApplyEvent
+import icu.h2l.api.log.HyperZoneDebugType
 import icu.h2l.api.log.debug
 import icu.h2l.api.log.error
 import icu.h2l.api.log.warn
@@ -65,7 +66,7 @@ object ProfileSkinApplySupport {
         return runCatching {
             hyperZonePlayer.getAttachedGameProfile()
         }.getOrElse { throwable ->
-            debug {
+            debug(HyperZoneDebugType.PROFILE_SKIN) {
                 "[ProfileSkinFlow] apply aborted: clientOriginal=${hyperZonePlayer.clientOriginalName}, reason=${throwable.message ?: throwable.javaClass.simpleName}, waitingArea=${hyperZonePlayer.isInWaitingArea()}, attachedProfile=${hyperZonePlayer.hasAttachedProfile()}"
             }
             null

@@ -28,6 +28,7 @@ import com.velocitypowered.proxy.VelocityServer
 import icu.h2l.api.db.HyperZoneDatabaseManager
 import icu.h2l.api.event.auth.AuthenticationFailureEvent
 import icu.h2l.api.event.profile.ProfileSkinPreprocessEvent
+import icu.h2l.api.log.HyperZoneDebugType
 import icu.h2l.api.log.debug
 import icu.h2l.api.log.error
 import icu.h2l.api.log.info
@@ -119,16 +120,16 @@ class YggdrasilAuthModule(
         serverId: String,
         playerIp: String? = null
     ) {
-        debug { "[YggdrasilFlow] 请求启动验证: user=$username" }
+        debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "[YggdrasilFlow] 请求启动验证: user=$username" }
         synchronized(authLaunchLock) {
             if (authResults.containsKey(player)) {
-                debug { "玩家 $username 已有验证结果，跳过重复验证请求" }
+                debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "玩家 $username 已有验证结果，跳过重复验证请求" }
                 return
             }
 
             val runningJob = inFlightAuthJobs[player]
             if (runningJob?.isActive == true) {
-                debug { "玩家 $username 验证任务进行中，跳过重复验证请求" }
+                debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "玩家 $username 验证任务进行中，跳过重复验证请求" }
                 return
             }
 
@@ -140,14 +141,14 @@ class YggdrasilAuthModule(
 
             val job = coroutineScope.launch {
                 try {
-                    debug { "[YggdrasilFlow] 验证任务开始执行: user=$username" }
+                    debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "[YggdrasilFlow] 验证任务开始执行: user=$username" }
                     val result = performYggdrasilAuth(player, username, uuid, serverId, playerIp)
                     authResults[player] = result
-                    debug { "[YggdrasilFlow] 验证任务完成并缓存结果: user=$username, result=${result.javaClass.simpleName}" }
+                    debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "[YggdrasilFlow] 验证任务完成并缓存结果: user=$username, result=${result.javaClass.simpleName}" }
                     waitingAreaPlayers[player]?.let { handler ->
                         dispatchAuthResultToHandler(player, username, handler, result)
                     } ?: run {
-                        debug { "[YggdrasilFlow] 尚未注册等待区玩家上下文，等待后续 WaitingAreaJoin: user=$username" }
+                        debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "[YggdrasilFlow] 尚未注册等待区玩家上下文，等待后续 WaitingAreaJoin: user=$username" }
                     }
                 } finally {
                     inFlightAuthJobs.remove(player)
@@ -177,14 +178,14 @@ class YggdrasilAuthModule(
      */
     fun registerWaitingAreaPlayer(player: Player, waitingAreaPlayer: HyperZonePlayer) {
         waitingAreaPlayers[player] = waitingAreaPlayer
-        debug { "为玩家 ${player.username} 注册等待区玩家上下文" }
+        debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "为玩家 ${player.username} 注册等待区玩家上下文" }
 
         authResults[player]?.let { result ->
-            debug { "[YggdrasilFlow] 命中已完成结果，立即回调: user=${player.username}" }
+            debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "[YggdrasilFlow] 命中已完成结果，立即回调: user=${player.username}" }
             val displayName = (result as? YggdrasilAuthResult.Success)?.profile?.name ?: "unknown"
             dispatchAuthResultToHandler(player, displayName, waitingAreaPlayer, result)
         } ?: run {
-            debug { "[YggdrasilFlow] 验证结果尚未完成，等待异步回调: user=${player.username}" }
+            debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "[YggdrasilFlow] 验证结果尚未完成，等待异步回调: user=${player.username}" }
         }
     }
 
@@ -230,7 +231,7 @@ class YggdrasilAuthModule(
                         info { "玩家 $username Yggdrasil 验证成功，但完成验证失败：$message" }
                         return
                     }
-                    debug { "玩家 $username 调用验证完成接口成功，Entry: ${result.entryId}"  }
+                    debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "玩家 $username 调用验证完成接口成功，Entry: ${result.entryId}"  }
                 }
                 return
             }
@@ -243,7 +244,7 @@ class YggdrasilAuthModule(
             publishAuthFailure(player, username, result)
             handler.sendMessage(YggdrasilMessages.authFailed(handler, failureReason))
             info { "玩家 $username Yggdrasil 验证失败" }
-            debug { "玩家 $username Yggdrasil 验证失败原因: $failureReason" }
+            debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "玩家 $username Yggdrasil 验证失败原因: $failureReason" }
         } finally {
             clearTransientStateAfterDispatch(player)
         }
@@ -314,7 +315,7 @@ class YggdrasilAuthModule(
     private fun resolveProfileResolveUuid(result: YggdrasilAuthResult.Success): UUID? {
         val entryConfig = entryConfigManager.getConfigById(result.entryId)
         if (entryConfig == null) {
-            debug {
+            debug(HyperZoneDebugType.YGGDRASIL_AUTH) {
                 "[YggdrasilFlow] 未找到 Entry ${result.entryId} 的配置，Profile 解析回退为透传远端 UUID: ${result.profile.id}"
             }
             return result.profile.id
@@ -329,7 +330,7 @@ class YggdrasilAuthModule(
 
     private fun clearTransientStateAfterDispatch(player: Player) {
         clearTransientState(player)
-        debug { "[YggdrasilFlow] 回调完成后已清理临时状态: user=${player.username}" }
+        debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "[YggdrasilFlow] 回调完成后已清理临时状态: user=${player.username}" }
     }
 
     private fun clearTransientState(player: Player) {
@@ -351,14 +352,14 @@ class YggdrasilAuthModule(
         event.textures = extractTextures(result.profile)
         event.source = extractSkinSource(event.textures)
 
-        debug {
+        debug(HyperZoneDebugType.PROFILE_SKIN) {
             "[ProfileSkinFlow] preprocess dispatch start: clientOriginal=${handler.clientOriginalName}, entry=${result.entryId}, server=${result.serverUrl}, authenticatedProfile=${describeProfile(result.profile)}, eventTextures=${describeTextures(event.textures)}, eventSource=${describeSource(event.source)}"
         }
 
         runCatching {
             proxy.eventManager.fire(event).join()
         }.onSuccess {
-            debug {
+            debug(HyperZoneDebugType.PROFILE_SKIN) {
                 "[ProfileSkinFlow] preprocess dispatch completed: clientOriginal=${handler.clientOriginalName}, entry=${result.entryId}, resultingTextures=${describeTextures(event.textures)}, resultingSource=${describeSource(event.source)}"
             }
         }.onFailure { throwable ->
@@ -406,7 +407,7 @@ class YggdrasilAuthModule(
 
     fun clearPlayerCacheOnDisconnect(player: Player) {
         clearTransientState(player)
-        debug { "[YggdrasilFlow] 玩家断连，已清理缓存状态: user=${player.username}" }
+        debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "[YggdrasilFlow] 玩家断连，已清理缓存状态: user=${player.username}" }
     }
 
     /**（内部方法，由startYggdrasilAuth调用）
@@ -430,13 +431,13 @@ class YggdrasilAuthModule(
         serverId: String,
         playerIp: String? = null
     ): YggdrasilAuthResult = runBlocking {
-        debug { "开始对玩家 $username (UUID: $uuid) 进行Yggdrasil验证" }
+        debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "开始对玩家 $username (UUID: $uuid) 进行Yggdrasil验证" }
 
         // 第一批次：仅根据连接早期拿到的客户端标识筛选候选 Entry，真正确认绑定仍以后续可信认证结果为准。
         val knownEntries = findCandidateEntriesByClientIdentity(username, uuid)
 
         if (knownEntries.isNotEmpty()) {
-            debug { "玩家 $username 在数据库中找到 ${knownEntries.size} 个Entry记录" }
+            debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "玩家 $username 在数据库中找到 ${knownEntries.size} 个Entry记录" }
 
             // 构建第一批次的验证请求
             val firstBatchRequests = buildAuthRequests(knownEntries)
@@ -458,7 +459,7 @@ class YggdrasilAuthModule(
             }
         }
 
-        debug { "第一批次验证未通过，开始第二批次（所有Yggdrasil Entry）" }
+        debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "第一批次验证未通过，开始第二批次（所有Yggdrasil Entry）" }
 
         // 第二批次：立即向所有Yggdrasil Entry发起请求
         val secondBatchContext = SecondBatchContext(username, uuid, serverId, playerIp)
@@ -479,7 +480,7 @@ class YggdrasilAuthModule(
             return YggdrasilAuthResult.Failed("第一批次验证失败：无法找到玩家 Profile")
         }
 
-        debug {
+        debug(HyperZoneDebugType.YGGDRASIL_AUTH) {
             "[YggdrasilFlow] 第一批次已确认可信 Profile: user=$username requestUuid=$uuid authenticatedName=${success.profile.name} authenticatedUuid=${success.profile.id} pid=$entryProfileId"
         }
         return null
@@ -555,7 +556,7 @@ class YggdrasilAuthModule(
 
                     if (hasRecord) {
                         foundEntries.add(entryConfig.id)
-                        debug { "在Entry表 ${entryConfig.id} 中找到玩家 $username 的记录" }
+                        debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "在Entry表 ${entryConfig.id} 中找到玩家 $username 的记录" }
                     }
                 }
             }
@@ -628,7 +629,7 @@ class YggdrasilAuthModule(
         requests: List<Pair<String, AuthenticationRequest>>,
         batchName: String
     ): YggdrasilAuthResult {
-        debug { "$batchName: 开始并发验证，共 ${requests.size} 个 Entry" }
+        debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "$batchName: 开始并发验证，共 ${requests.size} 个 Entry" }
 
         // 创建并发验证管理器
         val authManager = ConcurrentAuthenticationManager(

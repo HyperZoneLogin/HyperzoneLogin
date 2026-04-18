@@ -471,10 +471,8 @@ class HyperZoneLoginMain(
     }
 
     private fun hasLegacyMiscLayout(node: ConfigurationNode): Boolean {
-        return !node.node("debug").virtual()
-            || !node.node("enableNameHotChange").virtual()
+        return !node.node("enableNameHotChange").virtual()
             || !node.node("enableUuidHotChange").virtual()
-            || !node.node("slowTestEnabled").virtual()
     }
 
     private fun loadDebugConfig() {
@@ -499,67 +497,18 @@ class HyperZoneLoginMain(
             .path(path)
             .build()
         val node = loader.load()
-        val legacyMiscNode = loadLegacyMiscNodeOrNull()
-        val config = readDebugConfig(node, legacyMiscNode)
-        val shouldPersistDefaults = firstCreation || hasLegacyDebugLayout(node) || hasLegacyDebugSettingsInMisc(legacyMiscNode)
-        if (shouldPersistDefaults) {
+        val config = readDebugConfig(node)
+        if (firstCreation) {
             node.set(config)
             loader.save(node)
         }
         debugConfig = config
     }
 
-    private fun readDebugConfig(node: ConfigurationNode, legacyMiscNode: ConfigurationNode?): DebugConfig {
-        val loaded = runCatching {
+    private fun readDebugConfig(node: ConfigurationNode): DebugConfig {
+        return runCatching {
             node.get(DebugConfig::class.java)
         }.getOrNull() ?: DebugConfig()
-
-        val legacyDebugBoolean = legacyMiscNode?.node("debug")?.raw() as? Boolean
-        val legacyEmbeddedDebugEnabled = legacyMiscNode?.node("debug", "enabled")?.getBooleanOrNull()
-        val legacyEmbeddedSlowTestEnabled = legacyMiscNode?.node("debug", "slowTest", "enabled")?.getBooleanOrNull()
-        val legacyFlatSlowTestEnabled = legacyMiscNode?.node("slowTestEnabled")?.getBooleanOrNull()
-
-        return loaded.copy(
-            enabled = legacyDebugBoolean
-                ?: legacyEmbeddedDebugEnabled
-                ?: loaded.enabled,
-            slowTest = loaded.slowTest.copy(
-                enabled = legacyEmbeddedSlowTestEnabled
-                    ?: legacyFlatSlowTestEnabled
-                    ?: loaded.slowTest.enabled
-            )
-        )
-    }
-
-    private fun hasLegacyDebugLayout(node: ConfigurationNode): Boolean {
-        return node.raw() is Boolean || !node.node("debug").virtual()
-    }
-
-    private fun loadLegacyMiscNodeOrNull(): ConfigurationNode? {
-        val path = dataDirectory.resolve("misc.conf")
-        if (Files.notExists(path)) {
-            return null
-        }
-
-        return HoconConfigurationLoader.builder()
-            .defaultOptions { opts: ConfigurationOptions ->
-                opts.serializers { s ->
-                    s.registerAnnotatedObjects(
-                        ObjectMapper.factoryBuilder().addDiscoverer(dataClassFieldDiscoverer()).build()
-                    )
-                }
-            }
-            .path(path)
-            .build()
-            .load()
-    }
-
-    private fun hasLegacyDebugSettingsInMisc(node: ConfigurationNode?): Boolean {
-        if (node == null) {
-            return false
-        }
-
-        return !node.node("debug").virtual() || !node.node("slowTestEnabled").virtual()
     }
 
     private fun ConfigurationNode.getBooleanOrNull(): Boolean? {

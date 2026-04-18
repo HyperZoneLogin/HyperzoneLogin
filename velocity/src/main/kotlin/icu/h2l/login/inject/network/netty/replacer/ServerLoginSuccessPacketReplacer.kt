@@ -23,6 +23,7 @@ package icu.h2l.login.inject.network.netty.replacer
 
 import com.velocitypowered.proxy.protocol.packet.ServerLoginSuccessPacket
 import icu.h2l.api.event.profile.ServerLoginSuccessEvent
+import icu.h2l.api.log.HyperZoneDebugType
 import icu.h2l.api.log.debug
 import icu.h2l.api.log.error
 import icu.h2l.login.HyperZoneLoginMain
@@ -48,7 +49,7 @@ class ServerLoginSuccessPacketReplacer(
             }.getOrNull()
 
             if (hyperPlayer == null) {
-                debug {
+                debug(HyperZoneDebugType.NETWORK_REWRITE) {
                     "[ProfileSkinFlow] login success passthrough: no hyper player for channel=$channel"
                 }
                 super.write(ctx, msg, promise)

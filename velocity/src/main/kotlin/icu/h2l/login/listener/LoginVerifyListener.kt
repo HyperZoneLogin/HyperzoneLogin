@@ -26,6 +26,8 @@ import com.velocitypowered.api.event.player.GameProfileRequestEvent
 import icu.h2l.api.connection.disconnectWithMessage
 import icu.h2l.api.connection.getNettyChannel
 import icu.h2l.api.event.profile.VerifyInitialGameProfileEvent
+import icu.h2l.api.log.HyperZoneDebugType
+import icu.h2l.api.log.debug
 import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.vServer.backend.compat.BackendProfileLayerCompatListener.Companion.PLUGIN_CONFLICT_MESSAGE
 import net.kyori.adventure.text.Component
@@ -38,12 +40,9 @@ class LoginVerifyListener {
         val incomingProfile = event.gameProfile
         val incomingName = incomingProfile.name
         val verifyEvent = VerifyInitialGameProfileEvent(event.connection, incomingProfile)
-        HyperZoneLoginMain.getInstance().logger.info(
-            "[FG-OUTPRE-TRACE] loginVerify.onGameProfileRequest channel={} incomingName={} incomingUuid={} ",
-            event.connection.getNettyChannel(),
-            incomingProfile.name,
-            incomingProfile.id,
-        )
+        debug(HyperZoneDebugType.OUTPRE_TRACE) {
+            "loginVerify.onGameProfileRequest channel=${event.connection.getNettyChannel()} incomingName=${incomingProfile.name} incomingUuid=${incomingProfile.id}"
+        }
 
         fun disconnectWithError(logMessage: String, userMessage: String) {
             HyperZoneLoginMain.getInstance().logger.error(logMessage)
@@ -56,12 +55,9 @@ class LoginVerifyListener {
             HyperZoneLoginMain.getInstance().logger.error("初始 GameProfile 扩展校验事件执行失败: ${t.message}", t)
         }
 
-        HyperZoneLoginMain.getInstance().logger.info(
-            "[FG-OUTPRE-TRACE] loginVerify.afterVerifyEvent channel={} incomingName={} pass={} ",
-            event.connection.getNettyChannel(),
-            incomingProfile.name,
-            verifyEvent.pass,
-        )
+        debug(HyperZoneDebugType.OUTPRE_TRACE) {
+            "loginVerify.afterVerifyEvent channel=${event.connection.getNettyChannel()} incomingName=${incomingProfile.name} pass=${verifyEvent.pass}"
+        }
 
         if (verifyEvent.pass) {
             return

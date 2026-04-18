@@ -21,13 +21,12 @@
 
 package icu.h2l.login.util
 
+import icu.h2l.api.log.HyperZoneDebugType
 import icu.h2l.api.log.HyperZoneLogApi
 import icu.h2l.api.log.HyperZoneLogger
 import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.api.log.debug as apiDebug
 import icu.h2l.api.log.info as apiInfo
-
-private const val DEBUG_MESSAGE_PREFIX = "[DEBUG] "
 
 private object VelocityLoggerBridge : HyperZoneLogger {
     override fun info(message: String) {
@@ -37,10 +36,16 @@ private object VelocityLoggerBridge : HyperZoneLogger {
         }
     }
 
-    override fun debug(message: String) {
-        if (HyperZoneLoginMain.getDebugConfig().enabled) {
-            info("$DEBUG_MESSAGE_PREFIX$message")
+    override fun debug(type: HyperZoneDebugType, message: String) {
+        val logger = HyperZoneLoginMain.getInstance().logger
+        if (isDebugEnabled(type)) {
+//            不要改成debug，不需要logger开启debug
+            logger.info("[DEBUG][{}] {}", type.name, message)
         }
+    }
+
+    override fun isDebugEnabled(type: HyperZoneDebugType): Boolean {
+        return HyperZoneLoginMain.getDebugConfig().isEnabled(type)
     }
 
     override fun warn(message: String) {
@@ -66,4 +71,8 @@ internal inline fun info(block: () -> String) {
 
 internal inline fun debug(block: () -> String) {
     apiDebug(block)
+}
+
+internal inline fun debug(type: HyperZoneDebugType, block: () -> String) {
+    apiDebug(type, block)
 }

@@ -24,25 +24,24 @@ package icu.h2l.login.auth.floodgate.listener
 import com.velocitypowered.api.event.Subscribe
 import com.velocitypowered.api.event.connection.DisconnectEvent
 import icu.h2l.api.event.vServer.VServerAuthStartEvent
+import icu.h2l.api.log.HyperZoneDebugType
+import icu.h2l.api.log.debug
 import icu.h2l.api.player.getChannel
 import icu.h2l.login.auth.floodgate.FloodgateMessages
 import icu.h2l.login.auth.floodgate.service.FloodgateAuthService
-import java.util.logging.Logger
 
 class FloodgateVServerAuthListener(
     private val authService: FloodgateAuthService
 ) {
-    private val logger = Logger.getLogger("hzl-auth-floodgate")
-
     @Subscribe(priority = Short.MAX_VALUE)
     fun onVServerAuthStart(event: VServerAuthStartEvent) {
-        logger.info(
-            "[FG-OUTPRE-TRACE] onVServerAuthStart before complete channel=${event.proxyPlayer.getChannel()} player=${event.hyperZonePlayer.clientOriginalName} waitingArea=${event.hyperZonePlayer.isInWaitingArea()} verified=${event.hyperZonePlayer.isVerified()} attachedProfile=${event.hyperZonePlayer.hasAttachedProfile()}"
-        )
+        debug(HyperZoneDebugType.OUTPRE_TRACE) {
+            "onVServerAuthStart before complete channel=${event.proxyPlayer.getChannel()} player=${event.hyperZonePlayer.clientOriginalName} waitingArea=${event.hyperZonePlayer.isInWaitingArea()} verified=${event.hyperZonePlayer.isVerified()} attachedProfile=${event.hyperZonePlayer.hasAttachedProfile()}"
+        }
         val result = authService.complete(event.proxyPlayer.getChannel(), event.hyperZonePlayer)
-        logger.info(
-            "[FG-OUTPRE-TRACE] onVServerAuthStart after complete channel=${event.proxyPlayer.getChannel()} player=${event.hyperZonePlayer.clientOriginalName} handled=${result.handled} passed=${result.passed} disconnectOnFailure=${result.disconnectOnFailure} waitingArea=${event.hyperZonePlayer.isInWaitingArea()} verified=${event.hyperZonePlayer.isVerified()} attachedProfile=${event.hyperZonePlayer.hasAttachedProfile()}"
-        )
+        debug(HyperZoneDebugType.OUTPRE_TRACE) {
+            "onVServerAuthStart after complete channel=${event.proxyPlayer.getChannel()} player=${event.hyperZonePlayer.clientOriginalName} handled=${result.handled} passed=${result.passed} disconnectOnFailure=${result.disconnectOnFailure} waitingArea=${event.hyperZonePlayer.isInWaitingArea()} verified=${event.hyperZonePlayer.isVerified()} attachedProfile=${event.hyperZonePlayer.hasAttachedProfile()}"
+        }
         if (!result.handled) {
             return
         }

@@ -23,22 +23,21 @@ package icu.h2l.login.auth.floodgate.listener
 
 import com.velocitypowered.api.event.Subscribe
 import icu.h2l.api.event.connection.OpenStartAuthEvent
+import icu.h2l.api.log.HyperZoneDebugType
+import icu.h2l.api.log.debug
 import icu.h2l.login.auth.floodgate.service.FloodgateApiHolder
 import icu.h2l.login.auth.floodgate.service.FloodgateAuthService
-import java.util.logging.Logger
 
 class FloodgateOpenStartAuthListener(
     private val authService: FloodgateAuthService,
     private val floodgateApiHolder: FloodgateApiHolder,
 ) {
-    private val logger = Logger.getLogger("hzl-auth-floodgate")
-
     @Subscribe(priority = Short.MAX_VALUE)
     fun onOpenStartAuth(event: OpenStartAuthEvent) {
         val resolvedIdentity = floodgateApiHolder.resolveLoginIdentity(event.userName, event.playerIp) ?: return
-        logger.info(
-            "[FG-OUTPRE-TRACE] onOpenStartAuth resolved channel=${event.channel} loginName=${event.userName} playerIp=${event.playerIp} floodgateName=${resolvedIdentity.userName} floodgateUuid=${resolvedIdentity.userUUID}"
-        )
+        debug(HyperZoneDebugType.OUTPRE_TRACE) {
+            "onOpenStartAuth resolved channel=${event.channel} loginName=${event.userName} playerIp=${event.playerIp} floodgateName=${resolvedIdentity.userName} floodgateUuid=${resolvedIdentity.userUUID}"
+        }
 
         when (
             val result = authService.acceptInitialProfile(
@@ -48,21 +47,21 @@ class FloodgateOpenStartAuthListener(
             )
         ) {
             FloodgateAuthService.VerifyResult.NotFloodgate -> {
-                logger.info(
-                    "[FG-OUTPRE-TRACE] onOpenStartAuth ignored channel=${event.channel} loginName=${event.userName}: resolved player is not floodgate"
-                )
+                debug(HyperZoneDebugType.OUTPRE_TRACE) {
+                    "onOpenStartAuth ignored channel=${event.channel} loginName=${event.userName}: resolved player is not floodgate"
+                }
             }
             is FloodgateAuthService.VerifyResult.Failed -> {
                 event.allow = false
                 event.disconnectMessage = result.userMessage
-                logger.info(
-                    "[FG-OUTPRE-TRACE] onOpenStartAuth failed channel=${event.channel} loginName=${event.userName}"
-                )
+                debug(HyperZoneDebugType.OUTPRE_TRACE) {
+                    "onOpenStartAuth failed channel=${event.channel} loginName=${event.userName}"
+                }
             }
             FloodgateAuthService.VerifyResult.Accepted -> {
-                logger.info(
-                    "[FG-OUTPRE-TRACE] onOpenStartAuth accepted channel=${event.channel} loginName=${event.userName} floodgateName=${resolvedIdentity.userName}"
-                )
+                debug(HyperZoneDebugType.OUTPRE_TRACE) {
+                    "onOpenStartAuth accepted channel=${event.channel} loginName=${event.userName} floodgateName=${resolvedIdentity.userName}"
+                }
             }
         }
     }
