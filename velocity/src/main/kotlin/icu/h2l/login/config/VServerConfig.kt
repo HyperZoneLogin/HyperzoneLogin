@@ -51,7 +51,13 @@ data class VServerConfig(
         val enablePlayerInfoCompensation: Boolean = true,
 
         @Comment("档案补偿同步")
-        val enableProfileCompensation: Boolean = true
+        val enableProfileCompensation: Boolean = true,
+
+        @Comment("在线热改 name（风险较低，默认开启）")
+        val enableNameHotChange: Boolean = true,
+
+        @Comment("在线热改 UUID（高风险，默认关闭）")
+        val enableUuidHotChange: Boolean = false
     )
 
     @Suppress("ANNOTATION_WILL_BE_APPLIED_ALSO_TO_PROPERTY_OR_FIELD")

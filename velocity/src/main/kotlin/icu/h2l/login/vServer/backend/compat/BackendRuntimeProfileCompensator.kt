@@ -51,9 +51,7 @@ class BackendRuntimeProfileCompensator(
     @Subscribe
     fun onProfileAttached(event: ProfileAttachedEvent) {
         val main = HyperZoneLoginMain.getInstance()
-        if (!HyperZoneLoginMain.getCoreConfig().misc.enableReplaceGameProfile
-            || main.serverAdapter?.needsBackendRuntimeProfileSync() != true
-        ) {
+        if (main.serverAdapter?.needsBackendRuntimeProfileSync() != true) {
             return
         }
 
@@ -74,13 +72,13 @@ class BackendRuntimeProfileCompensator(
             }
 
         val isRegisteredInProxy = VelocityGameProfileReflection.connectionsByUuid(proxyServer).values.any { it === connectedPlayer }
-            || VelocityGameProfileReflection.connectionsByName(proxyServer).values.any { it === connectedPlayer }
+             VelocityGameProfileReflection.connectionsByName(proxyServer).values.any { it === connectedPlayer }
         val currentGameProfile = connectedPlayer.gameProfile
         val targetGameProfile = buildDeliveredGameProfile(
             currentGameProfile = currentGameProfile,
             attachedProfile = attachedProfile,
-            enableNameHotChange = HyperZoneLoginMain.getCoreConfig().misc.enableNameHotChange,
-            enableUuidHotChange = HyperZoneLoginMain.getCoreConfig().misc.enableUuidHotChange,
+            enableNameHotChange = HyperZoneLoginMain.getCoreConfig().vServer.backend.enableNameHotChange,
+            enableUuidHotChange = HyperZoneLoginMain.getCoreConfig().vServer.backend.enableUuidHotChange,
         )
         if (currentGameProfile == targetGameProfile) {
             return

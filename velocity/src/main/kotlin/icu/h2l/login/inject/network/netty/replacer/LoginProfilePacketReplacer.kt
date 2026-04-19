@@ -74,13 +74,6 @@ class LoginProfilePacketReplacer(
     private lateinit var config: VelocityConfiguration
 
     private fun replaceMessage(msg: Any?): Any? {
-        if (!HyperZoneLoginMain.getCoreConfig().misc.enableReplaceGameProfile) {
-            if (msg is LoginPluginResponsePacket) {
-                retire()
-            }
-            return msg
-        }
-
         return when (msg) {
             is ServerLoginPacket -> genServerLogin()
             is LoginPluginResponsePacket -> {

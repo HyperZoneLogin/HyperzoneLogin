@@ -339,30 +339,9 @@ class HyperZoneLoginMain(
             dataDirectory = dataDirectory,
             fileName = "core.conf",
             header = "HyperZoneLogin Core Configuration | by ksqeib\nThis file contains all core module settings.\n",
-            defaultProvider = { CoreConfig() },
-            postLoadHook = { node, loaded, _ -> readCoreConfig(node, loaded) },
-            forceSaveHook = { node, firstCreation -> firstCreation || hasLegacyMiscLayout(node) }
+            defaultProvider = { CoreConfig() }
         )
         coreConfig = config
-    }
-    private fun readCoreConfig(node: ConfigurationNode, loaded: CoreConfig): CoreConfig {
-        val legacyEnableNameHotChange = node.node("misc", "enableNameHotChange").getBooleanOrNull()
-        val legacyEnableUuidHotChange = node.node("misc", "enableUuidHotChange").getBooleanOrNull()
-        val legacyEmbeddedEnableNameHotChange = node.node("debug", "enableNameHotChange").getBooleanOrNull()
-        val legacyEmbeddedEnableUuidHotChange = node.node("debug", "enableUuidHotChange").getBooleanOrNull()
-        val newMisc = loaded.misc.copy(
-            enableNameHotChange = legacyEnableNameHotChange
-                ?: legacyEmbeddedEnableNameHotChange
-                ?: loaded.misc.enableNameHotChange,
-            enableUuidHotChange = legacyEnableUuidHotChange
-                ?: legacyEmbeddedEnableUuidHotChange
-                ?: loaded.misc.enableUuidHotChange
-        )
-        return loaded.copy(misc = newMisc)
-    }
-    private fun hasLegacyMiscLayout(node: ConfigurationNode): Boolean {
-        return !node.node("misc", "enableNameHotChange").virtual()
-            || !node.node("misc", "enableUuidHotChange").virtual()
     }
 
     private fun connectDatabase() {
@@ -449,4 +428,3 @@ class HyperZoneLoginMain(
         logger.info("基础数据表创建完成")
     }
 }
-

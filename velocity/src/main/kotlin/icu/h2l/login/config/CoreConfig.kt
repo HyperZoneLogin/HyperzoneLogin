@@ -26,24 +26,24 @@ import org.spongepowered.configurate.objectmapping.meta.Comment
 @ConfigSerializable
 data class CoreConfig(
     @JvmField
-    @Comment("Database Configuration | by ksqeib")
+    @Comment("数据库")
     val database: DatabaseSourceConfig = DatabaseSourceConfig(),
     @JvmField
-    @Comment("Remap Configuration | by ksqeib")
+    @Comment("UUID映射")
     val remap: RemapConfig = RemapConfig(),
     @JvmField
-    @Comment("Misc Configuration | by ksqeib")
+    @Comment("杂项")
     val misc: MiscConfig = MiscConfig(),
     @JvmField
-    @Comment("Debug Configuration | by ksqeib")
+    @Comment("Debug")
     val debug: DebugConfig = DebugConfig(),
     @JvmField
-    @Comment("Embedded Modules Configuration | by ksqeib")
+    @Comment("模块开关")
     val modules: ModulesConfig = ModulesConfig(),
     @JvmField
-    @Comment("VServer Configuration | by ksqeib")
+    @Comment("等待区服务器")
     val vServer: VServerConfig = VServerConfig(),
     @JvmField
-    @Comment("Messages Configuration | by ksqeib")
+    @Comment("消息")
     val messages: MessagesConfig = MessagesConfig()
 )

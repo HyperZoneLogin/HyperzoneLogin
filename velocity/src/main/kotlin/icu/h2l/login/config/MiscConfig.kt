@@ -27,16 +27,6 @@ import org.spongepowered.configurate.objectmapping.meta.Comment
 @Suppress("ANNOTATION_WILL_BE_APPLIED_ALSO_TO_PROPERTY_OR_FIELD")
 @ConfigSerializable
 data class MiscConfig(
-    @Comment("开启档案管理系统")
-    val enableReplaceGameProfile: Boolean = true,
-
-    @Comment("在线热改 name（风险较低，默认开启）")
-    val enableNameHotChange: Boolean = true,
-
-    @Comment("在线热改 UUID（高风险，默认关闭）")
-    val enableUuidHotChange: Boolean = false,
-
     @Comment("不给服务器发送 CHAT_SESSION_UPDATE包")
     val killChatSession: Boolean = true
 )
-

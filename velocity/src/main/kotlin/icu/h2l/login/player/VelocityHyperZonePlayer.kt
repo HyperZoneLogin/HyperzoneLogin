@@ -210,11 +210,6 @@ class VelocityHyperZonePlayer(
     }
 
     override fun getAttachedGameProfile(): GameProfile {
-        if (!HyperZoneLoginMain.getCoreConfig().misc.enableReplaceGameProfile) {
-//            不开就可以从玩家获取
-            return proxyPlayer!!.gameProfile
-        }
-
         val resolvedProfile = HyperZoneLoginMain.getInstance().profileService.getAttachedProfile(this)
             ?: throw IllegalStateException("玩家 $clientOriginalName 尚未 attach Profile，无法获取正式游戏档案")
         return GameProfile(

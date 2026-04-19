@@ -39,7 +39,7 @@ class ServerLoginSuccessPacketReplacer(
 
     override fun write(ctx: ChannelHandlerContext, msg: Any?, promise: ChannelPromise?) {
         try {
-            if (!HyperZoneLoginMain.getCoreConfig().misc.enableReplaceGameProfile || msg !is ServerLoginSuccessPacket) {
+            if (msg !is ServerLoginSuccessPacket) {
                 super.write(ctx, msg, promise)
                 return
             }
@@ -84,4 +84,3 @@ class ServerLoginSuccessPacketReplacer(
 
 
 }
-
