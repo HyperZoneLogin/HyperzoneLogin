@@ -269,7 +269,7 @@ class BackendAuthHoldListener(
             !candidate.equals(authServerName, ignoreCase = true) && server.getServer(candidate).isPresent
         }?.let { return it }
 
-        return server.getAllServers()
+        return server.allServers
             .firstOrNull { candidate -> !candidate.serverInfo.name.equals(authServerName, ignoreCase = true) }
             ?.serverInfo
             ?.name
@@ -457,7 +457,7 @@ class BackendAuthHoldListener(
             !candidate.equals(authServerName, ignoreCase = true) && server.getServer(candidate).isPresent
         }?.let { return it }
 
-        return server.getAllServers()
+        return server.allServers
             .firstOrNull { candidate -> !candidate.serverInfo.name.equals(authServerName, ignoreCase = true) }
             ?.serverInfo
             ?.name

@@ -111,10 +111,10 @@ public final class RelocatingDependencyPathProcessor implements HyperDependencyP
         }
 
         private boolean matches(HyperDependency dependency) {
-            if (!this.groupId.equals(dependency.getGroupId())) {
+            if (!this.groupId.equals(dependency.groupId())) {
                 return false;
             }
-            return this.artifactId == null || this.artifactId.equals(dependency.getArtifactId());
+            return this.artifactId == null || this.artifactId.equals(dependency.artifactId());
         }
 
         private String cacheKey() {

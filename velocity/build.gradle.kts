@@ -109,6 +109,8 @@ dependencies {
     testImplementation(libs.nettyAll)
     testImplementation(libs.adventureTextLoggerSlf4j)
     testImplementation(libs.adventureTextMinimessage)
+    testImplementation(libs.configurateExtraKotlin)
+    testImplementation(libs.configurateHocon)
     testImplementation("io.mockk:mockk:1.13.17")
     testRuntimeOnly(libs.junitPlatformLauncher)
 }

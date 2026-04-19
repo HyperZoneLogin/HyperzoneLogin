@@ -47,11 +47,7 @@ class OfflinePreLoginListener {
         }
         val offlineUUIDType = ExtraUuidUtils.matchType(uuid, name)
 
-        if (offlineUUIDType != OfflineUUIDType.UNKNOWN || offlineHost) {
-            event.isOnline = false
-        } else {
-            event.isOnline = true
-        }
+        event.isOnline = !(offlineUUIDType != OfflineUUIDType.UNKNOWN || offlineHost)
         info { "传入 UUID 信息玩家: $name UUID:$uuid 类型: $offlineUUIDType 在线:${event.isOnline}" }
     }
 }

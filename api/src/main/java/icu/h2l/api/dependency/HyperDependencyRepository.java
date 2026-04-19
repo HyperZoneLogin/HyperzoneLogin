@@ -115,7 +115,7 @@ public enum HyperDependencyRepository {
         if (!dependency.checksumMatches(hash)) {
             throw new HyperDependencyDownloadException(
                 "Downloaded file had an invalid hash. Expected: "
-                    + Base64.getEncoder().encodeToString(dependency.getChecksum())
+                    + Base64.getEncoder().encodeToString(dependency.checksum())
                     + " Actual: "
                     + Base64.getEncoder().encodeToString(hash)
             );

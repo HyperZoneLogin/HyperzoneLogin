@@ -21,6 +21,7 @@
 
 package icu.h2l.login.auth.offline.config
 
+import icu.h2l.api.util.ConfigLoader
 import org.spongepowered.configurate.ConfigurationOptions
 import org.spongepowered.configurate.hocon.HoconConfigurationLoader
 import org.spongepowered.configurate.kotlin.dataClassFieldDiscoverer
@@ -32,38 +33,13 @@ object OfflineAuthConfigLoader {
     private lateinit var config: OfflineAuthConfig
 
     fun load(dataDirectory: Path) {
-        val path = dataDirectory.resolve("offline-auth.conf")
-        val firstCreation = Files.notExists(path)
-        val loader = HoconConfigurationLoader.builder()
-            .defaultOptions { opts: ConfigurationOptions ->
-                opts
-                    .shouldCopyDefaults(true)
-                    .header(
-                        """
-                            HyperZoneLogin Offline Auth Configuration
-                            这里集中管理离线注册/登录保护、邮箱找回与提示行为
-                        """.trimIndent()
-                    )
-                    .serializers { s ->
-                        s.registerAnnotatedObjects(
-                            ObjectMapper.factoryBuilder().addDiscoverer(dataClassFieldDiscoverer()).build()
-                        )
-                    }
-            }
-            .path(path)
-            .build()
-
-        val node = loader.load()
-        val cfg = node.get(OfflineAuthConfig::class.java) ?: OfflineAuthConfig()
-
-        if (firstCreation) {
-            node.set(cfg)
-            loader.save(node)
-        }
-
-        config = cfg
+        config = ConfigLoader.loadConfig(
+            dataDirectory = dataDirectory,
+            fileName = "offline-auth.conf",
+            header = "HyperZoneLogin Offline Auth Configuration\n这里集中管理离线注册/登录保护、邮箱找回与提示行为\n",
+            defaultProvider = { OfflineAuthConfig() }
+        )
     }
 
     fun getConfig(): OfflineAuthConfig = config
 }
-

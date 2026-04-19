@@ -21,6 +21,7 @@
 
 package icu.h2l.login.safe.config
 
+import icu.h2l.api.util.ConfigLoader
 import org.spongepowered.configurate.ConfigurationOptions
 import org.spongepowered.configurate.hocon.HoconConfigurationLoader
 import org.spongepowered.configurate.kotlin.dataClassFieldDiscoverer
@@ -30,34 +31,11 @@ import java.nio.file.Path
 
 object SafeConfigLoader {
     fun load(dataDirectory: Path): SafeConfig {
-        val path = dataDirectory.resolve("safe.conf")
-        val firstCreation = Files.notExists(path)
-        val loader = HoconConfigurationLoader.builder()
-            .defaultOptions { opts: ConfigurationOptions ->
-                opts
-                    .shouldCopyDefaults(true)
-                    .header(
-                        """
-                            HyperZoneLogin Safe Configuration
-                            入口层安全防护配置
-                        """.trimIndent()
-                    )
-                    .serializers { s ->
-                        s.registerAnnotatedObjects(
-                            ObjectMapper.factoryBuilder().addDiscoverer(dataClassFieldDiscoverer()).build()
-                        )
-                    }
-            }
-            .path(path)
-            .build()
-
-        val node = loader.load()
-        val config = node.get(SafeConfig::class.java) ?: SafeConfig()
-        if (firstCreation) {
-            node.set(config)
-            loader.save(node)
-        }
-        return config
+        return ConfigLoader.loadConfig(
+            dataDirectory = dataDirectory,
+            fileName = "safe.conf",
+            header = "HyperZoneLogin Safe Configuration\n入口层安全防护配置\n",
+            defaultProvider = { SafeConfig() }
+        )
     }
 }
-

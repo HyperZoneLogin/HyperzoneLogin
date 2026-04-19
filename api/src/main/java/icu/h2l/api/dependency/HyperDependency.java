@@ -35,61 +35,22 @@ import java.util.Objects;
 /**
  * Adapted from LuckPerms' dependency descriptor for HyperZoneLogin runtime library loading.
  */
-public final class HyperDependency {
-    private final String groupId;
-    private final String artifactId;
-    private final String version;
-    private final byte[] checksum;
-
+public record HyperDependency(String groupId, String artifactId, String version, byte[] checksum) {
     /**
      * Creates a dependency descriptor.
      *
-     * @param groupId Maven groupId
+     * @param groupId    Maven groupId
      * @param artifactId Maven artifactId
-     * @param version artifact version
-     * @param checksum expected SHA-256 checksum in Base64 form
+     * @param version    artifact version
+     * @param checksum   expected SHA-256 checksum in Base64 form
      */
     public HyperDependency(String groupId, String artifactId, String version, String checksum) {
-        this.groupId = Objects.requireNonNull(groupId, "groupId");
-        this.artifactId = Objects.requireNonNull(artifactId, "artifactId");
-        this.version = Objects.requireNonNull(version, "version");
-        this.checksum = Base64.getDecoder().decode(Objects.requireNonNull(checksum, "checksum"));
-    }
-
-    /**
-     * Returns the Maven groupId.
-     *
-     * @return Maven groupId
-     */
-    public String getGroupId() {
-        return this.groupId;
-    }
-
-    /**
-     * Returns the Maven artifactId.
-     *
-     * @return Maven artifactId
-     */
-    public String getArtifactId() {
-        return this.artifactId;
-    }
-
-    /**
-     * Returns the resolved artifact version.
-     *
-     * @return artifact version
-     */
-    public String getVersion() {
-        return this.version;
-    }
-
-    /**
-     * Returns a defensive copy of the expected checksum bytes.
-     *
-     * @return a defensive copy of the expected SHA-256 checksum bytes
-     */
-    public byte[] getChecksum() {
-        return this.checksum.clone();
+        this(
+            Objects.requireNonNull(groupId, "groupId"),
+            Objects.requireNonNull(artifactId, "artifactId"),
+            Objects.requireNonNull(version, "version"),
+            Base64.getDecoder().decode(Objects.requireNonNull(checksum, "checksum"))
+        );
     }
 
     /**
@@ -136,9 +97,9 @@ public final class HyperDependency {
      */
     public String cacheFileName() {
         return (this.groupId + "-" + this.artifactId + "-" + this.version + ".jar")
-            .toLowerCase(Locale.ROOT)
-            .replace(':', '-')
-            .replace('.', '-');
+                .toLowerCase(Locale.ROOT)
+                .replace(':', '-')
+                .replace('.', '-');
     }
 
     /**
@@ -163,8 +124,8 @@ public final class HyperDependency {
             return false;
         }
         return this.groupId.equals(that.groupId)
-            && this.artifactId.equals(that.artifactId)
-            && this.version.equals(that.version);
+                && this.artifactId.equals(that.artifactId)
+                && this.version.equals(that.version);
     }
 
     @Override
@@ -177,5 +138,3 @@ public final class HyperDependency {
         return id();
     }
 }
-
-

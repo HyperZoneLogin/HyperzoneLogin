@@ -184,8 +184,8 @@ public final class HyperZoneLoginBootstrap implements HyperZoneApi {
     }
 
     private static int runtimeDependencyPriority(HyperDependency dependency) {
-        String groupId = dependency.getGroupId();
-        String artifactId = dependency.getArtifactId();
+        String groupId = dependency.groupId();
+        String artifactId = dependency.artifactId();
         if (("org.ow2.asm".equals(groupId) && ("asm".equals(artifactId) || "asm-commons".equals(artifactId)))
             || ("me.lucko".equals(groupId) && "jar-relocator".equals(artifactId))) {
             return 0;

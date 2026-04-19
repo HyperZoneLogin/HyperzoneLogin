@@ -21,6 +21,7 @@
 
 package icu.h2l.login.auth.floodgate.config
 
+import icu.h2l.api.util.ConfigLoader
 import org.spongepowered.configurate.ConfigurationOptions
 import org.spongepowered.configurate.hocon.HoconConfigurationLoader
 import org.spongepowered.configurate.objectmapping.ObjectMapper
@@ -31,33 +32,11 @@ object FloodgateAuthConfigLoader {
     private const val FILE_NAME = "floodgate-auth.conf"
 
     fun load(dataDirectory: Path): FloodgateAuthConfig {
-        val path = dataDirectory.resolve(FILE_NAME)
-        val firstCreation = Files.notExists(path)
-        val loader = HoconConfigurationLoader.builder()
-            .defaultOptions { opts: ConfigurationOptions ->
-                opts
-                    .shouldCopyDefaults(true)
-                    .header(
-                        """
-                            HyperZoneLogin Floodgate Auth Configuration
-                            Floodgate 渠道认证与用户名修正相关配置
-                        """.trimIndent()
-                    )
-                    .serializers { s ->
-                        s.registerAnnotatedObjects(ObjectMapper.factoryBuilder().build())
-                    }
-            }
-            .path(path)
-            .build()
-
-        val node = loader.load()
-        val config = node.get(FloodgateAuthConfig::class.java) ?: FloodgateAuthConfig()
-        if (firstCreation) {
-            node.set(FloodgateAuthConfig::class.java, config)
-            loader.save(node)
-        }
-        return config
+        return ConfigLoader.loadConfig(
+            dataDirectory = dataDirectory,
+            fileName = FILE_NAME,
+            header = "HyperZoneLogin Floodgate Auth Configuration\nFloodgate 渠道认证与用户名修正相关配置\n",
+            defaultProvider = { FloodgateAuthConfig() }
+        )
     }
 }
-
-

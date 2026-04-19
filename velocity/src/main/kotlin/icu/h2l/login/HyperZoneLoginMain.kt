@@ -69,6 +69,7 @@ import icu.h2l.login.vServer.backend.compat.BackendRuntimeProfileCompensator
 import icu.h2l.login.vServer.backend.compat.BackendProfileLayerCompatListener
 import icu.h2l.login.profile.VelocityHyperZoneProfileService
 import icu.h2l.login.util.registerApiLogger
+import icu.h2l.api.util.ConfigLoader
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger
 import org.spongepowered.configurate.ConfigurationNode
 import org.spongepowered.configurate.ConfigurationOptions
@@ -359,95 +360,34 @@ class HyperZoneLoginMain(
     }
 
     private fun loadDatabaseConfig() {
-        val path = dataDirectory.resolve("database.conf")
-        val firstCreation = Files.notExists(path)
-        val loader = HoconConfigurationLoader.builder()
-            .defaultOptions { opts: ConfigurationOptions ->
-                opts
-                    .shouldCopyDefaults(true)
-                    .header(
-                        """
-                            HyperZoneLogin Database Configuration | by ksqeib
-                            
-                        """.trimIndent()
-                    ).serializers { s ->
-                        s.registerAnnotatedObjects(
-                            ObjectMapper.factoryBuilder().addDiscoverer(dataClassFieldDiscoverer()).build()
-                        )
-                    }
-            }
-            .path(path)
-            .build()
-        val node = loader.load()
-        val config = node.get(DatabaseSourceConfig::class.java)
-        if (firstCreation) {
-            node.set(config)
-            loader.save(node)
-        }
-        if (config != null) {
-            databaseSourceConfig = config
-        }
+        val config = ConfigLoader.loadConfig<DatabaseSourceConfig>(
+            dataDirectory = dataDirectory,
+            fileName = "database.conf",
+            header = "HyperZoneLogin Database Configuration | by ksqeib\n",
+            defaultProvider = { DatabaseSourceConfig() }
+        )
+        databaseSourceConfig = config
     }
     
     private fun loadRemapConfig() {
-        val path = dataDirectory.resolve("remap.conf")
-        val firstCreation = Files.notExists(path)
-        val loader = HoconConfigurationLoader.builder()
-            .defaultOptions { opts: ConfigurationOptions ->
-                opts
-                    .shouldCopyDefaults(true)
-                    .header(
-                        """
-                            HyperZoneLogin Remap Configuration | by ksqeib
-                            
-                        """.trimIndent()
-                    ).serializers { s ->
-                        s.registerAnnotatedObjects(
-                            ObjectMapper.factoryBuilder().addDiscoverer(dataClassFieldDiscoverer()).build()
-                        )
-                    }
-            }
-            .path(path)
-            .build()
-        val node = loader.load()
-        val config = node.get(RemapConfig::class.java)
-        if (firstCreation) {
-            node.set(config)
-            loader.save(node)
-        }
-        if (config != null) {
-            remapConfig = config
-        }
+        val config = ConfigLoader.loadConfig<RemapConfig>(
+            dataDirectory = dataDirectory,
+            fileName = "remap.conf",
+            header = "HyperZoneLogin Remap Configuration | by ksqeib\n",
+            defaultProvider = { RemapConfig() }
+        )
+        remapConfig = config
     }
 
     private fun loadMiscConfig() {
-        val path = dataDirectory.resolve("misc.conf")
-        val firstCreation = Files.notExists(path)
-        val loader = HoconConfigurationLoader.builder()
-            .defaultOptions { opts: ConfigurationOptions ->
-                opts
-                    .shouldCopyDefaults(true)
-                    .header(
-                        """
-                            HyperZoneLogin Misc Configuration | by ksqeib
-                            
-                        """.trimIndent()
-                    ).serializers { s ->
-                        s.registerAnnotatedObjects(
-                            ObjectMapper.factoryBuilder().addDiscoverer(dataClassFieldDiscoverer()).build()
-                        )
-                    }
-            }
-            .path(path)
-            .build()
-        val node = loader.load()
-        val config = readMiscConfig(node)
-        val shouldPersistDefaults = firstCreation || hasLegacyMiscLayout(node)
-        if (shouldPersistDefaults) {
-            node.set(config)
-            loader.save(node)
-        }
-        miscConfig = config
+        miscConfig = ConfigLoader.loadConfig<MiscConfig>(
+            dataDirectory = dataDirectory,
+            fileName = "misc.conf",
+            header = "HyperZoneLogin Misc Configuration | by ksqeib\n",
+            defaultProvider = { MiscConfig() },
+            postLoadHook = { node, loaded, _ -> readMiscConfig(node) },
+            forceSaveHook = { node, firstCreation -> firstCreation || hasLegacyMiscLayout(node) }
+        )
     }
 
     private fun readMiscConfig(node: ConfigurationNode): MiscConfig {
@@ -476,33 +416,13 @@ class HyperZoneLoginMain(
     }
 
     private fun loadDebugConfig() {
-        val path = dataDirectory.resolve("debug.conf")
-        val firstCreation = Files.notExists(path)
-        val loader = HoconConfigurationLoader.builder()
-            .defaultOptions { opts: ConfigurationOptions ->
-                opts
-                    .shouldCopyDefaults(true)
-                    .header(
-                        """
-                            HyperZoneLogin Debug Configuration | by ksqeib
-                            包含 debug 日志与慢测试功能开关。
-
-                        """.trimIndent()
-                    ).serializers { s ->
-                        s.registerAnnotatedObjects(
-                            ObjectMapper.factoryBuilder().addDiscoverer(dataClassFieldDiscoverer()).build()
-                        )
-                    }
-            }
-            .path(path)
-            .build()
-        val node = loader.load()
-        val config = readDebugConfig(node)
-        if (firstCreation) {
-            node.set(config)
-            loader.save(node)
-        }
-        debugConfig = config
+        debugConfig = ConfigLoader.loadConfig<DebugConfig>(
+            dataDirectory = dataDirectory,
+            fileName = "debug.conf",
+            header = "HyperZoneLogin Debug Configuration | by ksqeib\n包含 debug 日志与慢测试功能开关。\n",
+            defaultProvider = { DebugConfig() },
+            postLoadHook = { node, _, _ -> readDebugConfig(node) }
+        )
     }
 
     private fun readDebugConfig(node: ConfigurationNode): DebugConfig {
@@ -512,134 +432,47 @@ class HyperZoneLoginMain(
     }
 
     private fun ConfigurationNode.getBooleanOrNull(): Boolean? {
-        return if (virtual()) null else getBoolean()
+        return if (virtual()) null else boolean
     }
 
     private fun loadModulesConfig() {
-        val path = dataDirectory.resolve("modules.conf")
-        val firstCreation = Files.notExists(path)
-        val loader = HoconConfigurationLoader.builder()
-            .defaultOptions { opts: ConfigurationOptions ->
-                opts
-                    .shouldCopyDefaults(true)
-                    .header(
-                        """
-                            HyperZoneLogin Embedded Modules Configuration | by ksqeib
-                            在单文件版中控制内置模块是否启用；若同名外部插件已安装，则自动跳过内置版本。
-                            
-                        """.trimIndent()
-                    ).serializers { s ->
-                        s.registerAnnotatedObjects(
-                            ObjectMapper.factoryBuilder().addDiscoverer(dataClassFieldDiscoverer()).build()
-                        )
-                    }
-            }
-            .path(path)
-            .build()
-        val node = loader.load()
-        val config = node.get(ModulesConfig::class.java)
-        if (firstCreation) {
-            node.set(config)
-            loader.save(node)
-        }
-        if (config != null) {
-            modulesConfig = config
-        }
+        val config = ConfigLoader.loadConfig<ModulesConfig>(
+            dataDirectory = dataDirectory,
+            fileName = "modules.conf",
+            header = "HyperZoneLogin Embedded Modules Configuration | by ksqeib\n在单文件版中控制内置模块是否启用；若同名外部插件已安装，则自动跳过内置版本。\n",
+            defaultProvider = { ModulesConfig() }
+        )
+        modulesConfig = config
     }
 
     private fun loadBackendServerConfig() {
-        val path = dataDirectory.resolve("backend-server.conf")
-        val firstCreation = Files.notExists(path)
-        val loader = HoconConfigurationLoader.builder()
-            .defaultOptions { opts: ConfigurationOptions ->
-                opts
-                    .shouldCopyDefaults(true)
-                    .header(
-                        """
-                            HyperZoneLogin Backend Server Configuration | by ksqeib
-                            
-                        """.trimIndent()
-                    ).serializers { s ->
-                        s.registerAnnotatedObjects(
-                            ObjectMapper.factoryBuilder().addDiscoverer(dataClassFieldDiscoverer()).build()
-                        )
-                    }
-            }
-            .path(path)
-            .build()
-        val node = loader.load()
-        val config = node.get(BackendServerConfig::class.java)
-        if (firstCreation) {
-            node.set(config)
-            loader.save(node)
-        }
-        if (config != null) {
-            backendServerConfig = config
-        }
+        val config = ConfigLoader.loadConfig<BackendServerConfig>(
+            dataDirectory = dataDirectory,
+            fileName = "backend-server.conf",
+            header = "HyperZoneLogin Backend Server Configuration | by ksqeib\n",
+            defaultProvider = { BackendServerConfig() }
+        )
+        backendServerConfig = config
     }
 
     private fun loadOutPreConfig() {
-        val path = dataDirectory.resolve("vserver-outpre.conf")
-        val firstCreation = Files.notExists(path)
-        val loader = HoconConfigurationLoader.builder()
-            .defaultOptions { opts: ConfigurationOptions ->
-                opts
-                    .shouldCopyDefaults(true)
-                    .header(
-                        """
-                            HyperZoneLogin OutPre Configuration | by ksqeib
-                            outpre 模式的认证服、认证后目标服，以及对认证服暴露的 Host / Port / Player IP 都只在这里配置。
-
-                        """.trimIndent()
-                    ).serializers { s ->
-                        s.registerAnnotatedObjects(
-                            ObjectMapper.factoryBuilder().addDiscoverer(dataClassFieldDiscoverer()).build()
-                        )
-                    }
-            }
-            .path(path)
-            .build()
-        val node = loader.load()
-        val config = node.get(OutPreConfig::class.java)
-        if (firstCreation) {
-            node.set(config)
-            loader.save(node)
-        }
-        if (config != null) {
-            outPreConfig = config
-        }
+        val config = ConfigLoader.loadConfig<OutPreConfig>(
+            dataDirectory = dataDirectory,
+            fileName = "vserver-outpre.conf",
+            header = "HyperZoneLogin OutPre Configuration | by ksqeib\noutpre 模式的认证服、认证后目标服，以及对认证服暴露的 Host / Port / Player IP 都只在这里配置。\n",
+            defaultProvider = { OutPreConfig() }
+        )
+        outPreConfig = config
     }
 
     private fun loadMessagesConfig() {
-        val path = dataDirectory.resolve("messages.conf")
-        val firstCreation = Files.notExists(path)
-        val loader = HoconConfigurationLoader.builder()
-            .defaultOptions { opts: ConfigurationOptions ->
-                opts
-                    .shouldCopyDefaults(true)
-                    .header(
-                        """
-                            HyperZoneLogin Messages Configuration | by ksqeib
-                            具体文案文件位于 messages/ 目录，可分别编辑 en_us.conf / zh_cn.conf / ru_ru.conf。
-                            
-                        """.trimIndent()
-                    ).serializers { s ->
-                        s.registerAnnotatedObjects(
-                            ObjectMapper.factoryBuilder().addDiscoverer(dataClassFieldDiscoverer()).build()
-                        )
-                    }
-            }
-            .path(path)
-            .build()
-        val node = loader.load()
-        val config = node.get(MessagesConfig::class.java)
-        if (firstCreation) {
-            node.set(config)
-            loader.save(node)
-        }
-        if (config != null) {
-            messagesConfig = config
-        }
+        val config = ConfigLoader.loadConfig<MessagesConfig>(
+            dataDirectory = dataDirectory,
+            fileName = "messages.conf",
+            header = "HyperZoneLogin Messages Configuration | by ksqeib\n具体文案文件位于 messages/ 目录，可分别编辑 en_us.conf / zh_cn.conf / ru_ru.conf。\n",
+            defaultProvider = { MessagesConfig() }
+        )
+        messagesConfig = config
     }
 
     private fun connectDatabase() {

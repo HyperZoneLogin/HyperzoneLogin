@@ -26,6 +26,7 @@ import icu.h2l.api.log.HyperZoneDebugType
 import icu.h2l.api.log.debug
 import icu.h2l.api.log.error
 import icu.h2l.api.log.info
+import icu.h2l.api.util.ConfigLoader
 import icu.h2l.login.auth.online.config.entry.EntryConfig
 import icu.h2l.login.auth.online.events.EntryRegisterEvent
 import org.spongepowered.configurate.ConfigurationOptions
@@ -102,34 +103,13 @@ class EntryConfigManager(
      */
     private fun loadConfig(path: Path) {
         try {
-            val loader = HoconConfigurationLoader.builder()
-                .defaultOptions { opts: ConfigurationOptions ->
-                    opts
-                        .shouldCopyDefaults(true)
-                        .header(
-                            """
-                            HyperZoneLogin Entry Configuration
-                            配置文件格式为 HOCON
-                            
-                            """.trimIndent()
-                        )
-                        .serializers { s ->
-                            s.registerAnnotatedObjects(
-                                ObjectMapper.factoryBuilder()
-                                    .addDiscoverer(dataClassFieldDiscoverer())
-                                    .build()
-                            )
-                        }
-                }
-                .path(path)
-                .build()
-
-            val node = loader.load()
-            val config = node.get(EntryConfig::class.java)
-                ?: run {
-                    error { "无法解析配置文件: ${path.fileName}" }
-                    return
-                }
+            val config = ConfigLoader.loadConfig<EntryConfig>(
+                dataDirectory = path.parent,
+                fileName = path.fileName.toString(),
+                header = "HyperZoneLogin Entry Configuration\n配置文件格式为 HOCON\n",
+                defaultProvider = { throw IllegalStateException("无法解析配置文件: ${path.fileName}") },
+                forceSaveHook = { _, _ -> false }
+            )
 
             val resolvedUrl = config.yggdrasil.url.trim()
 
@@ -256,27 +236,14 @@ class EntryConfigManager(
     }
 
     private fun createConfigFile(path: Path, config: EntryConfig, header: String) {
-        val loader = HoconConfigurationLoader.builder()
-            .defaultOptions { opts: ConfigurationOptions ->
-                opts
-                    .shouldCopyDefaults(true)
-                    .header(header)
-                    .serializers { s ->
-                        s.registerAnnotatedObjects(
-                            ObjectMapper.factoryBuilder()
-                                .addDiscoverer(dataClassFieldDiscoverer())
-                                .build()
-                        )
-                    }
-            }
-            .path(path)
-            .build()
-
-        val node = loader.createNode()
-        node.set(EntryConfig::class.java, config)
-        loader.save(node)
+        ConfigLoader.loadConfig(
+            dataDirectory = path.parent,
+            fileName = path.fileName.toString(),
+            header = header,
+            defaultProvider = { config },
+            forceSaveHook = { _, _ -> true }
+        )
     }
-
 
 
     /**

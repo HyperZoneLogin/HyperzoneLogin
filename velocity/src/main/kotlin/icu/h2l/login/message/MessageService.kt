@@ -161,7 +161,12 @@ class MessageService(
         }
 
         val loaded = linkedMapOf<String, ConfigurationNode>()
-        val emptyNodeFactory = HoconConfigurationLoader.builder().build()
+        val emptyNodeFactory = icu.h2l.api.util.ConfigLoader.loadConfig(
+            dataDirectory = localeDir,
+            fileName = ".dummy.conf",
+            defaultProvider = { HoconConfigurationLoader.builder().build() },
+            forceSaveHook = { _, _ -> false }
+        )
         Files.walk(localeDir).use { paths ->
             paths
                 .filter { Files.isRegularFile(it) && it.extension.equals("conf", ignoreCase = true) }
@@ -170,15 +175,14 @@ class MessageService(
                 .forEach { path ->
                     val localeKey = normalizeLocaleKey(path.nameWithoutExtension) ?: return@forEach
                     runCatching {
-                        HoconConfigurationLoader.builder()
+                        val node = HoconConfigurationLoader.builder()
                             .path(path)
                             .build()
                             .load()
-                    }.onSuccess { node ->
                         val mergedNode = loaded.getOrPut(localeKey) { emptyNodeFactory.createNode() }
                         mergedNode.mergeFrom(node)
                     }.onFailure { throwable ->
-                        logger.warn("Failed to load locale file '{}': {}", localeDir.relativize(path).toString(), throwable.message)
+                        logger.error("Failed to load message locale {} from {}", localeKey, path, throwable)
                     }
                 }
         }

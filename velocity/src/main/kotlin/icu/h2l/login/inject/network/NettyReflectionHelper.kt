@@ -102,7 +102,7 @@ object NettyReflectionHelper {
         val ctor = ConnectedPlayer::class.java.getDeclaredConstructor(
             VelocityServer::class.java,
             GameProfile::class.java,
-            com.velocitypowered.proxy.connection.MinecraftConnection::class.java,
+            MinecraftConnection::class.java,
             InetSocketAddress::class.java,
             String::class.java,
             Boolean::class.javaPrimitiveType,

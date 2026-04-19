@@ -32,6 +32,7 @@ import icu.h2l.login.merge.config.MergeAmConfig
 import icu.h2l.login.merge.config.MergeMlConfig
 import icu.h2l.login.merge.service.AmDataMigrator
 import icu.h2l.login.merge.service.MlDataMigrator
+import icu.h2l.api.util.ConfigLoader
 import org.spongepowered.configurate.ConfigurationOptions
 import org.spongepowered.configurate.hocon.HoconConfigurationLoader
 import org.spongepowered.configurate.kotlin.dataClassFieldDiscoverer
@@ -71,70 +72,36 @@ class MergeSubModule : HyperSubModule {
     private fun loadMergeMlConfig(dataDirectory: Path): MergeMlConfig {
         val mergeDirectory = dataDirectory.resolve("merge")
         Files.createDirectories(mergeDirectory)
-        val path = mergeDirectory.resolve("merge-ml.conf")
-        val firstCreation = Files.notExists(path)
-        val loader = HoconConfigurationLoader.builder()
-            .defaultOptions { opts: ConfigurationOptions ->
-                opts
-                    .shouldCopyDefaults(true)
-                    .header(
-                        """
-                            HyperZoneLogin ML Merge Configuration
-                        """.trimIndent()
-                    )
-                    .serializers { s ->
-                        s.registerAnnotatedObjects(
-                            ObjectMapper.factoryBuilder().addDiscoverer(dataClassFieldDiscoverer()).build()
-                        )
-                    }
+
+        return ConfigLoader.loadConfig(
+            dataDirectory = mergeDirectory,
+            fileName = "merge-ml.conf",
+            header = "HyperZoneLogin ML Merge Configuration\n",
+            defaultProvider = { MergeMlConfig() },
+            postLoadHook = { _, loaded, firstCreation ->
+                if (firstCreation) {
+                    warn { "首次创建 merge-ml.conf，请按需修改后再执行 /hzl-merge ml" }
+                }
+                loaded
             }
-            .path(path)
-            .build()
-
-        val node = loader.load()
-        val config = node.get(MergeMlConfig::class.java) ?: MergeMlConfig()
-
-        if (firstCreation) {
-            node.set(config)
-            loader.save(node)
-            warn { "首次创建 merge-ml.conf，请按需修改后再执行 /hzl-merge ml" }
-        }
-
-        return config
+        )
     }
 
     private fun loadMergeAmConfig(dataDirectory: Path): MergeAmConfig {
         val mergeDirectory = dataDirectory.resolve("merge")
         Files.createDirectories(mergeDirectory)
-        val path = mergeDirectory.resolve("merge-am.conf")
-        val firstCreation = Files.notExists(path)
-        val loader = HoconConfigurationLoader.builder()
-            .defaultOptions { opts: ConfigurationOptions ->
-                opts
-                    .shouldCopyDefaults(true)
-                    .header(
-                        """
-                            HyperZoneLogin AUTHME Merge Configuration
-                        """.trimIndent()
-                    )
-                    .serializers { s ->
-                        s.registerAnnotatedObjects(
-                            ObjectMapper.factoryBuilder().addDiscoverer(dataClassFieldDiscoverer()).build()
-                        )
-                    }
+
+        return ConfigLoader.loadConfig(
+            dataDirectory = mergeDirectory,
+            fileName = "merge-am.conf",
+            header = "HyperZoneLogin AUTHME Merge Configuration\n",
+            defaultProvider = { MergeAmConfig() },
+            postLoadHook = { _, loaded, firstCreation ->
+                if (firstCreation) {
+                    warn { "首次创建 merge-am.conf，请按需修改后再执行 /hzl-merge am" }
+                }
+                loaded
             }
-            .path(path)
-            .build()
-
-        val node = loader.load()
-        val config = node.get(MergeAmConfig::class.java) ?: MergeAmConfig()
-
-        if (firstCreation) {
-            node.set(config)
-            loader.save(node)
-            warn { "首次创建 merge-am.conf，请按需修改后再执行 /hzl-merge am" }
-        }
-
-        return config
+        )
     }
 }

@@ -241,9 +241,9 @@ private object SelfPlayerInfoSkinSender {
 
     private fun createModernAddPlayer(profile: GameProfile): UpsertPlayerInfoPacket {
         val entry = UpsertPlayerInfoPacket.Entry(profile.id)
-        entry.setProfile(profile)
-        entry.setLatency(0)
-        entry.setListed(true)
+        entry.profile = profile
+        entry.latency = 0
+        entry.isListed = true
         return UpsertPlayerInfoPacket(
             EnumSet.of(
                 UpsertPlayerInfoPacket.Action.ADD_PLAYER,
