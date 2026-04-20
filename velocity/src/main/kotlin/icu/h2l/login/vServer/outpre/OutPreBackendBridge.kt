@@ -71,6 +71,11 @@ class OutPreBackendBridge(
     private val playReadyFuture = CompletableFuture<Void>()
     private val phaseListeners = CopyOnWriteArrayList<(Phase) -> Unit>()
     private val outPreServerInfo = ServerInfo(authTargetLabel, authTargetAddress)
+
+    /** 缓存的 [OutPreRegisteredServer]，始终返回同一实例。 */
+    val registeredServer: OutPreRegisteredServer =
+        OutPreRegisteredServer(proxyServer, outPreServerInfo)
+
     @Volatile
     private var bridgeSessionHandler: OutPreBackendBridgeSessionHandler? = null
     @Volatile
@@ -85,9 +90,7 @@ class OutPreBackendBridge(
     fun targetAddress(): InetSocketAddress = authTargetAddress
 
     override fun getServer(): RegisteredServer {
-        return proxyServer.getServer(outPreServerInfo.name).orElseThrow {
-            IllegalStateException("OutPre auth endpoint '$authTargetLabel' is not a registered Velocity server")
-        }
+        return proxyServer.getServer(outPreServerInfo.name).orElseGet { registeredServer }
     }
 
     override fun getPreviousServer(): Optional<RegisteredServer> {
@@ -123,6 +126,7 @@ class OutPreBackendBridge(
         }
         connectStarted = true
         updatePhase(Phase.CONNECTING)
+        registeredServer.registerBridge(this)
         proxyServer.createBootstrap(player.connection.eventLoop())
             .handler(proxyServer.backendChannelInitializer)
             .connect(authTargetAddress)
@@ -264,9 +268,9 @@ class OutPreBackendBridge(
         }
         connection?.close(false)
         connection = null
+        registeredServer.unregisterBridge(this)
         updatePhase(Phase.CLOSED)
     }
-
 
     private fun fail(throwable: Throwable, notifyOwner: Boolean = false) {
         updatePhase(Phase.CLOSING)
@@ -275,6 +279,7 @@ class OutPreBackendBridge(
         playReadyFuture.completeExceptionally(throwable)
         connection?.close(false)
         connection = null
+        registeredServer.unregisterBridge(this)
         updatePhase(Phase.CLOSED)
         if (notifyOwner) {
             owner.onInitialBridgeDisconnected(this, player, throwable.message)
@@ -303,4 +308,3 @@ class OutPreBackendBridge(
         }
     }
 }
-
