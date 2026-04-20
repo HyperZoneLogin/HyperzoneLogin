@@ -31,7 +31,9 @@ import com.velocitypowered.proxy.protocol.StateRegistry
 import com.velocitypowered.proxy.protocol.netty.MinecraftEncoder
 import com.velocitypowered.proxy.protocol.packet.*
 import com.velocitypowered.proxy.protocol.packet.config.*
+import icu.h2l.api.log.HyperZoneDebugType
 import icu.h2l.login.manager.HyperChatCommandManagerImpl
+import icu.h2l.login.util.debug
 import io.netty.buffer.ByteBuf
 import io.netty.buffer.Unpooled
 import io.netty.util.ReferenceCountUtil
@@ -112,8 +114,10 @@ class OutPreBackendBridgeSessionHandler(
 
     override fun handle(packet: ServerLoginSuccessPacket): Boolean {
         if (bridge.proxyServer.configuration.playerInfoForwardingMode == PlayerInfoForwarding.MODERN && !modernForwardingSent) {
-            bridge.disconnect()
-            return true
+            debug(HyperZoneDebugType.OUTPRE_TRACE) {
+                "[OutPre][${bridge.player.username}] MODERN forwarding configured but forwarding data was not sent " +
+                    "(backend may not have requested it). Proceeding without forwarding."
+            }
         }
 
         val connection = bridge.ensureConnected()
