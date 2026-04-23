@@ -49,13 +49,8 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
-    val currentJavaMajor = JavaVersion.current().majorVersion.toIntOrNull() ?: 0
-    if (currentJavaMajor >= 21) {
-        jvmArgs("--enable-native-access=ALL-UNNAMED")
-    }
-    if (currentJavaMajor >= 24) {
-        jvmArgs("--sun-misc-unsafe-memory-access=allow")
-    }
+    // JVM toolchain is pinned to 21; --enable-native-access is supported from Java 21 onwards.
+    jvmArgs("--enable-native-access=ALL-UNNAMED")
     testLogging {
         showStandardStreams = false
     }

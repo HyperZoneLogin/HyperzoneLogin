@@ -206,6 +206,12 @@ subprojects {
     group = rootProject.group
     version = rootProject.version
 
+    plugins.withId("org.jetbrains.kotlin.jvm") {
+        extensions.configure<org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension> {
+            jvmToolchain(21)
+        }
+    }
+
     repositories {
         maven("https://maven.aliyun.com/repository/central")
         maven("https://mirrors.cloud.tencent.com/nexus/repository/maven-public/")
