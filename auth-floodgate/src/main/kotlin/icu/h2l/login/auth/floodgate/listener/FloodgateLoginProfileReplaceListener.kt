@@ -34,7 +34,7 @@ import icu.h2l.api.log.debug
  * 对于通过 Floodgate 渠道认证的基岩版玩家（[icu.h2l.api.player.HyperZonePlayer.authChannelId] == "floodgate"），
  * 该监听器会覆写事件中的转发档案：
  * - 处于等待区或连接目标为登录服时，使用临时档案；
- * - 否则使用已 attach 的正式档案（不含皮肤纹理，基岩版客户端无法渲染 Java 皮肤）。
+ * - 否则使用 [icu.h2l.api.player.HyperZonePlayer.getApplyGameProfile] 解析的正式档案（含皮肤）。
  *
  * 以 [PostOrder.LAST] 运行，确保在默认处理器（[PostOrder.NORMAL]）之后执行，
  * 从而对 Floodgate 玩家的档案进行最终覆写。
@@ -51,9 +51,14 @@ class FloodgateLoginProfileReplaceListener {
         val targetProfile: GameProfile = if (event.isLoginServerTarget || hyperPlayer.isInWaitingArea()) {
             hyperPlayer.getTemporaryGameProfile()
         } else {
-            runCatching { hyperPlayer.getAttachedGameProfile() }.getOrElse { throwable ->
+            runCatching { hyperPlayer.getApplyGameProfile() }.getOrElse { throwable ->
                 debug(HyperZoneDebugType.OUTPRE_TRACE) {
                     "[FloodgateProfileReplace] 获取正式档案失败，回退到初始档案: player=${hyperPlayer.clientOriginalName}, reason=${throwable.message}"
+                }
+                return
+            } ?: run {
+                debug(HyperZoneDebugType.OUTPRE_TRACE) {
+                    "[FloodgateProfileReplace] getApplyGameProfile 返回 null，跳过覆写: player=${hyperPlayer.clientOriginalName}"
                 }
                 return
             }

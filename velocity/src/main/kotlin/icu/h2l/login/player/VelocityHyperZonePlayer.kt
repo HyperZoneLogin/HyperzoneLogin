@@ -230,6 +230,10 @@ class VelocityHyperZonePlayer(
         )
     }
 
+    override fun getApplyGameProfile(): GameProfile? {
+        return ProfileSkinApplySupport.apply(this)
+    }
+
     internal fun onAttachedProfileAvailable() {
         tryLeaveWaiting()
     }

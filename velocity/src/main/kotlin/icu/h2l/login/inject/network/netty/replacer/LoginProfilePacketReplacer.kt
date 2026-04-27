@@ -40,7 +40,6 @@ import icu.h2l.api.log.info
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.manager.HyperZonePlayerManager
-import icu.h2l.login.player.ProfileSkinApplySupport
 import icu.h2l.login.util.hasSemanticGameProfileDifference
 import io.netty.buffer.ByteBuf
 import io.netty.channel.Channel
@@ -161,7 +160,7 @@ class LoginProfilePacketReplacer(
         if (isLoginServer || hyperPlayer.isInWaitingArea()) {
             return hyperPlayer.getTemporaryGameProfile()
         }
-        return requireNotNull(ProfileSkinApplySupport.apply(hyperPlayer)) {
+        return requireNotNull(hyperPlayer.getApplyGameProfile()) {
             "Formal profile is unavailable while resolving initial forwarding profile for clientOriginal=${hyperPlayer.clientOriginalName}"
         }
     }
