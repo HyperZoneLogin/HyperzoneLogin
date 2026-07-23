@@ -33,7 +33,7 @@ object ChatSessionUpdatePacketIdResolver {
             protocolVersion == ProtocolVersion.MINECRAFT_1_19_3 -> 0x20
 
             protocolVersion.noLessThan(ProtocolVersion.MINECRAFT_1_19_4)
-                    && protocolVersion.noGreaterThan(ProtocolVersion.MINECRAFT_1_20_5) -> 0x06
+                    && protocolVersion.noGreaterThan(ProtocolVersion.MINECRAFT_1_20_3) -> 0x06
 
 //            1.20.5-1.21.1
             protocolVersion.noLessThan(ProtocolVersion.MINECRAFT_1_20_5)
@@ -44,7 +44,7 @@ object ChatSessionUpdatePacketIdResolver {
             // 1.21.2 ≤ v < 1.21.6 → 0x08
             protocolVersion.noLessThan(ProtocolVersion.MINECRAFT_1_21_2)
                     && protocolVersion.noGreaterThan(
-                ProtocolVersion.MINECRAFT_1_21_6
+                ProtocolVersion.MINECRAFT_1_21_5
             ) -> 0x08
 
             // 1.21.6 ≤ v < 26.1 → 0x09
@@ -62,9 +62,5 @@ object ChatSessionUpdatePacketIdResolver {
 
             else -> null
         }
-    }
-
-    fun isChatSessionUpdate(protocolVersion: ProtocolVersion, packetId: Int): Boolean {
-        return resolve(protocolVersion) == packetId
     }
 }
