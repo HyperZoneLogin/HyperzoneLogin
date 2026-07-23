@@ -33,24 +33,25 @@ object ChatSessionUpdatePacketIdResolver {
             protocolVersion == ProtocolVersion.MINECRAFT_1_19_3 -> 0x20
 
             protocolVersion.noLessThan(ProtocolVersion.MINECRAFT_1_19_4)
-                && protocolVersion.noGreaterThan(ProtocolVersion.MINECRAFT_1_20_5) -> 0x06
+                    && protocolVersion.noGreaterThan(ProtocolVersion.MINECRAFT_1_20_5) -> 0x06
 
-            protocolVersion == ProtocolVersion.MINECRAFT_1_20_5 -> 0x07
+//            1.20.5-1.21.1
+            protocolVersion.noLessThan(ProtocolVersion.MINECRAFT_1_20_5)
+                    && protocolVersion.noGreaterThan(
+                ProtocolVersion.MINECRAFT_1_21
+            ) -> 0x07
 
             // 1.21.2 ≤ v < 1.21.6 → 0x08
             protocolVersion.noLessThan(ProtocolVersion.MINECRAFT_1_21_2)
-                && protocolVersion.noGreaterThanCompat(
-                    ProtocolVersionCompat.MINECRAFT_1_21_6,
-                    ProtocolVersionCompat.RAW_1_21_6,
-                ) -> 0x08
+                    && protocolVersion.noGreaterThan(
+                ProtocolVersion.MINECRAFT_1_21_6
+            ) -> 0x08
 
             // 1.21.6 ≤ v < 26.1 → 0x09
-            protocolVersion.noLessThanCompat(
-                ProtocolVersionCompat.MINECRAFT_1_21_6,
-                ProtocolVersionCompat.RAW_1_21_6,
-            ) && protocolVersion.noGreaterThanCompat(
-                ProtocolVersionCompat.MINECRAFT_1_21_11,
-                ProtocolVersionCompat.RAW_1_21_11,
+            protocolVersion.noLessThan(
+                ProtocolVersion.MINECRAFT_1_21_6
+            ) && protocolVersion.noGreaterThan(
+                ProtocolVersion.MINECRAFT_1_21_11
             ) -> 0x09
 
             // v ≥ 26.1 → 0x0A
