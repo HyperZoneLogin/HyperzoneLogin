@@ -262,5 +262,16 @@ class VelocityHyperZoneProfileService(
         val remapPrefix = HyperZoneLoginMain.getCoreConfig().remap.prefix
         return uuid ?: RemapUtils.genUUID(userName, remapPrefix)
     }
+
+    override fun syncProfileName(profileId: UUID, authenticatedName: String): Boolean {
+        val existing = databaseHelper.getProfile(profileId) ?: return false
+        if (existing.name == authenticatedName) {
+            return true
+        }
+        debug(HyperZoneDebugType.OUTPRE_TRACE) {
+            "profileService.syncProfileName profileId=$profileId oldName=${existing.name} newName=$authenticatedName"
+        }
+        return databaseHelper.updateProfileName(profileId, authenticatedName)
+    }
 }
 

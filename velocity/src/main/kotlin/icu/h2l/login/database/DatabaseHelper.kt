@@ -27,6 +27,7 @@ import icu.h2l.login.manager.DatabaseManager
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.or
 import org.jetbrains.exposed.sql.selectAll
+import org.jetbrains.exposed.sql.update
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
@@ -191,6 +192,49 @@ class DatabaseHelper(
             true
         } catch (e: Exception) {
             warn { "创建档案失败: ${e.message}" }
+            false
+        }
+    }
+
+    /**
+     * 同步外部认证改名到正式 Profile。
+     *
+     * 仅用于玩家在 Yggdrasil / Mojang 等外部认证服务侧改名后，
+     * 将认证返回的最新名称同步写入正式 Profile 表。
+     *
+     * - 若 Profile 不存在或名称本就一致，直接返回 true；
+     * - 若新名称已被其他 Profile 占用，返回 false 并保留旧名，避免破坏登录；
+     * - 成功更新后同步刷新三套缓存（id / name / uuid）。
+     *
+     * @param profileId 待同步的正式档案标识
+     * @param newName 外部认证返回的最新名称
+     * @return true 表示已同步或本就一致；false 表示同步失败（如名称冲突）
+     */
+    fun updateProfileName(profileId: UUID, newName: String): Boolean {
+        val existing = getProfile(profileId) ?: return false
+        if (existing.name == newName) {
+            return true
+        }
+
+        val conflicting = getProfileByName(newName)
+        if (conflicting != null && conflicting.id != profileId) {
+            warn { "无法同步 Profile $profileId 名称 '$newName'：名称已被其他 Profile ${conflicting.id} 占用，保留旧名 '${existing.name}'" }
+            return false
+        }
+
+        return try {
+            manager.executeTransaction {
+                profileTable.update({ profileTable.id eq profileId }) {
+                    it[profileTable.name] = newName
+                }
+            }
+            profileCacheByName.remove(existing.name.lowercase())
+            val updated = existing.copy(name = newName)
+            profileCacheById[profileId] = updated
+            profileCacheByName[newName.lowercase()] = updated
+            true
+        } catch (e: Exception) {
+            warn { "同步 Profile $profileId 名称失败: ${e.message}" }
             false
         }
     }
