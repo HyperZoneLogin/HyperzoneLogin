@@ -128,6 +128,13 @@ class YggdrasilCredentialService(
             newName = success.profile.name
         )
 
+        // 同步外部认证改名到正式 Profile（LS / Mojang 侧改名后，Profile 表也需更新）
+        if (!profileService.syncProfileName(profileId, success.profile.name)) {
+            debug(HyperZoneDebugType.YGGDRASIL_AUTH) {
+                "[YggdrasilFlow] Profile $profileId 名称同步到 '${success.profile.name}' 失败（可能名称冲突），保留旧名"
+            }
+        }
+
         return profileId
     }
 

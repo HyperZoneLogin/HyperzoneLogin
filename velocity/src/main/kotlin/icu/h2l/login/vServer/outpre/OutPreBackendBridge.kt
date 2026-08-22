@@ -178,11 +178,11 @@ class OutPreBackendBridge(
         connection.delayedWrite(handshake)
         connection.protocolVersion = protocolVersion
         connection.setActiveSessionHandler(StateRegistry.LOGIN)
-        if (player.identifiedKey == null && player.protocolVersion.noLessThan(ProtocolVersion.MINECRAFT_1_19_3)) {
-            connection.delayedWrite(ServerLoginPacket(player.username, player.uniqueId))
-        } else {
-            connection.delayedWrite(ServerLoginPacket(player.username, player.identifiedKey))
-        }
+        // 统一使用 (String, UUID) 构造器确保 holderUuid 非 null（≥1.20.2 / 26.x / 1.21.x 兼容），
+        // playerKey 通过 setPlayerKey 补充，兼容 1.19-1.19.2 的 IdentifiedKey 序列化。
+        val loginPacket = ServerLoginPacket(player.username, player.uniqueId)
+        player.identifiedKey?.let { loginPacket.setPlayerKey(it) }
+        connection.delayedWrite(loginPacket)
         connection.flush()
     }
 

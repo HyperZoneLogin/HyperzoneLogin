@@ -101,6 +101,24 @@ interface HyperZoneProfileService {
      * 将玩家当前会话已提交的凭证绑定到指定 [profileId]。
      */
     fun bindSubmittedCredentials(player: HyperZonePlayer, profileId: UUID): Profile
+
+    /**
+     * 当玩家在外部认证服务（如 Yggdrasil / Mojang）侧改名后，
+     * 用认证返回的最新名称同步更新已绑定正式 Profile 的名称。
+     *
+     * 仅在外部认证名与已绑定 Profile 名不一致时触发实际更新；
+     * 名称冲突（已被其他 Profile 占用）时返回 false 并保留旧名，避免破坏登录。
+     *
+     * 默认实现返回 false，表示当前服务不支持改名同步；
+     * 真正的实现由 [icu.h2l.login.profile.VelocityHyperZoneProfileService] 提供。
+     *
+     * @param profileId 已绑定的正式档案标识
+     * @param authenticatedName 外部认证返回的最新名称
+     * @return true 表示已同步或本就一致；false 表示同步失败或不受支持
+     */
+    fun syncProfileName(profileId: UUID, authenticatedName: String): Boolean {
+        return false
+    }
 }
 
 /**

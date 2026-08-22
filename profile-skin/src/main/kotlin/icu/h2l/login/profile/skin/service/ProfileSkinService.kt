@@ -319,6 +319,19 @@ class ProfileSkinService(
 
         event.rewritePacket = true
         event.uuid = event.hyperZonePlayer.clientOriginalUUID ?: event.currentUuid
+
+        // 将已缓存的皮肤纹理注入到登录成功包中，确保客户端从登录阶段就获得自身皮肤。
+        // 客户端自身皮肤来自 ServerLoginSuccessPacket 的 GameProfile properties，
+        // 而非 PlayerInfo；若不注入，正版客户端将看不到自身皮肤。
+        val profileId = profileService.getAttachedProfile(event.hyperZonePlayer)?.id ?: return
+        val skinId = profileRepository.findSkinIdByProfileId(profileId) ?: return
+        val cachedTextures = cacheRepository.findBySkinId(skinId)?.textures ?: return
+        val textureProperty = cachedTextures.toPropertyOrNull() ?: return
+
+        val existingProperties = event.properties?.toMutableList() ?: mutableListOf()
+        existingProperties.removeAll { it.name.equals("textures", ignoreCase = true) }
+        existingProperties.add(textureProperty)
+        event.properties = existingProperties
     }
 
     private fun restoreTextures(source: ProfileSkinSource): ProfileSkinTextures {
