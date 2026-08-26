@@ -176,12 +176,12 @@ class ScriptGenerator(
     private fun generateWindowsLaunchAllScript(servers: List<ServerScript>, velocityConfig: ServerScript) {
         val allConfigs = servers + listOf(velocityConfig)
 
-        // For wt (Windows Terminal), build multi-line command
+        // For wt (Windows Terminal), build command with proper quoting
         val wtCommands = allConfigs.mapIndexed { index, config ->
             if (index == 0) {
-                """wt new-tab --title "${config.label}" cmd /k "cd /d ""%BASE_DIR%\${config.dirName}"" && call start.bat""""
+                """wt -w 0 new-tab --title "${config.label}" -d "!BASE_DIR!\${config.dirName}" cmd /k call start.bat"""
             } else {
-                """^; new-tab --title "${config.label}" cmd /k "cd /d ""%BASE_DIR%\${config.dirName}"" && call start.bat""""
+                """; new-tab --title "${config.label}" -d "!BASE_DIR!\${config.dirName}" cmd /k call start.bat"""
             }
         }.joinToString(" ")
 
