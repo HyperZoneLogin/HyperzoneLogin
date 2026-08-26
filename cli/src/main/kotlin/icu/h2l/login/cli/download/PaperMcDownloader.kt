@@ -112,6 +112,10 @@ class PaperMcDownloader {
      * Fetches build metadata for the latest build of [version] in [project].
      */
     fun fetchLatestBuildInfo(project: String, version: String): BuildInfo {
+        return fetchLatestBuild(project, version).info
+    }
+
+    fun fetchLatestBuild(project: String, version: String): BuildDetails {
         val body = get("$API_BASE/$project/versions/$version/builds")
         val builds = JsonParser.parseString(body).asJsonArray
         check(builds.size() > 0) { "No builds found for $project $version" }
@@ -132,7 +136,10 @@ class PaperMcDownloader {
         val channel = latest.get("channel")?.asString ?: "default"
         val fileName = download.get("name").asString
         val downloadUrl = download.get("url").asString
-        return BuildInfo(buildNumber, fileName, version, channel, downloadUrl)
+        return BuildDetails(
+            info = BuildInfo(buildNumber, fileName, version, channel, downloadUrl),
+            rawJson = latest.toString(),
+        )
     }
 
     // ----------------------------------------------------------------- private --
@@ -249,6 +256,11 @@ class PaperMcDownloader {
         val version: String,
         val channel: String,
         val downloadUrl: String,
+    )
+
+    data class BuildDetails(
+        val info: BuildInfo,
+        val rawJson: String,
     )
 
     companion object {

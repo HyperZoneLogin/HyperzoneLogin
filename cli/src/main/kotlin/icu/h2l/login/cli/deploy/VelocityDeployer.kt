@@ -100,10 +100,10 @@ class VelocityDeployer(
         decompressed-bytes-per-second = 5242880
 
         [servers]
-        lobby = "127.0.0.1:$lobbyPort"
-        game = "127.0.0.1:$gamePort"
+        outpre-auth = "127.0.0.1:$lobbyPort"
+        play = "127.0.0.1:$gamePort"
         try = [
-            "lobby"
+            "play"
         ]
 
         [forced-hosts]

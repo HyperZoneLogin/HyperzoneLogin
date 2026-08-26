@@ -24,10 +24,10 @@ package icu.h2l.login.cli.deploy
 import java.io.File
 
 /**
- * Deploys the `game/` (play) backend Minecraft server.
+ * Deploys the `play/` (play) backend Minecraft server.
  *
- * The game server is where authenticated players are sent after a successful
- * login. It is listed as the `game` backend in velocity.toml and is the
+ * The play server is where authenticated players are sent after a successful
+ * login. It is listed as the `play` backend in velocity.toml and is the
  * primary game-play destination.
  *
  * Reference: https://docs.h2l.icu/manual/zh/服务器基础配置/
@@ -40,12 +40,12 @@ class GameDeployer(
     forwardingSecret: String,
     overwrite: Boolean,
 ) : PaperServerDeployer(
-    dir = baseDir.resolve("game"),
+    dir = baseDir.resolve("play"),
     port = gamePort,
     paperVersion = paperVersion,
     paperConfigMode = paperConfigMode,
     forwardingSecret = forwardingSecret,
-    label = "Game",
+    label = "play",
     overwrite = overwrite,
 )
 

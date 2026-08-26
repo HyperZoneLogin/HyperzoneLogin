@@ -27,11 +27,13 @@ import icu.h2l.login.cli.deploy.GameDeployer
 import icu.h2l.login.cli.deploy.LobbyDeployer
 import icu.h2l.login.cli.deploy.PaperServerDeployer
 import icu.h2l.login.cli.deploy.ScriptGenerator
+import icu.h2l.login.cli.deploy.ServerScript
 import icu.h2l.login.cli.deploy.VelocityDeployer
 import icu.h2l.login.cli.download.PaperMcDownloader
 import picocli.CommandLine.Command
 import picocli.CommandLine.Option
 import java.io.File
+import java.io.InputStreamReader
 import java.security.SecureRandom
 import java.util.Base64
 
@@ -43,8 +45,8 @@ import java.util.Base64
         "",
         "Creates three sub-directories:",
         "  velocity/  \u2014 Velocity proxy (public entry point)",
-        "  lobby/     \u2014 Lobby / pre-auth Paper server (outpre-auth backend)",
-        "  game/      \u2014 Game Paper server (play backend)",
+        "  auth/      \u2014 Auth / pre-auth Paper server (auth backend)",
+        "  play/      \u2014 Play Paper server (play backend)",
         "",
         "Config files are generated for all three servers and server JARs are",
         "automatically downloaded from the PaperMC downloads service unless disabled.",
@@ -66,14 +68,14 @@ class EasyDeployCommand : Runnable {
 
     @Option(
         names = ["--lobby-port"],
-        description = ["Port of the lobby (outpre-auth) backend server (default: \${DEFAULT-VALUE})"],
+        description = ["Port of the auth (pre-auth) backend server (default: \${DEFAULT-VALUE})"],
         defaultValue = "30066",
     )
     var lobbyPort: Int = 30066
 
     @Option(
         names = ["--game-port"],
-        description = ["Port of the game (play) backend server (default: \${DEFAULT-VALUE})"],
+        description = ["Port of the play (main game) backend server (default: \${DEFAULT-VALUE})"],
         defaultValue = "30067",
     )
     var gamePort: Int = 30067
@@ -145,7 +147,7 @@ class EasyDeployCommand : Runnable {
 
     @Option(
         names = ["--no-paper-download"],
-        description = ["Skip downloading Paper JARs \u2014 place them in lobby/ and game/ manually."],
+        description = ["Skip downloading Paper JARs — place them in auth/ and play/ manually."],
         defaultValue = "false",
     )
     var noPaperDownload: Boolean = false
@@ -207,8 +209,8 @@ class EasyDeployCommand : Runnable {
         println("=== HyperZoneLogin EasyDeploy ===")
         println("Deploy directory   : $baseDir")
         println("Velocity port      : $velocityPort  (bind $bindHost)")
-        println("Lobby port         : $lobbyPort")
-        println("Game port          : $gamePort")
+        println("Auth port          : $lobbyPort")
+        println("Play port          : $gamePort")
         println("Overwrite          : $overwrite")
         if (!noVelocityDownload) println("Velocity version   : ${selectedVelocityVersion ?: velocityVersion}")
         println("Paper config for   : ${selectedPaperVersion ?: paperVersion}")
@@ -248,7 +250,12 @@ class EasyDeployCommand : Runnable {
 
         // ---- 4. Generate startup scripts ---------------------------------
         println("[Scripts] Generating startup scripts")
-        ScriptGenerator(baseDir).generateAllScripts()
+        val serverConfigs = listOf(
+            ServerScript("auth", "HZL Auth", "paper-*.jar", isPaperServer = true),
+            ServerScript("play", "HZL Play", "paper-*.jar", isPaperServer = true),
+        )
+        val velocityConfig = ServerScript("velocity", "HZL Velocity", "velocity-*.jar", isPaperServer = false)
+        ScriptGenerator(baseDir).generateAllScripts(serverConfigs, velocityConfig)
 
         // ---- 5. Summary -----------------------------------------------------
         val velocityJar: File? =
@@ -256,11 +263,12 @@ class EasyDeployCommand : Runnable {
 
         // ---- 3. Download Paper (once) and distribute -----------------------
         val paperJar: File? =
-            if (noPaperDownload) null else downloadPaper(baseDir, selectedPaperVersion ?: paperVersion)
+            if (noPaperDownload) null else downloadPaper(baseDir, selectedPaperVersion ?: paperVersion, serverConfigs)
 
+        prewarmPaperBootstrap(baseDir, selectedPaperVersion ?: paperVersion, serverConfigs)
         prefetchPluginRuntimeLibraries(baseDir)
 
-        // ---- 4. Summary -----------------------------------------------------
+        // ---- 6. Summary -----------------------------------------------------
         println()
         println("=== Deployment Complete ===")
         println()
@@ -274,21 +282,29 @@ class EasyDeployCommand : Runnable {
             step++
         }
         if (paperJar == null) {
-            println("  $step. Place a Paper JAR in  lobby/  and  game/  (e.g. paper-1.21.4-xxx.jar)")
+            val paperDirs = serverConfigs.joinToString("/ ") { it.dirName }
+            println("  $step. Place a Paper JAR in  $paperDirs/  (e.g. paper-1.21.4-xxx.jar)")
             println("     Download: https://papermc.io/downloads/paper")
             println()
             step++
         }
 
         println("  $step. Start servers in this order:")
-        println("     a) cd lobby  && ./start.sh")
-        println("     b) cd game   && ./start.sh")
-        println("     c) cd velocity && ./start.sh")
+        serverConfigs.forEachIndexed { index, config ->
+            val letter = ('a' + index).toChar()
+            println("     $letter) cd ${config.dirName}  && ./start.sh")
+        }
+        val velocityLetter = ('a' + serverConfigs.size).toChar()
+        println("     $velocityLetter) cd ${velocityConfig.dirName} && ./start.sh")
         println()
         println("  On Windows:")
-        println("     a) cd lobby  && start.bat")
-        println("     b) cd game   && start.bat")
-        println("     c) cd velocity && start.bat")
+        println("     - Run the whole stack: start-all.bat")
+        println("     - Stop the whole stack: stop-all.bat")
+        serverConfigs.forEachIndexed { index, config ->
+            val letter = ('a' + index).toChar()
+            println("     $letter) cd ${config.dirName}  && start.bat")
+        }
+        println("     $velocityLetter) cd ${velocityConfig.dirName} && start.bat")
         println()
         println("  Forwarding secret: $secret")
         println("  (Already written to velocity/forwarding.secret and both backend configs.)")
@@ -324,10 +340,12 @@ class EasyDeployCommand : Runnable {
     }
 
     /**
-     * Downloads Paper once into lobby/ then copies the same file into game/
-     * to avoid fetching the same binary twice.
+     * Downloads Paper once into the first server directory then copies the same file
+     * into subsequent server directories to avoid fetching the same binary twice.
      */
-    private fun downloadPaper(baseDir: File, resolvedVersion: String): File? {
+    private fun downloadPaper(baseDir: File, resolvedVersion: String, serverConfigs: List<ServerScript> = listOf(ServerScript("auth", "Auth", "paper-*.jar", true), ServerScript("play", "Play", "paper-*.jar", true))): File? {
+        if (serverConfigs.isEmpty()) return null
+
         println("[Paper] Querying PaperMC API for version list …")
         val (version, info) =
             try {
@@ -341,23 +359,25 @@ class EasyDeployCommand : Runnable {
                 return null
             }
 
-        val lobbyDir = baseDir.resolve("lobby")
-        val gameDir = baseDir.resolve("game")
-        val gameJar = gameDir.resolve(info.fileName)
+        val firstDir = baseDir.resolve(serverConfigs[0].dirName)
 
         return try {
-            println("[Paper] Downloading ${info.fileName} for lobby/ …")
-            val downloaded = downloader.downloadLatestBuild("paper", version, lobbyDir, overwrite)
+            println("[Paper] Downloading ${info.fileName} for ${serverConfigs[0].dirName}/ …")
+            val downloaded = downloader.downloadLatestBuild("paper", version, firstDir, overwrite)
 
-            // Reuse the downloaded file for game/ (copy, not re-download)
-            gameDir.mkdirs()
-            if (gameJar.exists() && !overwrite) {
-                println("  [exists] ${gameJar.name} in game/  (skipping — use --overwrite to replace)")
-            } else {
-                print("  [copy]   ${info.fileName} → game/ ")
-                System.out.flush()
-                downloaded.copyTo(gameJar, overwrite = true)
-                println("done")
+            // Reuse the downloaded file for subsequent servers (copy, not re-download)
+            serverConfigs.drop(1).forEach { config ->
+                val serverDir = baseDir.resolve(config.dirName)
+                val serverJar = serverDir.resolve(info.fileName)
+                serverDir.mkdirs()
+                if (serverJar.exists() && !overwrite) {
+                    println("  [exists] ${serverJar.name} in ${config.dirName}/  (skipping — use --overwrite to replace)")
+                } else {
+                    print("  [copy]   ${info.fileName} → ${config.dirName}/ ")
+                    System.out.flush()
+                    downloaded.copyTo(serverJar, overwrite = true)
+                    println("done")
+                }
             }
             println()
             downloaded
@@ -432,4 +452,63 @@ class EasyDeployCommand : Runnable {
         }
         println()
     }
+
+    private fun prewarmPaperBootstrap(baseDir: File, resolvedVersion: String, serverConfigs: List<ServerScript> = listOf(ServerScript("auth", "Auth", "paper-*.jar", true), ServerScript("play", "Play", "paper-*.jar", true))) {
+        if (!usesModernPaperBootstrap(resolvedVersion)) {
+            return
+        }
+
+        if (serverConfigs.isEmpty()) return
+
+        val firstServerDir = baseDir.resolve(serverConfigs[0].dirName)
+
+        // Prewarm only in the first server, then copy the cache to others
+        val jar = firstServerDir.listFiles { file -> file.isFile && file.name.startsWith("paper-") && file.name.endsWith(".jar") }
+            ?.maxByOrNull { it.lastModified() }
+            ?: return
+
+        println("[Paper] Prewarming bootstrap cache in ${firstServerDir.path}")
+        try {
+            val process = ProcessBuilder("java", "-jar", jar.name, "--help")
+                .directory(firstServerDir)
+                .redirectErrorStream(true)
+                .start()
+
+            InputStreamReader(process.inputStream).use { reader ->
+                val text = reader.readText()
+                if (text.contains("Downloading mojang_")) {
+                    println("  [paperclip] Downloaded bundled Mojang cache for ${serverConfigs[0].dirName}")
+                }
+            }
+
+            val exitCode = process.waitFor()
+            if (exitCode != 0) {
+                System.err.println("[Paper] WARN: bootstrap prewarm exited with code $exitCode in ${firstServerDir.path}")
+            }
+        } catch (e: Exception) {
+            System.err.println("[Paper] WARN: Failed to prewarm bootstrap cache in ${firstServerDir.path}: ${e.message}")
+        }
+
+        // Copy the cache from first server to others
+        val firstLibsDir = firstServerDir.resolve(".libs")
+        if (firstLibsDir.exists() && firstLibsDir.isDirectory) {
+            serverConfigs.drop(1).forEach { config ->
+                val serverDir = baseDir.resolve(config.dirName)
+                val serverLibsDir = serverDir.resolve(".libs")
+                try {
+                    println("[Paper] Copying bootstrap cache from ${serverConfigs[0].dirName}/ to ${config.dirName}/")
+                    if (serverLibsDir.exists()) {
+                        serverLibsDir.deleteRecursively()
+                    }
+                    firstLibsDir.copyRecursively(serverLibsDir)
+                    println("  [copy]   Caches synced")
+                } catch (e: Exception) {
+                    System.err.println("[Paper] WARN: Failed to copy bootstrap cache: ${e.message}")
+                }
+            }
+        }
+        println()
+    }
+
+    private fun usesModernPaperBootstrap(version: String): Boolean = !version.startsWith("1.")
 }

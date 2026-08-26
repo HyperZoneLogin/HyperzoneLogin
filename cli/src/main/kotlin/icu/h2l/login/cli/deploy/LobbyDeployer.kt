@@ -24,11 +24,11 @@ package icu.h2l.login.cli.deploy
 import java.io.File
 
 /**
- * Deploys the `lobby/` (outpre-auth) backend Minecraft server.
+ * Deploys the `auth/` (outpre-auth) backend Minecraft server.
  *
- * The lobby server is where unauthenticated players first arrive.
+ * The auth server is where unauthenticated players first arrive.
  * HyperZoneLogin's Velocity plugin redirects them here until they log in,
- * then forwards them to the game server.
+ * then forwards them to the play server.
  *
  * Reference: https://docs.h2l.icu/manual/zh/服务器基础配置/
  */
@@ -40,12 +40,12 @@ class LobbyDeployer(
     forwardingSecret: String,
     overwrite: Boolean,
 ) : PaperServerDeployer(
-    dir = baseDir.resolve("lobby"),
+    dir = baseDir.resolve("auth"),
     port = lobbyPort,
     paperVersion = paperVersion,
     paperConfigMode = paperConfigMode,
     forwardingSecret = forwardingSecret,
-    label = "Lobby",
+    label = "auth",
     overwrite = overwrite,
 )
 

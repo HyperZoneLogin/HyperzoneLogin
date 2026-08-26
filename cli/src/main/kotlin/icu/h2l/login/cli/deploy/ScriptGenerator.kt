@@ -24,6 +24,20 @@ package icu.h2l.login.cli.deploy
 import java.io.File
 
 /**
+ * Represents a server that needs startup scripts generated.
+ */
+data class ServerScript(
+    /** Relative directory name (e.g., "auth", "play", "velocity") */
+    val dirName: String,
+    /** Human-readable label for window titles and messages (e.g., "HZL Auth") */
+    val label: String,
+    /** JAR file pattern to search for (e.g., "paper-*.jar", "velocity-*.jar") */
+    val jarPattern: String,
+    /** Whether this is a Paper server (uses "nogui" flag) */
+    val isPaperServer: Boolean,
+)
+
+/**
  * Generates startup scripts (.bat for Windows and .sh for Linux/Mac) for each server.
  * Scripts will automatically download required libraries from the PaperMC API if needed.
  */
@@ -31,27 +45,26 @@ class ScriptGenerator(
     private val baseDir: File,
 ) {
 
-    fun generateAllScripts() {
-        generateVelocityScripts()
-        generateLobbyScripts()
-        generateGameScripts()
-        generateWindowsLaunchAllScript()
-        generateWindowsStopAllScript()
+    fun generateAllScripts(servers: List<ServerScript>, velocityConfig: ServerScript) {
+        generateVelocityScripts(velocityConfig)
+        servers.forEach { generatePaperScripts(it) }
+        generateWindowsLaunchAllScript(servers, velocityConfig)
+        generateWindowsStopAllScript(servers, velocityConfig)
     }
 
-    private fun generateVelocityScripts() {
-        val serverDir = baseDir.resolve("velocity")
+    private fun generateVelocityScripts(config: ServerScript) {
+        val serverDir = baseDir.resolve(config.dirName)
         serverDir.mkdirs()
 
         val batContent = """
             @echo off
             setlocal enabledelayedexpansion
-            title HZL Velocity
+            title ${config.label}
 
             cd /d "%~dp0"
 
             set "JAR_FILE="
-            for %%f in (velocity-*.jar) do (
+            for %%f in (${config.jarPattern}) do (
                 set "JAR_FILE=%%f"
                 goto found
             )
@@ -59,12 +72,12 @@ class ScriptGenerator(
 
             if "!JAR_FILE!"=="" (
                 echo ERROR: No Velocity JAR found in this directory
-                echo Please ensure velocity-*.jar exists
+                echo Please ensure ${config.jarPattern} exists
                 pause
                 exit /b 1
             )
 
-            echo Starting Velocity proxy from !JAR_FILE!...
+            echo Starting ${config.label} proxy from !JAR_FILE!...
             java -jar "!JAR_FILE!"
 
             pause
@@ -72,19 +85,19 @@ class ScriptGenerator(
 
         val shContent = """
             #!/bin/bash
-            printf '\033]0;HZL Velocity\007'
+            printf '\033]0;${config.label}\007'
 
             cd "${'$'}(dirname "${'$'}0")"
 
-            JAR_FILE=$(ls -t velocity-*.jar 2>/dev/null | head -n 1)
+            JAR_FILE=$(ls -t ${config.jarPattern} 2>/dev/null | head -n 1)
 
             if [ -z "${'$'}JAR_FILE" ]; then
                 echo "ERROR: No Velocity JAR found in this directory"
-                echo "Please ensure velocity-*.jar exists"
+                echo "Please ensure ${config.jarPattern} exists"
                 exit 1
             fi
 
-            echo "Starting Velocity proxy from ${'$'}JAR_FILE..."
+            echo "Starting ${config.label} proxy from ${'$'}JAR_FILE..."
 
             java -jar "${'$'}JAR_FILE"
         """.trimIndent()
@@ -99,19 +112,21 @@ class ScriptGenerator(
         println("  [write]  ${serverDir.resolve("start.sh").name}")
     }
 
-    private fun generateLobbyScripts() {
-        val serverDir = baseDir.resolve("lobby")
+    private fun generatePaperScripts(config: ServerScript) {
+        val serverDir = baseDir.resolve(config.dirName)
         serverDir.mkdirs()
+
+        val nogui = if (config.isPaperServer) " nogui" else ""
 
         val batContent = """
             @echo off
             setlocal enabledelayedexpansion
-            title HZL Lobby
+            title ${config.label}
 
             cd /d "%~dp0"
 
             set "JAR_FILE="
-            for %%f in (paper-*.jar) do (
+            for %%f in (${config.jarPattern}) do (
                 set "JAR_FILE=%%f"
                 goto found
             )
@@ -119,34 +134,34 @@ class ScriptGenerator(
 
             if "!JAR_FILE!"=="" (
                 echo ERROR: No Paper JAR found in this directory
-                echo Please ensure paper-*.jar exists
+                echo Please ensure ${config.jarPattern} exists
                 pause
                 exit /b 1
             )
 
-            echo Starting Lobby server from !JAR_FILE!...
-            java -jar "!JAR_FILE!" nogui
+            echo Starting ${config.label} server from !JAR_FILE!...
+            java -jar "!JAR_FILE!"$nogui
 
             pause
         """.trimIndent()
 
         val shContent = """
             #!/bin/bash
-            printf '\033]0;HZL Lobby\007'
+            printf '\033]0;${config.label}\007'
 
             cd "${'$'}(dirname "${'$'}0")"
 
-            JAR_FILE=$(ls -t paper-*.jar 2>/dev/null | head -n 1)
+            JAR_FILE=$(ls -t ${config.jarPattern} 2>/dev/null | head -n 1)
 
             if [ -z "${'$'}JAR_FILE" ]; then
                 echo "ERROR: No Paper JAR found in this directory"
-                echo "Please ensure paper-*.jar exists"
+                echo "Please ensure ${config.jarPattern} exists"
                 exit 1
             fi
 
-            echo "Starting Lobby server from ${'$'}JAR_FILE..."
+            echo "Starting ${config.label} server from ${'$'}JAR_FILE..."
 
-            java -jar "${'$'}JAR_FILE" nogui
+            java -jar "${'$'}JAR_FILE"$nogui
         """.trimIndent()
 
         serverDir.resolve("start.bat").writeText(batContent + "\n")
@@ -158,69 +173,20 @@ class ScriptGenerator(
         println("  [write]  ${serverDir.resolve("start.sh").name}")
     }
 
-    private fun generateGameScripts() {
-        val serverDir = baseDir.resolve("game")
-        serverDir.mkdirs()
+    private fun generateWindowsLaunchAllScript(servers: List<ServerScript>, velocityConfig: ServerScript) {
+        val allConfigs = servers + listOf(velocityConfig)
+        val serverTabs = allConfigs.joinToString(" ^; ") { config ->
+            """new-tab --title "${config.label}" cmd /k "cd /d ""%BASE_DIR%\${config.dirName}"" && call start.bat""""
+        }
 
-        val batContent = """
-            @echo off
-            setlocal enabledelayedexpansion
-            title HZL Game
+        val serverStarts = allConfigs.joinToString("\n                ") { config ->
+            """start "${config.label}" cmd /k "title ${config.label} && cd /d ""%BASE_DIR%\${config.dirName}"" && call start.bat""""
+        }
 
-            cd /d "%~dp0"
-
-            set "JAR_FILE="
-            for %%f in (paper-*.jar) do (
-                set "JAR_FILE=%%f"
-                goto found
-            )
-            :found
-
-            if "!JAR_FILE!"=="" (
-                echo ERROR: No Paper JAR found in this directory
-                echo Please ensure paper-*.jar exists
-                pause
-                exit /b 1
-            )
-
-            echo Starting Game server from !JAR_FILE!...
-            java -jar "!JAR_FILE!" nogui
-
-            pause
-        """.trimIndent()
-
-        val shContent = """
-            #!/bin/bash
-            printf '\033]0;HZL Game\007'
-
-            cd "${'$'}(dirname "${'$'}0")"
-
-            JAR_FILE=$(ls -t paper-*.jar 2>/dev/null | head -n 1)
-
-            if [ -z "${'$'}JAR_FILE" ]; then
-                echo "ERROR: No Paper JAR found in this directory"
-                echo "Please ensure paper-*.jar exists"
-                exit 1
-            fi
-
-            echo "Starting Game server from ${'$'}JAR_FILE..."
-
-            java -jar "${'$'}JAR_FILE" nogui
-        """.trimIndent()
-
-        serverDir.resolve("start.bat").writeText(batContent + "\n")
-        val shFile = serverDir.resolve("start.sh")
-        shFile.writeText(shContent + "\n")
-        shFile.setExecutable(true)
-
-        println("  [write]  ${serverDir.resolve("start.bat").name}")
-        println("  [write]  ${serverDir.resolve("start.sh").name}")
-    }
-
-    private fun generateWindowsLaunchAllScript() {
         val script = """
             @echo off
             setlocal
+            title HZL Control
 
             set "BASE_DIR=%~dp0"
             set "BASE_DIR=%BASE_DIR:~0,-1%"
@@ -228,15 +194,11 @@ class ScriptGenerator(
             where wt >nul 2>nul
             if errorlevel 1 (
                 echo Windows Terminal (wt.exe) not found. Falling back to start commands.
-                start "HZL Lobby" cmd /k "cd /d ""%BASE_DIR%\lobby"" && start.bat"
-                start "HZL Game" cmd /k "cd /d ""%BASE_DIR%\game"" && start.bat"
-                start "HZL Velocity" cmd /k "cd /d ""%BASE_DIR%\velocity"" && start.bat"
+                $serverStarts
                 exit /b 0
             )
 
-            wt new-tab --title "HZL Lobby" cmd /k "cd /d ""%BASE_DIR%\lobby"" && start.bat" ^
-             ; new-tab --title "HZL Game" cmd /k "cd /d ""%BASE_DIR%\game"" && start.bat" ^
-             ; new-tab --title "HZL Velocity" cmd /k "cd /d ""%BASE_DIR%\velocity"" && start.bat"
+            wt $serverTabs
         """.trimIndent() + "\n"
 
         val launchAll = baseDir.resolve("start-all.bat")
@@ -244,7 +206,13 @@ class ScriptGenerator(
         println("  [write]  ${launchAll.name}")
     }
 
-    private fun generateWindowsStopAllScript() {
+    private fun generateWindowsStopAllScript(servers: List<ServerScript>, velocityConfig: ServerScript) {
+        val allConfigs = servers + listOf(velocityConfig)
+        val dirsList = allConfigs.joinToString(", ") { "'%BASE_DIR%\\${it.dirName}'" }
+        val killCommands = allConfigs.joinToString("\n            ") { config ->
+            """taskkill /FI "WINDOWTITLE eq ${config.label}*" /T /F >nul 2>nul"""
+        }
+
         val script = """
             @echo off
             setlocal
@@ -253,12 +221,10 @@ class ScriptGenerator(
             set "BASE_DIR=%BASE_DIR:~0,-1%"
 
             powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-              "${'$'}dirs = @('%BASE_DIR%\\lobby', '%BASE_DIR%\\game', '%BASE_DIR%\\velocity');" ^
+              "${'$'}dirs = @($dirsList);" ^
               "Get-CimInstance Win32_Process | Where-Object { ${'$'}_.Name -match '^javaw?\\.exe${'$'}' -and ${'$'}_.CommandLine -and (${'$'}dirs | Where-Object { ${'$'}_.CommandLine -like ('*' + ${'$'}_ + '*') }).Count -gt 0 } | ForEach-Object { Stop-Process -Id ${'$'}_.ProcessId -Force -ErrorAction SilentlyContinue; Write-Host ('Stopped Java PID ' + ${'$'}_.ProcessId) }"
 
-            taskkill /FI "WINDOWTITLE eq HZL Lobby*" /T /F >nul 2>nul
-            taskkill /FI "WINDOWTITLE eq HZL Game*" /T /F >nul 2>nul
-            taskkill /FI "WINDOWTITLE eq HZL Velocity*" /T /F >nul 2>nul
+            $killCommands
         """.trimIndent() + "\n"
 
         val stopAll = baseDir.resolve("stop-all.bat")
