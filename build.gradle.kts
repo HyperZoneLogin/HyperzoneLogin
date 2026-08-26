@@ -262,13 +262,14 @@ subprojects {
         // Instead: exclude the raw template from the standard copy and inject the version
         // via a doLast action that does a direct string replacement in the output file.
         val srcTemplate = project.file("src/main/resources/velocity-plugin.json")
-        inputs.file(srcTemplate).optional(true)
-        exclude("velocity-plugin.json")
-        doLast("injectPluginVersion") {
-            if (!srcTemplate.exists()) return@doLast
-            val dst = destinationDir.resolve("velocity-plugin.json")
-            dst.parentFile.mkdirs()
-            dst.writeText(srcTemplate.readText().replace("\${pluginVersion}", pluginVersion))
+        if (srcTemplate.exists()) {
+            inputs.file(srcTemplate)
+            exclude("velocity-plugin.json")
+            doLast("injectPluginVersion") {
+                val dst = destinationDir.resolve("velocity-plugin.json")
+                dst.parentFile.mkdirs()
+                dst.writeText(srcTemplate.readText().replace("\${pluginVersion}", pluginVersion))
+            }
         }
     }
 
@@ -295,7 +296,7 @@ val splitPluginBundleDir = layout.buildDirectory.dir("HZL-split")
 
 val collectPluginJars = tasks.register<Sync>("collectPluginJars") {
     group = "build"
-    description = "Collects the all-in-one HyperZoneLogin jar into one distribution directory."
+    description = "Collects the all-in-one HyperZoneLogin jar (plugin + CLI tool) into one distribution directory."
     into(pluginBundleDir)
 
     val velocityProject = project(":velocity")
@@ -313,7 +314,7 @@ val collectSplitPluginJars = tasks.register<Sync>("collectSplitPluginJars") {
     from(velocityProject.tasks.named("jar", Jar::class).flatMap { it.archiveFile })
 
     subprojects
-        .filter { it.path != ":api" && it.path != ":velocity" && it.path != ":vc-runtest" }
+        .filter { it.path != ":api" && it.path != ":velocity" && it.path != ":vc-runtest" && it.path != ":cli" }
         .forEach { subproject ->
             val archiveTaskName = "jar"
             dependsOn(subproject.tasks.named(archiveTaskName))
@@ -363,3 +364,4 @@ tasks.named("check") {
 tasks.named("build") {
     dependsOn(collectPluginJars)
 }
+

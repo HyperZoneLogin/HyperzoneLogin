@@ -23,8 +23,9 @@ package icu.h2l.login.cli.command
 
 import icu.h2l.login.cli.deploy.GameDeployer
 import icu.h2l.login.cli.deploy.LobbyDeployer
-import icu.h2l.login.cli.deploy.PaperDownloader
+import icu.h2l.login.cli.deploy.ScriptGenerator
 import icu.h2l.login.cli.deploy.VelocityDeployer
+import icu.h2l.login.cli.download.PaperMcDownloader
 import picocli.CommandLine.Command
 import picocli.CommandLine.Option
 import java.io.File
@@ -38,15 +39,20 @@ import java.util.Base64
         "Automatically deploy a full HyperZoneLogin server stack in the current directory.",
         "",
         "Creates three sub-directories:",
-        "  velocity/  — Velocity proxy (public entry point)",
-        "  lobby/     — Lobby / pre-auth Paper server (outpre-auth backend)",
-        "  game/      — Game Paper server (play backend)",
+        "  velocity/  \u2014 Velocity proxy (public entry point)",
+        "  lobby/     \u2014 Lobby / pre-auth Paper server (outpre-auth backend)",
+        "  game/      \u2014 Game Paper server (play backend)",
         "",
-        "Each directory contains all configuration files needed to start the server.",
+        "Config files are generated for all three servers and server JARs are",
+        "automatically downloaded from https://api.papermc.io unless disabled.",
         "Velocity uses modern forwarding; the generated secret is shared to both backends.",
     ],
 )
 class EasyDeployCommand : Runnable {
+
+    private val downloader = PaperMcDownloader()
+
+    // ---------------------------------------------------------- port / network --
 
     @Option(
         names = ["--velocity-port"],
@@ -79,6 +85,8 @@ class EasyDeployCommand : Runnable {
     )
     var bindHost: String = "0.0.0.0"
 
+    // -------------------------------------------------------- security / plugin --
+
     @Option(
         names = ["--forwarding-secret"],
         description = [
@@ -91,26 +99,32 @@ class EasyDeployCommand : Runnable {
     @Option(
         names = ["--plugin-jar"],
         description = [
-            "Absolute or relative path to the HyperZoneLogin all-in-one jar.",
+            "Path to the HyperZoneLogin all-in-one jar.",
             "When provided it is copied into velocity/plugins/ automatically.",
         ],
     )
     var pluginJar: File? = null
 
+    // ----------------------------------------------------------- file handling --
+
     @Option(
         names = ["--overwrite"],
-        description = ["Overwrite existing config files (default: \${DEFAULT-VALUE})"],
+        description = [
+            "Overwrite existing config files AND re-download JARs that already exist.",
+            "(default: \${DEFAULT-VALUE})",
+        ],
         defaultValue = "false",
     )
     var overwrite: Boolean = false
 
+    // ---------------------------------------------------------- paper download --
+
     @Option(
         names = ["--paper-version"],
         description = [
-            "Paper server version to download for the lobby and game backends.",
-            "Use 'latest' (default) to automatically pick the newest stable release,",
-            "or specify an exact version like '1.21.4'.",
-            "Pass '--no-paper-download' to skip downloading altogether.",
+            "Minecraft version of the Paper server to download for lobby and game.",
+            "Accepts an exact version (e.g. '1.21.4') or 'latest' (default).",
+            "Run with '--list-paper-versions' to see all available versions.",
         ],
         defaultValue = "latest",
     )
@@ -118,26 +132,73 @@ class EasyDeployCommand : Runnable {
 
     @Option(
         names = ["--no-paper-download"],
-        description = ["Skip downloading the Paper jar (you will place it manually)."],
+        description = ["Skip downloading Paper JARs \u2014 place them in lobby/ and game/ manually."],
         defaultValue = "false",
     )
     var noPaperDownload: Boolean = false
 
+    @Option(
+        names = ["--list-paper-versions"],
+        description = ["Print all available Paper versions from the PaperMC API and exit."],
+        defaultValue = "false",
+    )
+    var listPaperVersions: Boolean = false
+
+    // ------------------------------------------------------- velocity download --
+
+    @Option(
+        names = ["--velocity-version"],
+        description = [
+            "Velocity version to download.",
+            "Accepts an exact version (e.g. '3.4.0-SNAPSHOT') or 'latest' (default).",
+            "Run with '--list-velocity-versions' to see all available versions.",
+        ],
+        defaultValue = "latest",
+    )
+    var velocityVersion: String = "latest"
+
+    @Option(
+        names = ["--no-velocity-download"],
+        description = ["Skip downloading the Velocity JAR \u2014 place it in velocity/ manually."],
+        defaultValue = "false",
+    )
+    var noVelocityDownload: Boolean = false
+
+    @Option(
+        names = ["--list-velocity-versions"],
+        description = ["Print all available Velocity versions from the PaperMC API and exit."],
+        defaultValue = "false",
+    )
+    var listVelocityVersions: Boolean = false
+
+
     // ------------------------------------------------------------------ run --
 
     override fun run() {
+        // ---- Version listing (early exit) ------------------------------------
+        if (listPaperVersions) {
+            printVersionList("paper")
+            return
+        }
+        if (listVelocityVersions) {
+            printVersionList("velocity")
+            return
+        }
+
         val baseDir = File(".").canonicalFile
         val secret = forwardingSecret ?: generateSecret()
 
         println("=== HyperZoneLogin EasyDeploy ===")
-        println("Deploy directory : $baseDir")
-        println("Velocity port    : $velocityPort  (bind $bindHost)")
-        println("Lobby port       : $lobbyPort")
-        println("Game port        : $gamePort")
-        println("Overwrite config : $overwrite")
-        if (!noPaperDownload) println("Paper version    : $paperVersion")
+        println("Deploy directory   : $baseDir")
+        println("Velocity port      : $velocityPort  (bind $bindHost)")
+        println("Lobby port         : $lobbyPort")
+        println("Game port          : $gamePort")
+        println("Overwrite          : $overwrite")
+        if (!noVelocityDownload) println("Velocity version   : $velocityVersion")
+        if (!noPaperDownload) println("Paper version      : $paperVersion")
         println()
 
+        // ---- 1. Write config files ------------------------------------------
         VelocityDeployer(
             baseDir = baseDir,
             bindHost = bindHost,
@@ -163,55 +224,139 @@ class EasyDeployCommand : Runnable {
             overwrite = overwrite,
         ).deploy()
 
-        // ---- Paper download ---------------------------------------------------
-        if (!noPaperDownload) {
-            println("[Paper] Resolving version from https://api.papermc.io ...")
-            val resolvedVersion =
-                try {
-                    PaperDownloader.resolveVersion(paperVersion)
-                } catch (e: Exception) {
-                    System.err.println("[Paper] ERROR: ${e.message}")
-                    System.err.println("[Paper] Skipping download. Place the Paper jar manually.")
-                    null
-                }
+        // ---- 4. Generate startup scripts ---------------------------------
+        println("[Scripts] Generating startup scripts")
+        ScriptGenerator(baseDir).generateAllScripts()
 
-            if (resolvedVersion != null) {
-                println("[Paper] Using version $resolvedVersion")
-                val lobbyDir = baseDir.resolve("lobby")
-                val gameDir = baseDir.resolve("game")
-                try {
-                    println("[Paper] Downloading for lobby/")
-                    PaperDownloader.downloadLatestBuild(resolvedVersion, lobbyDir)
-                    println("[Paper] Downloading for game/")
-                    PaperDownloader.downloadLatestBuild(resolvedVersion, gameDir)
-                } catch (e: Exception) {
-                    System.err.println("[Paper] ERROR: ${e.message}")
-                    System.err.println("[Paper] Download failed. Place the Paper jar manually.")
-                }
-            }
-            println()
-        }
+        // ---- 5. Summary -----------------------------------------------------
+        val velocityJar: File? =
+            if (noVelocityDownload) null else downloadVelocity(baseDir.resolve("velocity"))
 
+        // ---- 3. Download Paper (once) and distribute -----------------------
+        val paperJar: File? =
+            if (noPaperDownload) null else downloadPaper(baseDir)
+
+        // ---- 4. Summary -----------------------------------------------------
         println()
         println("=== Deployment Complete ===")
         println()
-        println("Next steps:")
-        println("  1. Place the Velocity jar in  velocity/  (e.g. velocity-3.4.0-SNAPSHOT.jar)")
-        println("     Download: https://papermc.io/downloads/velocity")
-        println()
-        if (noPaperDownload) {
-            println("  2. Place the Paper jar in  lobby/  and  game/  (e.g. paper-1.21.4.jar)")
+
+        var step = 1
+
+        if (velocityJar == null) {
+            println("  $step. Place the Velocity JAR in  velocity/  (e.g. velocity-3.4.0-SNAPSHOT-xxx.jar)")
+            println("     Download: https://papermc.io/downloads/velocity")
+            println()
+            step++
+        }
+        if (paperJar == null) {
+            println("  $step. Place a Paper JAR in  lobby/  and  game/  (e.g. paper-1.21.4-xxx.jar)")
             println("     Download: https://papermc.io/downloads/paper")
             println()
+            step++
         }
-        println("  ${if (noPaperDownload) "3" else "2"}. Start servers in this order:")
-        println("     a) lobby  → java -jar paper-*.jar  (in lobby/)")
-        println("     b) game   → java -jar paper-*.jar  (in game/)")
-        println("     c) proxy  → java -jar velocity-*.jar  (in velocity/)")
+
+        println("  $step. Start servers in this order:")
+        println("     a) cd lobby  && ./start.sh")
+        println("     b) cd game   && ./start.sh")
+        println("     c) cd velocity && ./start.sh")
+        println()
+        println("  On Windows:")
+        println("     a) cd lobby  && start.bat")
+        println("     b) cd game   && start.bat")
+        println("     c) cd velocity && start.bat")
         println()
         println("  Forwarding secret: $secret")
-        println("  (The same secret is already written to velocity/forwarding.secret")
-        println("   and both backend server configs.)")
+        println("  (Already written to velocity/forwarding.secret and both backend configs.)")
+    }
+
+    // ------------------------------------------------------------ helpers -----
+
+    private fun downloadVelocity(velocityDir: File): File? {
+        println("[Velocity] Querying PaperMC API for version list \u2026")
+        val (version, info) =
+            try {
+                val v = downloader.resolveVersion("velocity", velocityVersion)
+                val info = downloader.fetchLatestBuildInfo("velocity", v)
+                println("[Velocity] Using $v  build ${info.buildNumber}  (channel: ${info.channel})")
+                Pair(v, info)
+            } catch (e: Exception) {
+                System.err.println("[Velocity] ERROR: ${e.message}")
+                System.err.println("[Velocity] Skipping download. Place the Velocity JAR manually.")
+                return null
+            }
+
+        return try {
+            println("[Velocity] Downloading ${info.fileName} \u2026")
+            val jar = downloader.downloadLatestBuild("velocity", version, velocityDir, overwrite)
+            println()
+            jar
+        } catch (e: Exception) {
+            System.err.println("[Velocity] ERROR: ${e.message}")
+            System.err.println("[Velocity] Download failed. Place the Velocity JAR manually.")
+            println()
+            null
+        }
+    }
+
+    /**
+     * Downloads Paper once into lobby/ then copies the same file into game/
+     * to avoid fetching the same binary twice.
+     */
+    private fun downloadPaper(baseDir: File): File? {
+        println("[Paper] Querying PaperMC API for version list \u2026")
+        val (version, info) =
+            try {
+                val v = downloader.resolveVersion("paper", paperVersion)
+                val info = downloader.fetchLatestBuildInfo("paper", v)
+                println("[Paper] Using $v  build ${info.buildNumber}  (channel: ${info.channel})")
+                Pair(v, info)
+            } catch (e: Exception) {
+                System.err.println("[Paper] ERROR: ${e.message}")
+                System.err.println("[Paper] Skipping download. Place Paper JARs manually.")
+                return null
+            }
+
+        val lobbyDir = baseDir.resolve("lobby")
+        val gameDir = baseDir.resolve("game")
+        val gameJar = gameDir.resolve(info.fileName)
+
+        return try {
+            println("[Paper] Downloading ${info.fileName} for lobby/ \u2026")
+            val downloaded = downloader.downloadLatestBuild("paper", version, lobbyDir, overwrite)
+
+            // Reuse the downloaded file for game/ (copy, not re-download)
+            gameDir.mkdirs()
+            if (gameJar.exists() && !overwrite) {
+                println("  [exists] ${gameJar.name} in game/  (skipping \u2014 use --overwrite to replace)")
+            } else {
+                print("  [copy]   ${info.fileName} \u2192 game/ ")
+                System.out.flush()
+                downloaded.copyTo(gameJar, overwrite = true)
+                println("done")
+            }
+            println()
+            downloaded
+        } catch (e: Exception) {
+            System.err.println("[Paper] ERROR: ${e.message}")
+            System.err.println("[Paper] Download failed. Place Paper JARs manually.")
+            println()
+            null
+        }
+    }
+
+    private fun printVersionList(project: String) {
+        println("Fetching $project versions from PaperMC API \u2026")
+        try {
+            val versions = downloader.fetchVersions(project)
+            println("Available $project versions (${versions.size} total):")
+            println()
+            versions.chunked(10).forEach { row -> println("  " + row.joinToString("  ")) }
+            println()
+            println("Latest: ${versions.last()}")
+        } catch (e: Exception) {
+            System.err.println("ERROR: ${e.message}")
+        }
     }
 
     private fun generateSecret(): String {

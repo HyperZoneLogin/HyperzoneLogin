@@ -128,6 +128,7 @@ open class OutPreAuthSessionHandlerLogic(
         mcConnection.setAssociation(player)
 
 //        发送登入成功
+//        net.minecraft.network.protocol.login.ClientboundLoginFinishedPacket
         val success = ServerLoginSuccessPacket()
         success.username = player.username
         success.properties = player.gameProfileProperties

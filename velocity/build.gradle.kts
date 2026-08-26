@@ -27,6 +27,7 @@ plugins {
     alias(libs.plugins.kotlin)
     alias(libs.plugins.shadow)
     id("icu.h2l.runtime-dependencies")
+    kotlin("kapt")
 }
 
 val bstatsRelocatedClasspath = configurations.create("bstatsRelocatedClasspath") {
@@ -61,6 +62,14 @@ dependencies {
     // and will register themselves with the main plugin at runtime. Do not include
     // them as project dependencies here so they are not bundled into the main plugin jar.
     implementation(project(":api"))
+    implementation(project(":cli"))
+
+    // CLI dependencies are needed by the monolith launcher, but should stay out of the plugin jar.
+    // Publish them through runtime-dependencies metadata instead of shading them into monolithJar.
+    needPackageCompileOnly(libs.picocli)
+    needPackageCompileOnly(libs.gson)
+    needPackageCompileOnly(kotlin("stdlib"))
+    compileOnly(libs.picocliCodegen)
 //    implementation(project(":vcinjector"))
 
 // Exposed ORM / runtime-loaded libraries
@@ -93,7 +102,6 @@ dependencies {
     needPackageCompileOnly(libs.asmCommons)
 
     compileOnly(libs.nettyAll)
-    compileOnly(libs.gson)
     compileOnly(libs.log4jApi)
     compileOnly(libs.adventureTextSerializerGson)
     compileOnly(libs.adventureTextLoggerSlf4j)
@@ -120,6 +128,7 @@ dependencies {
     testImplementation(libs.configurateYaml)
     testImplementation("io.mockk:mockk:1.13.17")
     testRuntimeOnly(libs.junitPlatformLauncher)
+    testImplementation(kotlin("test"))
 }
 
 tasks {
@@ -144,7 +153,7 @@ tasks {
 
     register<Jar>("monolithJar") {
         group = "build"
-        description = "Builds an all-in-one HyperZoneLogin jar with embedded optional modules."
+        description = "Builds an all-in-one HyperZoneLogin jar with embedded optional modules and CLI tool."
         archiveBaseName.set("HyperZoneLogin")
         archiveClassifier.set("all")
         duplicatesStrategy = DuplicatesStrategy.EXCLUDE
@@ -165,6 +174,17 @@ tasks {
                 exclude("META-INF/hzl/runtime-dependencies.properties")
             }
         }
+
+        // Include CLI module classes only (not dependencies - they will be downloaded at runtime)
+        val cliProject = project(":cli")
+        val cliSourceSets = cliProject.extensions.getByType(SourceSetContainer::class.java)
+        dependsOn(cliProject.tasks.named("classes"))
+        from(cliSourceSets.named("main").get().output)
+
+
+        manifest {
+            attributes["Main-Class"] = "icu.h2l.login.cli.Main"
+        }
     }
 
     named<ShadowJar>("shadowJar") {
@@ -179,4 +199,7 @@ tasks {
         dependsOn(named("jar"))
         dependsOn(named("monolithJar"))
     }
+}
+repositories {
+    mavenCentral()
 }

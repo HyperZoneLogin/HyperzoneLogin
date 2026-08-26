@@ -19,41 +19,28 @@
  *
  */
 
-import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+import icu.h2l.gradle.needPackageCompileOnly
 
 plugins {
     alias(libs.plugins.kotlin)
-    alias(libs.plugins.shadow)
-    application
+    id("icu.h2l.runtime-dependencies")
     kotlin("kapt")
 }
 
 dependencies {
-    implementation(libs.picocli)
+    compileOnly(project(":api"))
+    needPackageCompileOnly(libs.picocli)
     annotationProcessor(libs.picocliCodegen)
-    implementation(libs.gson)
+    needPackageCompileOnly(libs.gson)
+    needPackageCompileOnly(kotlin("stdlib"))
     testImplementation(kotlin("test"))
 }
 
-application {
-    mainClass.set("icu.h2l.login.cli.MainKt")
-}
 
-tasks {
-    named<ShadowJar>("shadowJar") {
-        archiveBaseName.set("HyperZoneLogin-CLI")
-        archiveClassifier.set("all")
-        mergeServiceFiles()
-        manifest {
-            attributes["Main-Class"] = "icu.h2l.login.cli.MainKt"
-        }
-    }
 
-    named("assemble") {
-        dependsOn(named("shadowJar"))
-    }
-}
 
-repositories {
-    mavenCentral()
-}
+
+
+
+
+

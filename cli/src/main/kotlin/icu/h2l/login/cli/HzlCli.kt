@@ -22,6 +22,7 @@
 package icu.h2l.login.cli
 
 import icu.h2l.login.cli.command.EasyDeployCommand
+import picocli.CommandLine
 import picocli.CommandLine.Command
 
 @Command(
@@ -32,10 +33,9 @@ import picocli.CommandLine.Command
 )
 class HzlCli : Runnable {
     override fun run() {
-        // When called with no subcommand, print help via picocli's usage message.
-        // The @Command annotation's helpCommand / mixinStandardHelpOptions will
-        // handle --help automatically; for a bare invocation we do nothing and
-        // let picocli print usage through the CommandLine executor.
+        // When called with no subcommand, print help
+        val cmd = CommandLine(this)
+        cmd.usage(System.out)
     }
 }
 

@@ -19,13 +19,19 @@
  *
  */
 
-package icu.h2l.login.cli
+package icu.h2l.login.cli;
 
-import picocli.CommandLine
-import kotlin.system.exitProcess
+import picocli.CommandLine;
 
-fun main(args: Array<String>) {
-    val exitCode = CommandLine(HzlCli()).execute(*args)
-    exitProcess(exitCode)
+/**
+ * Runtime CLI entrypoint loaded through the dependency-aware class loader.
+ */
+public final class CliEntrypoint {
+    private CliEntrypoint() {
+    }
+
+    public static int run(String[] args) {
+        return new CommandLine(new HzlCli()).execute(args);
+    }
 }
 
