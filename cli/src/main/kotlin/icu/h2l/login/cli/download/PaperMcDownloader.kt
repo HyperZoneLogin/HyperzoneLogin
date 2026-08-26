@@ -30,7 +30,7 @@ import java.net.http.HttpResponse
 import java.time.Duration
 
 /**
- * Client for the PaperMC download API (`https://api.papermc.io/v2/projects`).
+ * Client for the PaperMC downloads API (`https://fill.papermc.io/v3/projects`).
  *
  * Supports any PaperMC project (e.g. `paper`, `velocity`). Downloads display
  * a live progress bar that updates in-place when stdout is a terminal.
@@ -54,27 +54,28 @@ class PaperMcDownloader {
     // ----------------------------------------------------------------- public --
 
     /**
-     * Returns all available versions for [project], ordered oldest → newest.
-     * Example result for `paper`: `["1.8.8", …, "1.21.4"]`
+     * Returns all available versions for [project], ordered newest → oldest.
      */
     fun fetchVersions(project: String): List<String> {
-        val body = get("$API_BASE/$project")
+        val body = get("$API_BASE/$project/versions")
         val json = JsonParser.parseString(body).asJsonObject
-        return json.getAsJsonArray("versions").map { it.asString }
+        return json
+            .getAsJsonArray("versions")
+            .map { it.asJsonObject.getAsJsonObject("version").get("id").asString }
     }
 
     /**
      * Resolves a version string for [project]:
-     * - `null` or `"latest"` → the newest version from the API
+     * - `null` or `"latest"` → the newest stable version from the API
      * - anything else       → validated; throws [IllegalArgumentException] if not found
      */
     fun resolveVersion(project: String, requested: String?): String {
         val versions = fetchVersions(project)
         if (requested == null || requested.equals("latest", ignoreCase = true)) {
-            return versions.last()
+            return versions.firstOrNull(::isStableVersion) ?: versions.first()
         }
         require(requested in versions) {
-            val available = versions.takeLast(20).joinToString(", ")
+            val available = versions.take(20).joinToString(", ")
             "$project version '$requested' not found.\n  Latest 20 available: $available"
         }
         return requested
@@ -103,8 +104,7 @@ class PaperMcDownloader {
             return dest
         }
 
-        val url = "$API_BASE/$project/versions/$version/builds/${info.buildNumber}/downloads/${info.fileName}"
-        downloadWithProgress(url, dest, "${info.fileName}")
+        downloadWithProgress(info.downloadUrl, dest, info.fileName)
         return dest
     }
 
@@ -113,21 +113,26 @@ class PaperMcDownloader {
      */
     fun fetchLatestBuildInfo(project: String, version: String): BuildInfo {
         val body = get("$API_BASE/$project/versions/$version/builds")
-        val json = JsonParser.parseString(body).asJsonObject
-        val builds = json.getAsJsonArray("builds")
+        val builds = JsonParser.parseString(body).asJsonArray
         check(builds.size() > 0) { "No builds found for $project $version" }
 
-        // The API returns builds sorted ascending; the last entry is the newest.
-        val latest = builds[builds.size() - 1].asJsonObject
-        val buildNumber = latest.get("build").asInt
+        val latest = builds
+            .map { it.asJsonObject }
+            .maxByOrNull { it.get("id").asInt }
+            ?: error("No builds found for $project $version")
+        val download = latest
+            .getAsJsonObject("downloads")
+            .entrySet()
+            .firstOrNull { (_, value) -> value.isJsonObject }
+            ?.value
+            ?.asJsonObject
+            ?: error("No downloadable artifact found for $project $version")
+
+        val buildNumber = latest.get("id").asInt
         val channel = latest.get("channel")?.asString ?: "default"
-        val fileName =
-            latest
-                .getAsJsonObject("downloads")
-                .getAsJsonObject("application")
-                .get("name")
-                .asString
-        return BuildInfo(buildNumber, fileName, version, channel)
+        val fileName = download.get("name").asString
+        val downloadUrl = download.get("url").asString
+        return BuildInfo(buildNumber, fileName, version, channel, downloadUrl)
     }
 
     // ----------------------------------------------------------------- private --
@@ -222,6 +227,11 @@ class PaperMcDownloader {
         return response.body()
     }
 
+    private fun isStableVersion(version: String): Boolean =
+        !version.contains("-snapshot", ignoreCase = true) &&
+            !version.contains("-rc", ignoreCase = true) &&
+            !version.contains("-pre", ignoreCase = true)
+
     // -----------------------------------------------------------------  types --
 
     /**
@@ -230,17 +240,19 @@ class PaperMcDownloader {
      * @property buildNumber  The numeric build identifier (e.g. 146).
      * @property fileName     The canonical jar filename (e.g. `paper-1.21.4-146.jar`).
      * @property version      The game / proxy version string (e.g. `1.21.4`).
-     * @property channel      Release channel — typically `"default"` or `"experimental"`.
+     * @property channel      Release channel — typically `"STABLE"`.
+     * @property downloadUrl  Direct download URL returned by the service.
      */
     data class BuildInfo(
         val buildNumber: Int,
         val fileName: String,
         val version: String,
         val channel: String,
+        val downloadUrl: String,
     )
 
     companion object {
-        private const val API_BASE = "https://api.papermc.io/v2/projects"
+        private const val API_BASE = "https://fill.papermc.io/v3/projects"
     }
 }
 

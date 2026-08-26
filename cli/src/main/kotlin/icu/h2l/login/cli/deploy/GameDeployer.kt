@@ -35,11 +35,13 @@ import java.io.File
 class GameDeployer(
     baseDir: File,
     gamePort: Int,
+    paperVersion: String,
     forwardingSecret: String,
     overwrite: Boolean,
 ) : PaperServerDeployer(
     dir = baseDir.resolve("game"),
     port = gamePort,
+    paperVersion = paperVersion,
     forwardingSecret = forwardingSecret,
     label = "Game",
     overwrite = overwrite,

@@ -35,111 +35,55 @@ class ScriptGenerator(
         generateVelocityScripts()
         generateLobbyScripts()
         generateGameScripts()
+        generateWindowsLaunchAllScript()
     }
 
     private fun generateVelocityScripts() {
         val serverDir = baseDir.resolve("velocity")
         serverDir.mkdirs()
 
-        // Generate Windows batch script
         val batContent = """
             @echo off
             setlocal enabledelayedexpansion
-            
-            REM Velocity Startup Script
-            REM Automatically downloads and runs the latest Velocity JAR
-            
+
             cd /d "%~dp0"
-            
-            if not exist "velocity-*.jar" (
-                echo Downloading Velocity JAR...
-                REM JAR will be downloaded by the distribution process
-            )
-            
+
             set "JAR_FILE="
             for %%f in (velocity-*.jar) do (
                 set "JAR_FILE=%%f"
                 goto found
             )
             :found
-            
+
             if "!JAR_FILE!"=="" (
                 echo ERROR: No Velocity JAR found in this directory
                 echo Please ensure velocity-*.jar exists
                 pause
                 exit /b 1
             )
-            
+
             echo Starting Velocity proxy from !JAR_FILE!...
-            java ^
-                -Xmx2G -Xms1G ^
-                -XX:+UseG1GC ^
-                -XX:+ParallelRefProcEnabled ^
-                -XX:MaxGCPauseMillis=200 ^
-                -XX:+UnlockExperimentalVMOptions ^
-                -XX:G1NewCollectionPercentage=30 ^
-                -XX:G1MaxNewGenPercent=40 ^
-                -XX:G1HeapRegionSize=8M ^
-                -XX:G1HeapWastePercent=5 ^
-                -XX:G1MixedGCCountTarget=4 ^
-                -XX:InitiatingHeapOccupancyPercent=15 ^
-                -XX:G1MixedGCLiveThresholdPercent=90 ^
-                -XX:G1RSetUpdatingPauseTimePercent=5 ^
-                -XX:SurvivorRatio=32 ^
-                -XX:+PerfDisableSharedMem ^
-                -XX:+AlwaysPreTouch ^
-                -XX:+UseStringDeduplication ^
-                -Dfile.encoding=UTF-8 ^
-                --enable-native-access=ALL-UNNAMED ^
-                -jar "!JAR_FILE!"
-            
+            java -jar "!JAR_FILE!"
+
             pause
         """.trimIndent()
 
-        // Generate Unix shell script
         val shContent = """
             #!/bin/bash
-            # Velocity Startup Script
-            # Automatically downloads and runs the latest Velocity JAR
-            
+
             cd "${'$'}(dirname "${'$'}0")"
-            
-            if ! ls velocity-*.jar 1> /dev/null 2>&1; then
-                echo "Downloading Velocity JAR..."
-                # JAR will be downloaded by the distribution process
-            fi
-            
+
             JAR_FILE=$(ls -t velocity-*.jar 2>/dev/null | head -n 1)
-            
+
             if [ -z "${'$'}JAR_FILE" ]; then
                 echo "ERROR: No Velocity JAR found in this directory"
                 echo "Please ensure velocity-*.jar exists"
                 exit 1
             fi
-            
+
             echo "Starting Velocity proxy from ${'$'}JAR_FILE..."
-            
-            java \
-                -Xmx2G -Xms1G \
-                -XX:+UseG1GC \
-                -XX:+ParallelRefProcEnabled \
-                -XX:MaxGCPauseMillis=200 \
-                -XX:+UnlockExperimentalVMOptions \
-                -XX:G1NewCollectionPercentage=30 \
-                -XX:G1MaxNewGenPercent=40 \
-                -XX:G1HeapRegionSize=8M \
-                -XX:G1HeapWastePercent=5 \
-                -XX:G1MixedGCCountTarget=4 \
-                -XX:InitiatingHeapOccupancyPercent=15 \
-                -XX:G1MixedGCLiveThresholdPercent=90 \
-                -XX:G1RSetUpdatingPauseTimePercent=5 \
-                -XX:SurvivorRatio=32 \
-                -XX:+PerfDisableSharedMem \
-                -XX:+AlwaysPreTouch \
-                -XX:+UseStringDeduplication \
-                -Dfile.encoding=UTF-8 \
-                --enable-native-access=ALL-UNNAMED \
-                -jar "${'$'}JAR_FILE"
+
+            java -jar "${'$'}JAR_FILE"
         """.trimIndent()
 
         serverDir.resolve("start.bat").writeText(batContent + "\n")
@@ -159,98 +103,45 @@ class ScriptGenerator(
         val batContent = """
             @echo off
             setlocal enabledelayedexpansion
-            
-            REM Lobby Server Startup Script
-            REM Automatically downloads and runs the latest Paper JAR
-            
+
             cd /d "%~dp0"
-            
-            if not exist "paper-*.jar" (
-                echo Downloading Paper JAR...
-                REM JAR will be downloaded by the distribution process
-            )
-            
+
             set "JAR_FILE="
             for %%f in (paper-*.jar) do (
                 set "JAR_FILE=%%f"
                 goto found
             )
             :found
-            
+
             if "!JAR_FILE!"=="" (
                 echo ERROR: No Paper JAR found in this directory
                 echo Please ensure paper-*.jar exists
                 pause
                 exit /b 1
             )
-            
+
             echo Starting Lobby server from !JAR_FILE!...
-            java ^
-                -Xmx4G -Xms2G ^
-                -XX:+UseG1GC ^
-                -XX:+ParallelRefProcEnabled ^
-                -XX:MaxGCPauseMillis=200 ^
-                -XX:+UnlockExperimentalVMOptions ^
-                -XX:G1NewCollectionPercentage=30 ^
-                -XX:G1MaxNewGenPercent=40 ^
-                -XX:G1HeapRegionSize=8M ^
-                -XX:G1HeapWastePercent=5 ^
-                -XX:G1MixedGCCountTarget=4 ^
-                -XX:InitiatingHeapOccupancyPercent=15 ^
-                -XX:G1MixedGCLiveThresholdPercent=90 ^
-                -XX:G1RSetUpdatingPauseTimePercent=5 ^
-                -XX:SurvivorRatio=32 ^
-                -XX:+PerfDisableSharedMem ^
-                -XX:+AlwaysPreTouch ^
-                -XX:+UseStringDeduplication ^
-                -Dfile.encoding=UTF-8 ^
-                -jar "!JAR_FILE!" nogui
-            
+            java -jar "!JAR_FILE!" nogui
+
             pause
         """.trimIndent()
 
         val shContent = """
             #!/bin/bash
-            # Lobby Server Startup Script
-            # Automatically downloads and runs the latest Paper JAR
-            
+
             cd "${'$'}(dirname "${'$'}0")"
-            
-            if ! ls paper-*.jar 1> /dev/null 2>&1; then
-                echo "Downloading Paper JAR..."
-                # JAR will be downloaded by the distribution process
-            fi
-            
+
             JAR_FILE=$(ls -t paper-*.jar 2>/dev/null | head -n 1)
-            
+
             if [ -z "${'$'}JAR_FILE" ]; then
                 echo "ERROR: No Paper JAR found in this directory"
                 echo "Please ensure paper-*.jar exists"
                 exit 1
             fi
-            
+
             echo "Starting Lobby server from ${'$'}JAR_FILE..."
-            
-            java \
-                -Xmx4G -Xms2G \
-                -XX:+UseG1GC \
-                -XX:+ParallelRefProcEnabled \
-                -XX:MaxGCPauseMillis=200 \
-                -XX:+UnlockExperimentalVMOptions \
-                -XX:G1NewCollectionPercentage=30 \
-                -XX:G1MaxNewGenPercent=40 \
-                -XX:G1HeapRegionSize=8M \
-                -XX:G1HeapWastePercent=5 \
-                -XX:G1MixedGCCountTarget=4 \
-                -XX:InitiatingHeapOccupancyPercent=15 \
-                -XX:G1MixedGCLiveThresholdPercent=90 \
-                -XX:G1RSetUpdatingPauseTimePercent=5 \
-                -XX:SurvivorRatio=32 \
-                -XX:+PerfDisableSharedMem \
-                -XX:+AlwaysPreTouch \
-                -XX:+UseStringDeduplication \
-                -Dfile.encoding=UTF-8 \
-                -jar "${'$'}JAR_FILE" nogui
+
+            java -jar "${'$'}JAR_FILE" nogui
         """.trimIndent()
 
         serverDir.resolve("start.bat").writeText(batContent + "\n")
@@ -269,98 +160,45 @@ class ScriptGenerator(
         val batContent = """
             @echo off
             setlocal enabledelayedexpansion
-            
-            REM Game Server Startup Script
-            REM Automatically downloads and runs the latest Paper JAR
-            
+
             cd /d "%~dp0"
-            
-            if not exist "paper-*.jar" (
-                echo Downloading Paper JAR...
-                REM JAR will be downloaded by the distribution process
-            )
-            
+
             set "JAR_FILE="
             for %%f in (paper-*.jar) do (
                 set "JAR_FILE=%%f"
                 goto found
             )
             :found
-            
+
             if "!JAR_FILE!"=="" (
                 echo ERROR: No Paper JAR found in this directory
                 echo Please ensure paper-*.jar exists
                 pause
                 exit /b 1
             )
-            
+
             echo Starting Game server from !JAR_FILE!...
-            java ^
-                -Xmx6G -Xms2G ^
-                -XX:+UseG1GC ^
-                -XX:+ParallelRefProcEnabled ^
-                -XX:MaxGCPauseMillis=200 ^
-                -XX:+UnlockExperimentalVMOptions ^
-                -XX:G1NewCollectionPercentage=30 ^
-                -XX:G1MaxNewGenPercent=40 ^
-                -XX:G1HeapRegionSize=8M ^
-                -XX:G1HeapWastePercent=5 ^
-                -XX:G1MixedGCCountTarget=4 ^
-                -XX:InitiatingHeapOccupancyPercent=15 ^
-                -XX:G1MixedGCLiveThresholdPercent=90 ^
-                -XX:G1RSetUpdatingPauseTimePercent=5 ^
-                -XX:SurvivorRatio=32 ^
-                -XX:+PerfDisableSharedMem ^
-                -XX:+AlwaysPreTouch ^
-                -XX:+UseStringDeduplication ^
-                -Dfile.encoding=UTF-8 ^
-                -jar "!JAR_FILE!" nogui
-            
+            java -jar "!JAR_FILE!" nogui
+
             pause
         """.trimIndent()
 
         val shContent = """
             #!/bin/bash
-            # Game Server Startup Script
-            # Automatically downloads and runs the latest Paper JAR
-            
+
             cd "${'$'}(dirname "${'$'}0")"
-            
-            if ! ls paper-*.jar 1> /dev/null 2>&1; then
-                echo "Downloading Paper JAR..."
-                # JAR will be downloaded by the distribution process
-            fi
-            
+
             JAR_FILE=$(ls -t paper-*.jar 2>/dev/null | head -n 1)
-            
+
             if [ -z "${'$'}JAR_FILE" ]; then
                 echo "ERROR: No Paper JAR found in this directory"
                 echo "Please ensure paper-*.jar exists"
                 exit 1
             fi
-            
+
             echo "Starting Game server from ${'$'}JAR_FILE..."
-            
-            java \
-                -Xmx6G -Xms2G \
-                -XX:+UseG1GC \
-                -XX:+ParallelRefProcEnabled \
-                -XX:MaxGCPauseMillis=200 \
-                -XX:+UnlockExperimentalVMOptions \
-                -XX:G1NewCollectionPercentage=30 \
-                -XX:G1MaxNewGenPercent=40 \
-                -XX:G1HeapRegionSize=8M \
-                -XX:G1HeapWastePercent=5 \
-                -XX:G1MixedGCCountTarget=4 \
-                -XX:InitiatingHeapOccupancyPercent=15 \
-                -XX:G1MixedGCLiveThresholdPercent=90 \
-                -XX:G1RSetUpdatingPauseTimePercent=5 \
-                -XX:SurvivorRatio=32 \
-                -XX:+PerfDisableSharedMem \
-                -XX:+AlwaysPreTouch \
-                -XX:+UseStringDeduplication \
-                -Dfile.encoding=UTF-8 \
-                -jar "${'$'}JAR_FILE" nogui
+
+            java -jar "${'$'}JAR_FILE" nogui
         """.trimIndent()
 
         serverDir.resolve("start.bat").writeText(batContent + "\n")
@@ -370,6 +208,33 @@ class ScriptGenerator(
 
         println("  [write]  ${serverDir.resolve("start.bat").name}")
         println("  [write]  ${serverDir.resolve("start.sh").name}")
+    }
+
+    private fun generateWindowsLaunchAllScript() {
+        val script = """
+            @echo off
+            setlocal
+
+            set "BASE_DIR=%~dp0"
+            set "BASE_DIR=%BASE_DIR:~0,-1%"
+
+            where wt >nul 2>nul
+            if errorlevel 1 (
+                echo Windows Terminal (wt.exe) not found. Falling back to start commands.
+                start "HZL Lobby" cmd /k "cd /d ""%BASE_DIR%\lobby"" && start.bat"
+                start "HZL Game" cmd /k "cd /d ""%BASE_DIR%\game"" && start.bat"
+                start "HZL Velocity" cmd /k "cd /d ""%BASE_DIR%\velocity"" && start.bat"
+                exit /b 0
+            )
+
+            wt cmd /k "cd /d ""%BASE_DIR%\lobby"" && start.bat" ^
+             ; new-tab cmd /k "cd /d ""%BASE_DIR%\game"" && start.bat" ^
+             ; new-tab cmd /k "cd /d ""%BASE_DIR%\velocity"" && start.bat"
+        """.trimIndent() + "\n"
+
+        val launchAll = baseDir.resolve("start-all.bat")
+        launchAll.writeText(script)
+        println("  [write]  ${launchAll.name}")
     }
 }
 

@@ -53,11 +53,20 @@ public final class DependencyBootstrap {
         var appender = new RuntimeClassLoaderBuilder();
         var dependencies = HyperDependencyManifest.readFrom(Thread.currentThread().getContextClassLoader());
         if (!dependencies.isEmpty()) {
-            var cacheDir = Paths.get(System.getProperty("user.home"), ".h2l", "libs");
+            var cacheDir = resolveCacheDirectory();
+            System.out.println("Using CLI runtime library cache: " + cacheDir.toAbsolutePath());
             var dependencyManager = new HyperDependencyManager(cacheDir, appender);
             dependencyManager.loadDependencies(dependencies);
         }
         return appender.build();
+    }
+
+    private static Path resolveCacheDirectory() {
+        String override = System.getProperty("h2l.cliLibDir");
+        if (override != null && !override.isBlank()) {
+            return Paths.get(override).toAbsolutePath().normalize();
+        }
+        return Paths.get("").toAbsolutePath().resolve(".h2l").resolve("libs").normalize();
     }
 
     /**

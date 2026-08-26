@@ -35,11 +35,13 @@ import java.io.File
 class LobbyDeployer(
     baseDir: File,
     lobbyPort: Int,
+    paperVersion: String,
     forwardingSecret: String,
     overwrite: Boolean,
 ) : PaperServerDeployer(
     dir = baseDir.resolve("lobby"),
     port = lobbyPort,
+    paperVersion = paperVersion,
     forwardingSecret = forwardingSecret,
     label = "Lobby",
     overwrite = overwrite,

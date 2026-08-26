@@ -39,6 +39,7 @@ import java.io.File
 abstract class PaperServerDeployer(
     protected val dir: File,
     protected val port: Int,
+    protected val paperVersion: String,
     protected val forwardingSecret: String,
     /** Short human-readable label used in log messages (e.g. "Lobby", "Game"). */
     protected val label: String,
@@ -51,11 +52,39 @@ abstract class PaperServerDeployer(
 
         writeFile(dir.resolve("server.properties"), serverProperties())
         writeFile(dir.resolve("eula.txt"), eulaTxt())
-        writeFile(dir.resolve("config/paper-global.yml"), paperGlobalYml())
-        writeFile(dir.resolve("paper.yml"), paperLegacyYml())
+        if (usesModernPaperConfig()) {
+            writeFile(dir.resolve("config/paper-global.yml"), paperGlobalYml())
+            removeLegacyConfig(dir.resolve("paper.yml"))
+        } else {
+            writeFile(dir.resolve("paper.yml"), paperLegacyYml())
+            removeLegacyConfig(dir.resolve("config/paper-global.yml"))
+        }
         writeFile(dir.resolve("spigot.yml"), spigotYml())
 
         println()
+    }
+
+    private fun usesModernPaperConfig(): Boolean {
+        if (!paperVersion.startsWith("1.")) {
+            return true
+        }
+
+        val parts = paperVersion.substringBefore('-').split('.')
+        val major = parts.getOrNull(0)?.toIntOrNull() ?: return true
+        val minor = parts.getOrNull(1)?.toIntOrNull() ?: return true
+        return major > 1 || (major == 1 && minor >= 19)
+    }
+
+    private fun removeLegacyConfig(file: File) {
+        if (!file.exists()) {
+            return
+        }
+        if (!overwrite) {
+            println("  [keep]   ${file.path}  (belongs to another Paper config format; use --overwrite to remove)")
+            return
+        }
+        file.delete()
+        println("  [remove] ${file.path}")
     }
 
     // --------------------------------------------------- shared config texts --

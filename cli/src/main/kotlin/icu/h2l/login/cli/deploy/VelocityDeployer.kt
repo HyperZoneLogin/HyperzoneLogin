@@ -22,6 +22,7 @@
 package icu.h2l.login.cli.deploy
 
 import java.io.File
+import java.util.jar.JarFile
 
 /**
  * Sets up the `velocity/` sub-directory with a production-ready Velocity
@@ -37,17 +38,18 @@ import java.io.File
  *   velocity/plugins/<plugin>.jar       — copied if --plugin-jar is specified
  */
 class VelocityDeployer(
-    private val baseDir: File,
+    baseDir: File,
     private val bindHost: String,
     private val velocityPort: Int,
     private val lobbyPort: Int,
     private val gamePort: Int,
     private val forwardingSecret: String,
-    private val pluginJar: File?,
+    pluginJar: File?,
     overwrite: Boolean,
 ) : ServerDeployer(overwrite) {
 
     private val dir = baseDir.resolve("velocity")
+    private val effectivePluginJar: File? = pluginJar ?: detectHyperZoneLoginJar()
 
     override fun deploy() {
         println("[Velocity] Deploying into ${dir.path}")
@@ -60,7 +62,7 @@ class VelocityDeployer(
         // Ensure libs directory exists for the runtime dependency loader
         dir.resolve("plugins/hyperzonelogin/libs").mkdirs()
 
-        pluginJar?.let { jar ->
+        effectivePluginJar?.let { jar ->
             if (!jar.exists()) {
                 System.err.println("  [warn]   Plugin jar not found: ${jar.absolutePath}")
             } else {
@@ -140,5 +142,24 @@ class VelocityDeployer(
         format=hocon
         ready=true
         """.trimIndent() + "\n"
+
+    private fun detectHyperZoneLoginJar(): File? {
+        return runCatching {
+            val codeSource = javaClass.protectionDomain.codeSource ?: return null
+            val source = File(codeSource.location.toURI())
+            if (!source.isFile || !source.extension.equals("jar", ignoreCase = true)) {
+                return null
+            }
+
+            JarFile(source).use { jarFile ->
+                val manifest = jarFile.manifest ?: return null
+                val mainClass = manifest.mainAttributes.getValue("Main-Class") ?: return null
+                if (mainClass != "icu.h2l.login.cli.Main") {
+                    return null
+                }
+            }
+            source
+        }.getOrNull()
+    }
 }
 

@@ -187,6 +187,8 @@ class EasyDeployCommand : Runnable {
 
         val baseDir = File(".").canonicalFile
         val secret = forwardingSecret ?: generateSecret()
+        val selectedVelocityVersion = resolveRequestedVersion("velocity", velocityVersion, !noVelocityDownload)
+        val selectedPaperVersion = resolveRequestedPaperVersion()
 
         println("=== HyperZoneLogin EasyDeploy ===")
         println("Deploy directory   : $baseDir")
@@ -194,8 +196,9 @@ class EasyDeployCommand : Runnable {
         println("Lobby port         : $lobbyPort")
         println("Game port          : $gamePort")
         println("Overwrite          : $overwrite")
-        if (!noVelocityDownload) println("Velocity version   : $velocityVersion")
-        if (!noPaperDownload) println("Paper version      : $paperVersion")
+        if (!noVelocityDownload) println("Velocity version   : ${selectedVelocityVersion ?: velocityVersion}")
+        println("Paper config for   : ${selectedPaperVersion ?: paperVersion}")
+        if (!noPaperDownload) println("Paper version      : ${selectedPaperVersion ?: paperVersion}")
         println()
 
         // ---- 1. Write config files ------------------------------------------
@@ -213,6 +216,7 @@ class EasyDeployCommand : Runnable {
         LobbyDeployer(
             baseDir = baseDir,
             lobbyPort = lobbyPort,
+            paperVersion = selectedPaperVersion ?: paperVersion,
             forwardingSecret = secret,
             overwrite = overwrite,
         ).deploy()
@@ -220,6 +224,7 @@ class EasyDeployCommand : Runnable {
         GameDeployer(
             baseDir = baseDir,
             gamePort = gamePort,
+            paperVersion = selectedPaperVersion ?: paperVersion,
             forwardingSecret = secret,
             overwrite = overwrite,
         ).deploy()
@@ -230,11 +235,11 @@ class EasyDeployCommand : Runnable {
 
         // ---- 5. Summary -----------------------------------------------------
         val velocityJar: File? =
-            if (noVelocityDownload) null else downloadVelocity(baseDir.resolve("velocity"))
+            if (noVelocityDownload) null else downloadVelocity(baseDir.resolve("velocity"), selectedVelocityVersion ?: velocityVersion)
 
         // ---- 3. Download Paper (once) and distribute -----------------------
         val paperJar: File? =
-            if (noPaperDownload) null else downloadPaper(baseDir)
+            if (noPaperDownload) null else downloadPaper(baseDir, selectedPaperVersion ?: paperVersion)
 
         // ---- 4. Summary -----------------------------------------------------
         println()
@@ -272,11 +277,11 @@ class EasyDeployCommand : Runnable {
 
     // ------------------------------------------------------------ helpers -----
 
-    private fun downloadVelocity(velocityDir: File): File? {
-        println("[Velocity] Querying PaperMC API for version list \u2026")
+    private fun downloadVelocity(velocityDir: File, resolvedVersion: String): File? {
+        println("[Velocity] Querying PaperMC API for version list …")
         val (version, info) =
             try {
-                val v = downloader.resolveVersion("velocity", velocityVersion)
+                val v = resolvedVersion
                 val info = downloader.fetchLatestBuildInfo("velocity", v)
                 println("[Velocity] Using $v  build ${info.buildNumber}  (channel: ${info.channel})")
                 Pair(v, info)
@@ -287,7 +292,7 @@ class EasyDeployCommand : Runnable {
             }
 
         return try {
-            println("[Velocity] Downloading ${info.fileName} \u2026")
+            println("[Velocity] Downloading ${info.fileName} …")
             val jar = downloader.downloadLatestBuild("velocity", version, velocityDir, overwrite)
             println()
             jar
@@ -303,11 +308,11 @@ class EasyDeployCommand : Runnable {
      * Downloads Paper once into lobby/ then copies the same file into game/
      * to avoid fetching the same binary twice.
      */
-    private fun downloadPaper(baseDir: File): File? {
-        println("[Paper] Querying PaperMC API for version list \u2026")
+    private fun downloadPaper(baseDir: File, resolvedVersion: String): File? {
+        println("[Paper] Querying PaperMC API for version list …")
         val (version, info) =
             try {
-                val v = downloader.resolveVersion("paper", paperVersion)
+                val v = resolvedVersion
                 val info = downloader.fetchLatestBuildInfo("paper", v)
                 println("[Paper] Using $v  build ${info.buildNumber}  (channel: ${info.channel})")
                 Pair(v, info)
@@ -322,15 +327,15 @@ class EasyDeployCommand : Runnable {
         val gameJar = gameDir.resolve(info.fileName)
 
         return try {
-            println("[Paper] Downloading ${info.fileName} for lobby/ \u2026")
+            println("[Paper] Downloading ${info.fileName} for lobby/ …")
             val downloaded = downloader.downloadLatestBuild("paper", version, lobbyDir, overwrite)
 
             // Reuse the downloaded file for game/ (copy, not re-download)
             gameDir.mkdirs()
             if (gameJar.exists() && !overwrite) {
-                println("  [exists] ${gameJar.name} in game/  (skipping \u2014 use --overwrite to replace)")
+                println("  [exists] ${gameJar.name} in game/  (skipping — use --overwrite to replace)")
             } else {
-                print("  [copy]   ${info.fileName} \u2192 game/ ")
+                print("  [copy]   ${info.fileName} → game/ ")
                 System.out.flush()
                 downloaded.copyTo(gameJar, overwrite = true)
                 println("done")
@@ -346,14 +351,14 @@ class EasyDeployCommand : Runnable {
     }
 
     private fun printVersionList(project: String) {
-        println("Fetching $project versions from PaperMC API \u2026")
+        println("Fetching $project versions from PaperMC API …")
         try {
             val versions = downloader.fetchVersions(project)
             println("Available $project versions (${versions.size} total):")
             println()
             versions.chunked(10).forEach { row -> println("  " + row.joinToString("  ")) }
             println()
-            println("Latest: ${versions.last()}")
+            println("Latest: ${versions.firstOrNull() ?: "<none>"}")
         } catch (e: Exception) {
             System.err.println("ERROR: ${e.message}")
         }
@@ -364,5 +369,21 @@ class EasyDeployCommand : Runnable {
         SecureRandom().nextBytes(bytes)
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
     }
-}
 
+    private fun resolveRequestedVersion(project: String, requestedVersion: String, required: Boolean): String? =
+        try {
+            downloader.resolveVersion(project, requestedVersion)
+        } catch (e: Exception) {
+            if (required) {
+                System.err.println("[${project.replaceFirstChar(Char::titlecase)}] ERROR: ${e.message}")
+            }
+            null
+        }
+
+    private fun resolveRequestedPaperVersion(): String? {
+        if (paperVersion.equals("latest", ignoreCase = true) || !noPaperDownload) {
+            return resolveRequestedVersion("paper", paperVersion, !noPaperDownload)
+        }
+        return paperVersion
+    }
+}
