@@ -36,6 +36,7 @@ class ScriptGenerator(
         generateLobbyScripts()
         generateGameScripts()
         generateWindowsLaunchAllScript()
+        generateWindowsStopAllScript()
     }
 
     private fun generateVelocityScripts() {
@@ -45,6 +46,7 @@ class ScriptGenerator(
         val batContent = """
             @echo off
             setlocal enabledelayedexpansion
+            title HZL Velocity
 
             cd /d "%~dp0"
 
@@ -70,6 +72,7 @@ class ScriptGenerator(
 
         val shContent = """
             #!/bin/bash
+            printf '\033]0;HZL Velocity\007'
 
             cd "${'$'}(dirname "${'$'}0")"
 
@@ -103,6 +106,7 @@ class ScriptGenerator(
         val batContent = """
             @echo off
             setlocal enabledelayedexpansion
+            title HZL Lobby
 
             cd /d "%~dp0"
 
@@ -128,6 +132,7 @@ class ScriptGenerator(
 
         val shContent = """
             #!/bin/bash
+            printf '\033]0;HZL Lobby\007'
 
             cd "${'$'}(dirname "${'$'}0")"
 
@@ -160,6 +165,7 @@ class ScriptGenerator(
         val batContent = """
             @echo off
             setlocal enabledelayedexpansion
+            title HZL Game
 
             cd /d "%~dp0"
 
@@ -185,6 +191,7 @@ class ScriptGenerator(
 
         val shContent = """
             #!/bin/bash
+            printf '\033]0;HZL Game\007'
 
             cd "${'$'}(dirname "${'$'}0")"
 
@@ -227,14 +234,36 @@ class ScriptGenerator(
                 exit /b 0
             )
 
-            wt cmd /k "cd /d ""%BASE_DIR%\lobby"" && start.bat" ^
-             ; new-tab cmd /k "cd /d ""%BASE_DIR%\game"" && start.bat" ^
-             ; new-tab cmd /k "cd /d ""%BASE_DIR%\velocity"" && start.bat"
+            wt new-tab --title "HZL Lobby" cmd /k "cd /d ""%BASE_DIR%\lobby"" && start.bat" ^
+             ; new-tab --title "HZL Game" cmd /k "cd /d ""%BASE_DIR%\game"" && start.bat" ^
+             ; new-tab --title "HZL Velocity" cmd /k "cd /d ""%BASE_DIR%\velocity"" && start.bat"
         """.trimIndent() + "\n"
 
         val launchAll = baseDir.resolve("start-all.bat")
         launchAll.writeText(script)
         println("  [write]  ${launchAll.name}")
+    }
+
+    private fun generateWindowsStopAllScript() {
+        val script = """
+            @echo off
+            setlocal
+
+            set "BASE_DIR=%~dp0"
+            set "BASE_DIR=%BASE_DIR:~0,-1%"
+
+            powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+              "${'$'}dirs = @('%BASE_DIR%\\lobby', '%BASE_DIR%\\game', '%BASE_DIR%\\velocity');" ^
+              "Get-CimInstance Win32_Process | Where-Object { ${'$'}_.Name -match '^javaw?\\.exe${'$'}' -and ${'$'}_.CommandLine -and (${'$'}dirs | Where-Object { ${'$'}_.CommandLine -like ('*' + ${'$'}_ + '*') }).Count -gt 0 } | ForEach-Object { Stop-Process -Id ${'$'}_.ProcessId -Force -ErrorAction SilentlyContinue; Write-Host ('Stopped Java PID ' + ${'$'}_.ProcessId) }"
+
+            taskkill /FI "WINDOWTITLE eq HZL Lobby*" /T /F >nul 2>nul
+            taskkill /FI "WINDOWTITLE eq HZL Game*" /T /F >nul 2>nul
+            taskkill /FI "WINDOWTITLE eq HZL Velocity*" /T /F >nul 2>nul
+        """.trimIndent() + "\n"
+
+        val stopAll = baseDir.resolve("stop-all.bat")
+        stopAll.writeText(script)
+        println("  [write]  ${stopAll.name}")
     }
 }
 

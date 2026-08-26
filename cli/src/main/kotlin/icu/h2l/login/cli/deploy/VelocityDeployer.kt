@@ -49,6 +49,7 @@ class VelocityDeployer(
 ) : ServerDeployer(overwrite) {
 
     private val dir = baseDir.resolve("velocity")
+    private val pluginLibsDir = dir.resolve("plugins/hyperzonelogin/libs")
     private val effectivePluginJar: File? = pluginJar ?: detectHyperZoneLoginJar()
 
     override fun deploy() {
@@ -60,7 +61,7 @@ class VelocityDeployer(
         writeFile(dir.resolve("plugins/hyperzonelogin/start.conf"), startConf())
 
         // Ensure libs directory exists for the runtime dependency loader
-        dir.resolve("plugins/hyperzonelogin/libs").mkdirs()
+        pluginLibsDir.mkdirs()
 
         effectivePluginJar?.let { jar ->
             if (!jar.exists()) {
@@ -160,6 +161,14 @@ class VelocityDeployer(
             }
             source
         }.getOrNull()
+    }
+
+    fun prefillPluginLibraries(files: Iterable<File>) {
+        files.forEach { file ->
+            if (file.isFile) {
+                copyFile(file, pluginLibsDir.resolve(file.name))
+            }
+        }
     }
 }
 

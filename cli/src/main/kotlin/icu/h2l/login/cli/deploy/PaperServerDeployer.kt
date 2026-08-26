@@ -40,6 +40,7 @@ abstract class PaperServerDeployer(
     protected val dir: File,
     protected val port: Int,
     protected val paperVersion: String,
+    protected val paperConfigMode: PaperConfigMode,
     protected val forwardingSecret: String,
     /** Short human-readable label used in log messages (e.g. "Lobby", "Game"). */
     protected val label: String,
@@ -65,6 +66,9 @@ abstract class PaperServerDeployer(
     }
 
     private fun usesModernPaperConfig(): Boolean {
+        if (paperConfigMode != PaperConfigMode.AUTO) {
+            return paperConfigMode == PaperConfigMode.MODERN
+        }
         if (!paperVersion.startsWith("1.")) {
             return true
         }
@@ -85,6 +89,12 @@ abstract class PaperServerDeployer(
         }
         file.delete()
         println("  [remove] ${file.path}")
+    }
+
+    enum class PaperConfigMode {
+        AUTO,
+        MODERN,
+        LEGACY,
     }
 
     // --------------------------------------------------- shared config texts --

@@ -21,8 +21,11 @@
 
 package icu.h2l.login.cli.command
 
+import icu.h2l.api.dependency.HyperDependencyManager
+import icu.h2l.api.dependency.HyperDependencyManifest
 import icu.h2l.login.cli.deploy.GameDeployer
 import icu.h2l.login.cli.deploy.LobbyDeployer
+import icu.h2l.login.cli.deploy.PaperServerDeployer
 import icu.h2l.login.cli.deploy.ScriptGenerator
 import icu.h2l.login.cli.deploy.VelocityDeployer
 import icu.h2l.login.cli.download.PaperMcDownloader
@@ -44,7 +47,7 @@ import java.util.Base64
         "  game/      \u2014 Game Paper server (play backend)",
         "",
         "Config files are generated for all three servers and server JARs are",
-        "automatically downloaded from https://api.papermc.io unless disabled.",
+        "automatically downloaded from the PaperMC downloads service unless disabled.",
         "Velocity uses modern forwarding; the generated secret is shared to both backends.",
     ],
 )
@@ -131,6 +134,16 @@ class EasyDeployCommand : Runnable {
     var paperVersion: String = "latest"
 
     @Option(
+        names = ["--paper-config"],
+        description = [
+            "Paper config format to generate: auto, modern, or legacy.",
+            "'auto' follows the selected Paper version (default: \${DEFAULT-VALUE}).",
+        ],
+        defaultValue = "auto",
+    )
+    var paperConfig: String = "auto"
+
+    @Option(
         names = ["--no-paper-download"],
         description = ["Skip downloading Paper JARs \u2014 place them in lobby/ and game/ manually."],
         defaultValue = "false",
@@ -189,6 +202,7 @@ class EasyDeployCommand : Runnable {
         val secret = forwardingSecret ?: generateSecret()
         val selectedVelocityVersion = resolveRequestedVersion("velocity", velocityVersion, !noVelocityDownload)
         val selectedPaperVersion = resolveRequestedPaperVersion()
+        val selectedPaperConfigMode = resolvePaperConfigMode()
 
         println("=== HyperZoneLogin EasyDeploy ===")
         println("Deploy directory   : $baseDir")
@@ -198,6 +212,7 @@ class EasyDeployCommand : Runnable {
         println("Overwrite          : $overwrite")
         if (!noVelocityDownload) println("Velocity version   : ${selectedVelocityVersion ?: velocityVersion}")
         println("Paper config for   : ${selectedPaperVersion ?: paperVersion}")
+        println("Paper config mode  : ${selectedPaperConfigMode.name.lowercase()}")
         if (!noPaperDownload) println("Paper version      : ${selectedPaperVersion ?: paperVersion}")
         println()
 
@@ -217,6 +232,7 @@ class EasyDeployCommand : Runnable {
             baseDir = baseDir,
             lobbyPort = lobbyPort,
             paperVersion = selectedPaperVersion ?: paperVersion,
+            paperConfigMode = selectedPaperConfigMode,
             forwardingSecret = secret,
             overwrite = overwrite,
         ).deploy()
@@ -225,6 +241,7 @@ class EasyDeployCommand : Runnable {
             baseDir = baseDir,
             gamePort = gamePort,
             paperVersion = selectedPaperVersion ?: paperVersion,
+            paperConfigMode = selectedPaperConfigMode,
             forwardingSecret = secret,
             overwrite = overwrite,
         ).deploy()
@@ -240,6 +257,8 @@ class EasyDeployCommand : Runnable {
         // ---- 3. Download Paper (once) and distribute -----------------------
         val paperJar: File? =
             if (noPaperDownload) null else downloadPaper(baseDir, selectedPaperVersion ?: paperVersion)
+
+        prefetchPluginRuntimeLibraries(baseDir)
 
         // ---- 4. Summary -----------------------------------------------------
         println()
@@ -385,5 +404,32 @@ class EasyDeployCommand : Runnable {
             return resolveRequestedVersion("paper", paperVersion, !noPaperDownload)
         }
         return paperVersion
+    }
+
+    private fun resolvePaperConfigMode(): PaperServerDeployer.PaperConfigMode = when (paperConfig.trim().lowercase()) {
+        "auto" -> PaperServerDeployer.PaperConfigMode.AUTO
+        "modern" -> PaperServerDeployer.PaperConfigMode.MODERN
+        "legacy" -> PaperServerDeployer.PaperConfigMode.LEGACY
+        else -> throw IllegalArgumentException("Invalid --paper-config '$paperConfig'. Expected: auto, modern, legacy")
+    }
+
+    private fun prefetchPluginRuntimeLibraries(baseDir: File) {
+        try {
+            val dependencies = HyperDependencyManifest.readFrom(this::class.java.classLoader)
+            if (dependencies.isEmpty()) {
+                println("[HyperZoneLogin] No plugin runtime dependency manifest found; skipping libs prefetch")
+                println()
+                return
+            }
+
+            val targetDir = baseDir.resolve("velocity/plugins/hyperzonelogin/libs")
+            println("[HyperZoneLogin] Prefetching runtime libraries into ${targetDir.path}")
+            HyperDependencyManager(targetDir.toPath()) { _ -> }
+                .loadDependencies(dependencies)
+            println("[HyperZoneLogin] Plugin runtime libraries are ready in ${targetDir.path}")
+        } catch (e: Exception) {
+            System.err.println("[HyperZoneLogin] WARN: Failed to prefetch plugin runtime libraries: ${e.message}")
+        }
+        println()
     }
 }

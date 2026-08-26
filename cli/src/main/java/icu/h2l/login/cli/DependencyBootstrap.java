@@ -41,6 +41,7 @@ import java.util.Set;
  */
 public final class DependencyBootstrap {
     private static final String CLI_ENTRYPOINT_CLASS_NAME = "icu.h2l.login.cli.CliEntrypoint";
+    private static final String CLI_RUNTIME_DEPENDENCY_RESOURCE_PATH = "META-INF/hzl/cli-runtime-dependencies.properties";
 
     private DependencyBootstrap() {
     }
@@ -51,7 +52,7 @@ public final class DependencyBootstrap {
 
     public static ClassLoader createRuntimeClassLoader() throws IOException, HyperDependencyDownloadException {
         var appender = new RuntimeClassLoaderBuilder();
-        var dependencies = HyperDependencyManifest.readFrom(Thread.currentThread().getContextClassLoader());
+        var dependencies = HyperDependencyManifest.readFrom(Thread.currentThread().getContextClassLoader(), CLI_RUNTIME_DEPENDENCY_RESOURCE_PATH);
         if (!dependencies.isEmpty()) {
             var cacheDir = resolveCacheDirectory();
             System.out.println("Using CLI runtime library cache: " + cacheDir.toAbsolutePath());

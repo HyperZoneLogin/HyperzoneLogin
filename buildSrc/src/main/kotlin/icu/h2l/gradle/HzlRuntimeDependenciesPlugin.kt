@@ -21,6 +21,7 @@
 
 package icu.h2l.gradle
 
+import java.io.File
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.artifacts.Configuration
@@ -51,12 +52,14 @@ class HzlRuntimeDependenciesPlugin : Plugin<Project> {
     }
 
     private fun configureMetadataGeneration(project: Project, resolver: Configuration) {
+        val resourcePath =
+            project.findProperty("hzl.runtimeDependencyResourcePath")?.toString()?.trim()?.takeIf { it.isNotEmpty() }
+                ?: if (project.path == ":cli") "META-INF/hzl/cli-runtime-dependencies.properties" else null
+                ?: "META-INF/hzl/runtime-dependencies.properties"
         val runtimeClasspath = project.configurations.named("runtimeClasspath").get()
         copyAttributes(runtimeClasspath, resolver)
 
-        val outputFile = project.layout.buildDirectory.file(
-            "generated/hzl/runtime-dependencies/runtime-dependencies.properties"
-        )
+        val outputFile = project.layout.buildDirectory.file("generated/hzl/runtime-dependencies/${resourcePath.replace('/', File.separatorChar)}")
 
         val generateTask = project.tasks.register("generateRuntimeDependencyMetadata") {
             inputs.files(resolver)
@@ -89,8 +92,8 @@ class HzlRuntimeDependenciesPlugin : Plugin<Project> {
 
         project.tasks.named<Copy>("processResources") {
             from(generateTask) {
-                into("META-INF/hzl")
-                rename { "runtime-dependencies.properties" }
+                into(resourcePath.substringBeforeLast('/', ""))
+                rename { resourcePath.substringAfterLast('/') }
             }
         }
     }

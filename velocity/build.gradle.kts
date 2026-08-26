@@ -64,12 +64,8 @@ dependencies {
     implementation(project(":api"))
     implementation(project(":cli"))
 
-    // CLI dependencies are needed by the monolith launcher, but should stay out of the plugin jar.
-    // Publish them through runtime-dependencies metadata instead of shading them into monolithJar.
-    needPackageCompileOnly(libs.picocli)
-    needPackageCompileOnly(libs.gson)
-    needPackageCompileOnly(kotlin("stdlib"))
-    compileOnly(libs.picocliCodegen)
+    // CLI dependencies are declared in the :cli module and published through
+    // its dedicated runtime-dependencies manifest for the monolith launcher.
 //    implementation(project(":vcinjector"))
 
 // Exposed ORM / runtime-loaded libraries

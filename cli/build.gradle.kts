@@ -21,6 +21,8 @@
 
 import icu.h2l.gradle.needPackageCompileOnly
 
+extra["hzl.runtimeDependencyResourcePath"] = "META-INF/hzl/cli-runtime-dependencies.properties"
+
 plugins {
     alias(libs.plugins.kotlin)
     id("icu.h2l.runtime-dependencies")

@@ -47,7 +47,19 @@ public final class HyperDependencyManifest {
      * @throws IOException if the resource exists but cannot be read
      */
     public static List<HyperDependency> readFrom(ClassLoader classLoader) throws IOException {
-        try (InputStream in = classLoader.getResourceAsStream(RESOURCE_PATH)) {
+        return readFrom(classLoader, RESOURCE_PATH);
+    }
+
+    /**
+     * Reads runtime dependency descriptors from the given class loader and resource path.
+     *
+     * @param classLoader source class loader
+     * @param resourcePath metadata resource path to read
+     * @return immutable dependency list, or an empty list if the metadata resource is absent
+     * @throws IOException if the resource exists but cannot be read
+     */
+    public static List<HyperDependency> readFrom(ClassLoader classLoader, String resourcePath) throws IOException {
+        try (InputStream in = classLoader.getResourceAsStream(resourcePath)) {
             if (in == null) {
                 return List.of();
             }
