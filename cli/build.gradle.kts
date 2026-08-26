@@ -19,34 +19,41 @@
  *
  */
 
-pluginManagement {
-    repositories {
-        val isCi = System.getenv("CI") == "true"
-        if (!isCi) {
-            maven("https://maven.aliyun.com/repository/central")
-            maven("https://mirrors.cloud.tencent.com/nexus/repository/maven-public/")
-        }
-        maven("https://plugins.gradle.org/m2/")
-        gradlePluginPortal()
-        mavenCentral()
-    }
-    plugins {
-        kotlin("kapt") version "2.4.0"
-    }
-}
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+
 plugins {
-    id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
+    alias(libs.plugins.kotlin)
+    alias(libs.plugins.shadow)
+    application
+    kotlin("kapt")
 }
 
-rootProject.name = "HyperzoneLogin"
+dependencies {
+    implementation(libs.picocli)
+    annotationProcessor(libs.picocliCodegen)
+    implementation(libs.gson)
+    testImplementation(kotlin("test"))
+}
 
-include("velocity")
-include("vc-runtest")
-include("api")
-include("auth-floodgate")
-include("auth-yggd")
-include("auth-offline")
-include("safe")
-include("data-merge")
-include("profile-skin")
-include("cli")
+application {
+    mainClass.set("icu.h2l.login.cli.MainKt")
+}
+
+tasks {
+    named<ShadowJar>("shadowJar") {
+        archiveBaseName.set("HyperZoneLogin-CLI")
+        archiveClassifier.set("all")
+        mergeServiceFiles()
+        manifest {
+            attributes["Main-Class"] = "icu.h2l.login.cli.MainKt"
+        }
+    }
+
+    named("assemble") {
+        dependsOn(named("shadowJar"))
+    }
+}
+
+repositories {
+    mavenCentral()
+}

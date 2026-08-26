@@ -19,34 +19,29 @@
  *
  */
 
-pluginManagement {
-    repositories {
-        val isCi = System.getenv("CI") == "true"
-        if (!isCi) {
-            maven("https://maven.aliyun.com/repository/central")
-            maven("https://mirrors.cloud.tencent.com/nexus/repository/maven-public/")
-        }
-        maven("https://plugins.gradle.org/m2/")
-        gradlePluginPortal()
-        mavenCentral()
-    }
-    plugins {
-        kotlin("kapt") version "2.4.0"
-    }
-}
-plugins {
-    id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
-}
+package icu.h2l.login.cli.deploy
 
-rootProject.name = "HyperzoneLogin"
+import java.io.File
 
-include("velocity")
-include("vc-runtest")
-include("api")
-include("auth-floodgate")
-include("auth-yggd")
-include("auth-offline")
-include("safe")
-include("data-merge")
-include("profile-skin")
-include("cli")
+/**
+ * Deploys the `game/` (play) backend Minecraft server.
+ *
+ * The game server is where authenticated players are sent after a successful
+ * login. It is listed as the `game` backend in velocity.toml and is the
+ * primary game-play destination.
+ *
+ * Reference: https://docs.h2l.icu/manual/zh/服务器基础配置/
+ */
+class GameDeployer(
+    baseDir: File,
+    gamePort: Int,
+    forwardingSecret: String,
+    overwrite: Boolean,
+) : PaperServerDeployer(
+    dir = baseDir.resolve("game"),
+    port = gamePort,
+    forwardingSecret = forwardingSecret,
+    label = "Game",
+    overwrite = overwrite,
+)
+

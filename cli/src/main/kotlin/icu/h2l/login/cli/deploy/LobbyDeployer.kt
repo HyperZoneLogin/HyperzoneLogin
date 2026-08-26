@@ -19,34 +19,29 @@
  *
  */
 
-pluginManagement {
-    repositories {
-        val isCi = System.getenv("CI") == "true"
-        if (!isCi) {
-            maven("https://maven.aliyun.com/repository/central")
-            maven("https://mirrors.cloud.tencent.com/nexus/repository/maven-public/")
-        }
-        maven("https://plugins.gradle.org/m2/")
-        gradlePluginPortal()
-        mavenCentral()
-    }
-    plugins {
-        kotlin("kapt") version "2.4.0"
-    }
-}
-plugins {
-    id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
-}
+package icu.h2l.login.cli.deploy
 
-rootProject.name = "HyperzoneLogin"
+import java.io.File
 
-include("velocity")
-include("vc-runtest")
-include("api")
-include("auth-floodgate")
-include("auth-yggd")
-include("auth-offline")
-include("safe")
-include("data-merge")
-include("profile-skin")
-include("cli")
+/**
+ * Deploys the `lobby/` (outpre-auth) backend Minecraft server.
+ *
+ * The lobby server is where unauthenticated players first arrive.
+ * HyperZoneLogin's Velocity plugin redirects them here until they log in,
+ * then forwards them to the game server.
+ *
+ * Reference: https://docs.h2l.icu/manual/zh/服务器基础配置/
+ */
+class LobbyDeployer(
+    baseDir: File,
+    lobbyPort: Int,
+    forwardingSecret: String,
+    overwrite: Boolean,
+) : PaperServerDeployer(
+    dir = baseDir.resolve("lobby"),
+    port = lobbyPort,
+    forwardingSecret = forwardingSecret,
+    label = "Lobby",
+    overwrite = overwrite,
+)
+

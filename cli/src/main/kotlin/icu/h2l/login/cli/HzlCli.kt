@@ -19,34 +19,23 @@
  *
  */
 
-pluginManagement {
-    repositories {
-        val isCi = System.getenv("CI") == "true"
-        if (!isCi) {
-            maven("https://maven.aliyun.com/repository/central")
-            maven("https://mirrors.cloud.tencent.com/nexus/repository/maven-public/")
-        }
-        maven("https://plugins.gradle.org/m2/")
-        gradlePluginPortal()
-        mavenCentral()
-    }
-    plugins {
-        kotlin("kapt") version "2.4.0"
+package icu.h2l.login.cli
+
+import icu.h2l.login.cli.command.EasyDeployCommand
+import picocli.CommandLine.Command
+
+@Command(
+    name = "hzl",
+    mixinStandardHelpOptions = true,
+    description = ["HyperZoneLogin CLI — server management tool"],
+    subcommands = [EasyDeployCommand::class],
+)
+class HzlCli : Runnable {
+    override fun run() {
+        // When called with no subcommand, print help via picocli's usage message.
+        // The @Command annotation's helpCommand / mixinStandardHelpOptions will
+        // handle --help automatically; for a bare invocation we do nothing and
+        // let picocli print usage through the CommandLine executor.
     }
 }
-plugins {
-    id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
-}
 
-rootProject.name = "HyperzoneLogin"
-
-include("velocity")
-include("vc-runtest")
-include("api")
-include("auth-floodgate")
-include("auth-yggd")
-include("auth-offline")
-include("safe")
-include("data-merge")
-include("profile-skin")
-include("cli")
