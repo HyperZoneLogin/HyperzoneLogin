@@ -32,8 +32,6 @@ import com.velocitypowered.api.proxy.server.ServerInfo
 import com.velocitypowered.proxy.connection.client.ConnectedPlayer
 import com.velocitypowered.proxy.server.VelocityRegisteredServer
 import icu.h2l.api.event.area.PlayerAreaTransitionReason
-import icu.h2l.api.event.auth.AuthenticationFailureEvent
-import icu.h2l.api.event.vServer.VServerAuthStartEvent
 import icu.h2l.api.event.vServer.VServerJoinEvent
 import icu.h2l.api.log.HyperZoneDebugType
 import icu.h2l.api.log.debug
@@ -50,10 +48,8 @@ import icu.h2l.login.util.connectPlayerToServer
 import icu.h2l.login.vServer.outpre.handler.OutPreAuthSessionHandler
 import icu.h2l.login.vServer.outpre.session.OutPreInitialJoinSession
 import icu.h2l.login.vServer.outpre.session.OutPreInitialJoinSessionFactory
-import icu.h2l.login.vServer.outpre.session.StruckInitialJoinSession
 import io.netty.channel.Channel
 import net.kyori.adventure.text.Component
-import net.kyori.adventure.text.format.NamedTextColor
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.jvm.optionals.getOrNull
@@ -81,7 +77,10 @@ class OutPreVServerAuth(
     }
 
     internal fun replaceInitialSession(channel: Channel, session: OutPreInitialJoinSession) {
-        initialJoinSessions.put(channel, session)?.destroy()
+        val previousSession = initialJoinSessions.put(channel, session)
+        if (previousSession != null && previousSession !== session) {
+            previousSession.destroy()
+        }
     }
 
     internal fun getInitialSession(player: ConnectedPlayer): OutPreInitialJoinSession? =
@@ -90,7 +89,7 @@ class OutPreVServerAuth(
     var registeredServer: RegisteredServer? = null
         private set
 
-    fun init(plugin: Any) {
+    fun init(@Suppress("UNUSED_PARAMETER") plugin: Any) {
         val authAddress = configuredAuthAddress()
             ?: throw IllegalStateException("OutPre auth endpoint is not configured")
         val proxy = server as? com.velocitypowered.proxy.VelocityServer
@@ -345,13 +344,6 @@ class OutPreVServerAuth(
         clearInitialSession(event.player.getChannel())
     }
 
-    @Subscribe
-    fun onAuthenticationFailure(event: AuthenticationFailureEvent) {
-        initialJoinSessions.values
-            .filterIsInstance<StruckInitialJoinSession>()
-            .firstOrNull { it.matchesFailure(event) }
-            ?.onAuthenticationFailure(this, event)
-    }
 
     // ---- 模式会话协作 ----
 

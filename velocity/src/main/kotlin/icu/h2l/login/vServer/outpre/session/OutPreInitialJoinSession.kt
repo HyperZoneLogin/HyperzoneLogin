@@ -22,7 +22,6 @@
 package icu.h2l.login.vServer.outpre.session
 
 import com.velocitypowered.proxy.connection.client.ConnectedPlayer
-import icu.h2l.api.event.auth.AuthenticationFailureEvent
 import icu.h2l.login.player.VelocityHyperZonePlayer
 import icu.h2l.login.vServer.outpre.OutPreState
 import icu.h2l.login.vServer.outpre.OutPreVServerAuth
@@ -47,19 +46,5 @@ internal sealed interface OutPreInitialJoinSession {
 
     fun onAuthServerJoined(owner: OutPreVServerAuth)
 
-    fun onAuthenticationFailure(owner: OutPreVServerAuth, event: AuthenticationFailureEvent): Boolean = false
-
     fun release(owner: OutPreVServerAuth, handler: OutPreAuthSessionHandler, preferredTargetServerName: String?)
-
-    fun matchesFailure(event: AuthenticationFailureEvent): Boolean {
-        return event.authType == AuthenticationFailureEvent.AuthType.YGGDRASIL &&
-            player.username == event.userName &&
-            ownerRemoteAddress(player) == event.playerIp
-    }
-}
-
-private fun ownerRemoteAddress(player: ConnectedPlayer): String? {
-    val hostAddress = player.remoteAddress.address.hostAddress ?: return null
-    val ipv6ScopeIdx = hostAddress.indexOf('%')
-    return if (ipv6ScopeIdx == -1) hostAddress else hostAddress.substring(0, ipv6ScopeIdx)
 }

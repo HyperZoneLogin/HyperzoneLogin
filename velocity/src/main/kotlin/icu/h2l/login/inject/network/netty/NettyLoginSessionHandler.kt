@@ -202,7 +202,7 @@ class NettyLoginSessionHandler(
 
                     val openPreLoginEvent =
                         OpenPreLoginEvent(holderUuid, userName, host, playerIp, mcConnection.channel)
-                    injector.proxy.eventManager.fire(openPreLoginEvent).thenRun {
+                    injector.proxy.eventManager.fire(openPreLoginEvent).thenRunAsync({
                         val resolvedOnlineMode = openPreLoginEvent.isOnline
                             && !result.isForceOfflineMode
                         debug(HyperZoneDebugType.OUTPRE_TRACE) {
@@ -210,7 +210,7 @@ class NettyLoginSessionHandler(
                         }
                         if (!openPreLoginEvent.allow) {
                             inbound.disconnect(openPreLoginEvent.disconnectMessage)
-                            return@thenRun
+                            return@thenRunAsync
                         }
                         onlineMode = resolvedOnlineMode
                         if (mcConnection.protocolVersion.noLessThan(ProtocolVersion.MINECRAFT_1_20_5)) {
@@ -234,7 +234,7 @@ class NettyLoginSessionHandler(
                             }
                         }
 
-                    }.exceptionally { ex: Throwable? ->
+                    }, mcConnection.eventLoop()).exceptionally { ex: Throwable? ->
                         logger.error("Exception in pre-login stage", ex)
                         null
                     }

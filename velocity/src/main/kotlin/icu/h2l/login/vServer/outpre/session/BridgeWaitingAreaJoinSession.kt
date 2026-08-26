@@ -24,6 +24,8 @@ package icu.h2l.login.vServer.outpre.session
 import com.velocitypowered.proxy.connection.backend.VelocityServerConnection
 import com.velocitypowered.proxy.connection.client.ConnectedPlayer
 import com.velocitypowered.proxy.protocol.StateRegistry
+import icu.h2l.api.log.HyperZoneLogApi
+import icu.h2l.api.log.error
 import icu.h2l.api.message.HyperZoneMessagePlaceholder
 import icu.h2l.api.player.getChannel
 import icu.h2l.login.HyperZoneLoginMain
@@ -71,34 +73,37 @@ internal class BridgeWaitingAreaJoinSession(
         boundOwner = owner
         val bridge = owner.createBridge(player).also { _bridge = it }
         velocityServerConnection = bridge.serverConnection
-        NettyReflectionHelper.setConnectionInFlight(player, bridge.serverConnection)
-        handler.mcConnection.setActiveSessionHandler(
-            if (handler.supportConfig) StateRegistry.CONFIG else StateRegistry.LOGIN,
-            OutPreClientBridgeSessionHandler(player, bridge, handler.supportConfig)
-        )
-        bridge.bindSession(this)
-        owner.trace(
-            "beginInitialJoin connect-bridge channel=${player.getChannel().id()} player=${player.username} ${
-                owner.describeState(state)
-            }"
-        )
-        bridge.connect().whenCompleteAsync({ _, throwable ->
-            if (throwable != null) {
-                owner.trace(throwable.stackTraceToString())
-                val messages = HyperZoneLoginMain.getInstance().messageService
-                owner.clearInitialSession(player.getChannel(), state)
-                hyperPlayer.resumeMessageDelivery()
-                player.sendMessage(
-                    messages.render(
-                        player,
-                        MessageKeys.BackendAuth.ENTER_FAILED_EXCEPTION,
-                        HyperZoneMessagePlaceholder.text("reason", throwable.message ?: "Unknown error"),
+        player.connection.eventLoop().execute {
+            NettyReflectionHelper.setConnectionInFlight(player, bridge.serverConnection)
+            handler.mcConnection.setActiveSessionHandler(
+                if (handler.supportConfig) StateRegistry.CONFIG else StateRegistry.LOGIN,
+                OutPreClientBridgeSessionHandler(player, bridge, handler.supportConfig)
+            )
+            bridge.bindSession(this)
+            owner.trace(
+                "beginInitialJoin connect-bridge channel=${player.getChannel().id()} player=${player.username} ${
+                    owner.describeState(state)
+                }"
+            )
+            bridge.connect().whenCompleteAsync({ _, throwable ->
+                if (throwable != null) {
+//                    报错 error
+                    error(throwable){ "OutPreBridge connect failed: ${throwable.message}" }
+                    val messages = HyperZoneLoginMain.getInstance().messageService
+                    owner.clearInitialSession(player.getChannel(), state)
+                    hyperPlayer.resumeMessageDelivery()
+                    player.sendMessage(
+                        messages.render(
+                            player,
+                            MessageKeys.BackendAuth.ENTER_FAILED_EXCEPTION,
+                            HyperZoneMessagePlaceholder.text("reason", throwable.message ?: "Unknown error"),
+                        )
                     )
-                )
-                player.disconnect(Component.text("OutPre auth backend connection failed", NamedTextColor.RED))
-                return@whenCompleteAsync
-            }
-        }, player.connection.eventLoop())
+                    player.disconnect(Component.text("OutPre auth backend connection failed", NamedTextColor.RED))
+                    return@whenCompleteAsync
+                }
+            }, player.connection.eventLoop())
+        }
     }
 
     override fun onJoined() {

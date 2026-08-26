@@ -179,6 +179,14 @@ val prepareVelocityRun = tasks.register<Sync>("prepareVelocityRun") {
     from(rootProject.layout.buildDirectory.dir("HZL")) {
         into("plugins")
     }
+    doFirst {
+        runDir.asFile.resolve("plugins")
+            .listFiles()
+            ?.filter { file -> file.isFile && file.name.startsWith("HyperZoneLogin-") && file.name.endsWith(".jar") }
+            ?.forEach { file ->
+                file.delete()
+            }
+    }
     doLast {
         val runDirFile = runDir.asFile
         runDirFile.mkdirs()
@@ -195,6 +203,14 @@ val stageVelocityRun = tasks.register<Copy>("stageVelocityRun") {
     into(runDir)
     from(rootProject.layout.buildDirectory.dir("HZL")) {
         into("plugins")
+    }
+    doFirst {
+        runDir.asFile.resolve("plugins")
+            .listFiles()
+            ?.filter { file -> file.isFile && file.name.startsWith("HyperZoneLogin-") && file.name.endsWith(".jar") }
+            ?.forEach { file ->
+                file.delete()
+            }
     }
 
     doLast {

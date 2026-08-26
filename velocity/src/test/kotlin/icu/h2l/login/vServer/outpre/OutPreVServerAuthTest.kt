@@ -88,6 +88,7 @@ class OutPreVServerAuthTest {
         }
 
         outPre.beginInitialJoin(session.player, handler)
+        session.channel.runPendingTasks()
         assertFalse(authRequestFired)
 
         bridgeCallbackSlot.captured.onJoined()

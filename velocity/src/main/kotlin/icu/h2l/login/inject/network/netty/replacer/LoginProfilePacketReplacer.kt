@@ -180,6 +180,9 @@ class LoginProfilePacketReplacer(
                 ctx.fireExceptionCaught(t)
             } catch (_: Throwable) {
                 // ignore
+            }finally {
+//                出错了就马上跑掉
+                retire()
             }
         }
     }
