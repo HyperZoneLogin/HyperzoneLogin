@@ -26,6 +26,7 @@ import com.velocitypowered.api.proxy.ProxyServer
 import icu.h2l.api.event.auth.AuthenticationFailureEvent
 import icu.h2l.api.player.HyperZonePlayerAccessor
 import icu.h2l.api.profile.CredentialChannelRegistryProvider
+import icu.h2l.api.profile.HyperZoneCredentialFlowProvider
 import icu.h2l.api.profile.HyperZoneProfileService
 import icu.h2l.login.auth.offline.OfflineAuthMessages
 import icu.h2l.login.auth.offline.api.db.OfflineAuthEntry
@@ -50,6 +51,11 @@ class OfflineAuthService(
 ) {
     data class Result(val success: Boolean, val message: Component)
     data class SessionCheckResult(val passed: Boolean, val message: Component? = null)
+    data class SessionPrepareResult(
+        val passed: Boolean,
+        val message: Component? = null,
+        val credential: OfflineHyperZoneCredential? = null
+    )
 
     private val logger = java.util.logging.Logger.getLogger("hzl-auth-offline")
     private val secureRandom = SecureRandom()
@@ -108,9 +114,9 @@ class OfflineAuthService(
             normalizedName = normalizedName,
             password = password
         )
-        hyperZonePlayer.submitCredential(pendingCredential)
+        HyperZoneCredentialFlowProvider.get().submitCredential(hyperZonePlayer, pendingCredential)
         runCatching {
-            hyperZonePlayer.overVerify()
+            HyperZoneCredentialFlowProvider.get().overVerify(hyperZonePlayer)
         }.getOrElse { throwable ->
             pendingCredential.pendingRegistrationIdOrNull()?.let(pendingRegistrations::remove)
             return Result(false, componentFromThrowable(throwable, OfflineAuthMessages.REGISTER_BIND_PENDING_ERROR))
@@ -169,9 +175,12 @@ class OfflineAuthService(
         )
         return if (created) {
             if (markVerified) {
-                hyperZonePlayer.submitCredential(offlineCredential(normalizedName, profileId = profileId))
+                HyperZoneCredentialFlowProvider.get().submitCredential(
+                    hyperZonePlayer,
+                    offlineCredential(normalizedName, profileId = profileId)
+                )
                 runCatching {
-                    hyperZonePlayer.overVerify()
+                    HyperZoneCredentialFlowProvider.get().overVerify(hyperZonePlayer)
                 }.getOrElse { throwable ->
                     return Result(false, componentFromThrowable(throwable, OfflineAuthMessages.PROFILE_ATTACH_FAILED_AFTER_LOGIN))
                 }
@@ -264,9 +273,12 @@ class OfflineAuthService(
             }
         }
 
-        hyperPlayer.submitCredential(offlineCredential(entry.name, profileId = entry.profileId))
+        HyperZoneCredentialFlowProvider.get().submitCredential(
+            hyperPlayer,
+            offlineCredential(entry.name, profileId = entry.profileId)
+        )
         runCatching {
-            hyperPlayer.overVerify()
+            HyperZoneCredentialFlowProvider.get().overVerify(hyperPlayer)
         }.getOrElse { throwable ->
             return Result(false, componentFromThrowable(throwable, OfflineAuthMessages.ATTACHED_PROFILE_MISSING))
         }
@@ -546,9 +558,12 @@ class OfflineAuthService(
             return Result(false, OfflineAuthMessages.PASSWORD_RESET_FAILED)
         }
 
-        hyperPlayer.submitCredential(offlineCredential(entry.name, profileId = profileId))
+        HyperZoneCredentialFlowProvider.get().submitCredential(
+            hyperPlayer,
+            offlineCredential(entry.name, profileId = profileId)
+        )
         runCatching {
-            hyperPlayer.overVerify()
+            HyperZoneCredentialFlowProvider.get().overVerify(hyperPlayer)
         }.getOrElse { throwable ->
             return Result(false, componentFromThrowable(throwable, OfflineAuthMessages.ATTACHED_PROFILE_MISSING))
         }
@@ -607,7 +622,7 @@ class OfflineAuthService(
         return prompts
     }
 
-    fun tryAutoLogin(player: Player): SessionCheckResult? {
+    fun tryAutoLoginPrepare(player: Player): SessionPrepareResult? {
         val sessionConfig = AuthOfflineConfigLoader.getConfig().main.session
         if (!sessionConfig.enabled) {
             return null
@@ -615,7 +630,7 @@ class OfflineAuthService(
 
         val hyperPlayer = playerAccessor.getByPlayer(player)
         if (hyperPlayer.hasAttachedProfile()) {
-            return SessionCheckResult(true)
+            return SessionPrepareResult(true)
         }
 
         val entry = resolveEntryByPlayer(player) ?: return null
@@ -628,7 +643,7 @@ class OfflineAuthService(
                 reason = AuthenticationFailureEvent.Reason.SESSION_REJECTED,
                 reasonMessage = "session bypass rejected because totp is enabled"
             )
-            return SessionCheckResult(false, OfflineAuthMessages.TOTP_LOGIN_REQUIRED)
+            return SessionPrepareResult(false, OfflineAuthMessages.TOTP_LOGIN_REQUIRED)
         }
         val sessionIssuedAt = entry.sessionIssuedAt ?: return null
         val sessionExpiresAt = entry.sessionExpiresAt ?: return null
@@ -645,16 +660,29 @@ class OfflineAuthService(
                 reason = AuthenticationFailureEvent.Reason.SESSION_REJECTED,
                 reasonMessage = if (invalidByIp) "session ip mismatch" else "session expired"
             )
-            return SessionCheckResult(false, OfflineAuthMessages.SESSION_INVALID)
+            return SessionPrepareResult(false, OfflineAuthMessages.SESSION_INVALID)
         }
 
-        hyperPlayer.submitCredential(offlineCredential(entry.name, profileId = profileId))
+        return SessionPrepareResult(
+            passed = true,
+            message = OfflineAuthMessages.SESSION_AUTO_LOGIN,
+            credential = offlineCredential(entry.name, profileId = profileId)
+        )
+    }
+
+    fun tryAutoLogin(player: Player): SessionCheckResult? {
+        val prepared = tryAutoLoginPrepare(player) ?: return null
+        if (!prepared.passed) {
+            return SessionCheckResult(false, prepared.message)
+        }
+        val hyperPlayer = playerAccessor.getByPlayer(player)
+        prepared.credential?.let { HyperZoneCredentialFlowProvider.get().submitCredential(hyperPlayer, it) }
         runCatching {
-            hyperPlayer.overVerify()
+            HyperZoneCredentialFlowProvider.get().overVerify(hyperPlayer)
         }.getOrElse { throwable ->
             return SessionCheckResult(false, componentFromThrowable(throwable, OfflineAuthMessages.ATTACHED_PROFILE_MISSING))
         }
-        return SessionCheckResult(true, OfflineAuthMessages.SESSION_AUTO_LOGIN)
+        return SessionCheckResult(true, prepared.message)
     }
 
     private fun verifyPassword(password: String, entry: OfflineAuthEntry): Boolean {

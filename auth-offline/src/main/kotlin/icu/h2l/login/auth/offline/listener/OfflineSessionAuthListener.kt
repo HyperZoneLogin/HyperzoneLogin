@@ -22,14 +22,17 @@
 package icu.h2l.login.auth.offline.listener
 
 import com.velocitypowered.api.event.Subscribe
-import icu.h2l.api.event.vServer.VServerAuthStartEvent
+import icu.h2l.api.event.auth.LoginHandleRequestEvent
+import icu.h2l.api.event.auth.LoginHandleResult
 import icu.h2l.login.auth.offline.service.OfflineAuthService
+import java.util.concurrent.CompletableFuture
 
 class OfflineSessionAuthListener(
     private val authService: OfflineAuthService
 ) {
+
     @Subscribe
-    fun onAuthStart(event: VServerAuthStartEvent) {
+    fun onLoginHandleRequest(event: LoginHandleRequestEvent) {
         if (event.proxyPlayer.isOnlineMode) {
             return
         }
@@ -37,7 +40,24 @@ class OfflineSessionAuthListener(
             return
         }
 
-        val result = authService.tryAutoLogin(event.proxyPlayer) ?: return
-        result.message?.let { event.hyperZonePlayer.sendMessage(it) }
+        event.claim("auth-offline:auto-session") { context ->
+            val result = authService.tryAutoLoginPrepare(context.proxyPlayer)
+            if (result == null) {
+                return@claim CompletableFuture.completedFuture(
+                    LoginHandleResult.failed("offline session unavailable")
+                )
+            }
+            result.message?.let(context.session::sendMessage)
+            if (result.passed) {
+                CompletableFuture.completedFuture(
+                    LoginHandleResult.success(
+                        credential = result.credential,
+                        profileIdHint = result.credential?.getBoundProfileId()
+                    )
+                )
+            } else {
+                CompletableFuture.completedFuture(LoginHandleResult.failed("offline session rejected"))
+            }
+        }
     }
 }

@@ -32,7 +32,6 @@ import icu.h2l.login.auth.floodgate.db.FloodgateAuthTableManager
 import icu.h2l.login.auth.floodgate.listener.FloodgateGameProfileListener
 import icu.h2l.login.auth.floodgate.listener.FloodgateLoginProfileReplaceListener
 import icu.h2l.login.auth.floodgate.listener.FloodgateOpenStartAuthListener
-import icu.h2l.login.auth.floodgate.listener.FloodgateRenameListener
 import icu.h2l.login.auth.floodgate.listener.FloodgateVServerAuthListener
 import icu.h2l.login.auth.floodgate.service.FloodgateApiHolder
 import icu.h2l.login.auth.floodgate.service.FloodgateAuthService
@@ -67,7 +66,6 @@ class FloodgateSubModule : HyperSubModule {
         api.proxy.eventManager.register(api, FloodgateOpenStartAuthListener(authService, floodgateApiHolder))
         api.proxy.eventManager.register(api, FloodgateGameProfileListener(authService, floodgateApiHolder))
         api.proxy.eventManager.register(api, FloodgateVServerAuthListener(authService))
-        api.proxy.eventManager.register(api, FloodgateRenameListener())
         api.proxy.eventManager.register(api, FloodgateLoginProfileReplaceListener())
         info {
             "FloodgateSubModule 已加载；已创建 Floodgate 专属凭证绑定表，并在 OpenStartAuth 与初始档案校验阶段补注册 Floodgate 接管监听器；自动去除 Floodgate API 玩家名前缀=${config.stripUsernamePrefix}；Profile 解析透传 Floodgate UUID=${config.passFloodgateUuidToProfileResolve}"

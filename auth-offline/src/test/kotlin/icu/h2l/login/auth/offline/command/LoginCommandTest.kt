@@ -29,6 +29,8 @@ import icu.h2l.api.db.Profile
 import icu.h2l.api.db.table.ProfileTable
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.player.HyperZonePlayerAccessor
+import icu.h2l.api.profile.HyperZoneCredentialFlow
+import icu.h2l.api.profile.HyperZoneCredentialFlowProvider
 import icu.h2l.api.profile.HyperZoneProfileService
 import icu.h2l.login.auth.offline.OfflineAuthMessages
 import icu.h2l.login.auth.offline.api.db.OfflineAuthTable
@@ -58,6 +60,7 @@ class LoginCommandTest {
     private lateinit var repository: OfflineAuthRepository
     private lateinit var player: Player
     private lateinit var hyperZonePlayer: HyperZonePlayer
+    private lateinit var credentialFlow: HyperZoneCredentialFlow
     private lateinit var profileService: HyperZoneProfileService
     private lateinit var command: LoginCommand
     private lateinit var invocation: HyperChatCommandInvocation
@@ -88,11 +91,14 @@ class LoginCommandTest {
         repository = OfflineAuthRepository(databaseManager, offlineAuthTable)
         player = mockk(relaxUnitFun = true)
         hyperZonePlayer = mockk(relaxUnitFun = true)
+        credentialFlow = mockk(relaxUnitFun = true)
+        HyperZoneCredentialFlowProvider.bind(credentialFlow)
         profileService = mockk()
         invocation = mockk()
 
         every { hyperZonePlayer.clientOriginalName } returns USERNAME
         every { hyperZonePlayer.getSubmittedCredentials() } returns emptyList()
+        every { hyperZonePlayer.hasAttachedProfile() } returns false
 
         val service = OfflineAuthService(
             repository = repository,
@@ -123,7 +129,7 @@ class LoginCommandTest {
 
         command.execute(invocation)
 
-        verify(exactly = 1) { hyperZonePlayer.overVerify() }
+        verify(exactly = 1) { credentialFlow.overVerify(hyperZonePlayer) }
         verify(exactly = 1) { player.sendMessage(OfflineAuthMessages.LOGIN_SUCCESS) }
     }
 
@@ -145,7 +151,7 @@ class LoginCommandTest {
 
         command.execute(invocation)
 
-        verify(exactly = 1) { hyperZonePlayer.overVerify() }
+        verify(exactly = 1) { credentialFlow.overVerify(hyperZonePlayer) }
         verify(exactly = 1) { player.sendMessage(OfflineAuthMessages.LOGIN_SUCCESS) }
     }
 
@@ -156,7 +162,7 @@ class LoginCommandTest {
 
         command.execute(invocation)
 
-        verify(exactly = 0) { hyperZonePlayer.overVerify() }
+        verify(exactly = 0) { credentialFlow.overVerify(hyperZonePlayer) }
         verify(exactly = 1) { player.sendMessage(OfflineAuthMessages.LOGIN_USAGE) }
     }
 

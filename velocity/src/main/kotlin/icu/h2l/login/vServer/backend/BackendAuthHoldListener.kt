@@ -38,6 +38,7 @@ import icu.h2l.api.vServer.HyperZoneVServerAdapter
 import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.listener.PlayerAreaLifecycleListener
 import icu.h2l.login.manager.HyperZonePlayerManager
+import icu.h2l.login.manager.LoginManager
 import icu.h2l.login.message.MessageKeys
 import icu.h2l.login.player.VelocityHyperZonePlayer
 import java.util.*
@@ -222,14 +223,35 @@ class BackendAuthHoldListener(
         targetServerName: String?
     ) {
         val resolvedTarget = resolvePostAuthTarget(player, authServer, targetServerName)
-        val state = beginBackendAuthHold(player, authServer.serverInfo.name, resolvedTarget)
+        beginBackendAuthHold(player, authServer.serverInfo.name, resolvedTarget)
 
-        val authStartEvent = VServerAuthStartEvent(player, hyperPlayer)
-        server.eventManager.fire(authStartEvent).join()
-        if (hyperPlayer.hasAttachedProfile() && state.inAuthHold) {
-            state.inAuthHold = false
-            state.verifiedExitPending = true
-        }
+        HyperZoneLoginMain.getInstance().loginManager.dispatch(
+            proxyPlayer = player,
+            hyperZonePlayer = hyperPlayer,
+            metadata = mapOf(
+                "source" to "backend-auth-hold",
+                "mode" to "backend",
+                "authTarget" to authServer.serverInfo.name,
+                "target" to (resolvedTarget ?: ""),
+            )
+        ).whenCompleteAsync({ result, throwable ->
+            if (throwable != null) {
+                logger.warn("backend login dispatch failed: player={}, reason={}", player.username, throwable.message)
+                return@whenCompleteAsync
+            }
+            val resolved = result ?: LoginManager.Result(
+                status = LoginManager.Status.INTERNAL_ERROR,
+                reason = "dispatch returned null"
+            )
+            logger.debug(
+                "backend login dispatch completed: player={}, status={}, winner={}, failureCount={}, reason={}",
+                player.username,
+                resolved.status,
+                resolved.winnerModuleId,
+                resolved.failures.size,
+                resolved.reason
+            )
+        }, player.getChannel().eventLoop())
     }
 
     private fun resolvePostAuthTarget(

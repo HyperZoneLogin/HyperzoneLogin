@@ -22,6 +22,8 @@
 package icu.h2l.login.auth.online.listener
 
 import com.velocitypowered.api.proxy.Player
+import icu.h2l.api.event.auth.LoginHandleResult
+import icu.h2l.api.event.auth.LoginHandleSession
 import icu.h2l.api.event.connection.OpenStartAuthEvent
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.login.auth.online.iface.YggdrasilAuthFlow
@@ -31,6 +33,7 @@ import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Test
 import java.lang.reflect.Proxy
 import java.util.*
+import java.util.concurrent.CompletableFuture
 
 class AuthListenerTest {
 
@@ -146,6 +149,13 @@ class AuthListenerTest {
 
         override fun registerWaitingAreaPlayer(player: Player, waitingAreaPlayer: HyperZonePlayer) {
             registerCalls += RegisterCall(player, waitingAreaPlayer)
+        }
+
+        override fun requestWaitingAreaAuth(
+            player: Player,
+            session: LoginHandleSession
+        ): CompletableFuture<LoginHandleResult> {
+            return CompletableFuture.completedFuture(LoginHandleResult.success())
         }
 
         override fun clearPlayerCacheOnDisconnect(player: Player) {

@@ -23,7 +23,6 @@ package icu.h2l.login.auth.floodgate.service
 
 import icu.h2l.api.HyperZoneApi
 import icu.h2l.api.db.Profile
-import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.player.HyperZonePlayerAccessor
 import icu.h2l.api.profile.HyperZoneCredential
 import icu.h2l.api.profile.HyperZoneProfileService
@@ -131,20 +130,8 @@ class FloodgateAuthServiceTest {
         val xuid = 3333333333333333L
         val profileId = UUID.fromString("44444444-4444-4444-4444-444444444444")
         val resolvedProfile = Profile(profileId, "BedrockUser", userUuid)
-        val submittedCredentials = mutableListOf<HyperZoneCredential>()
-        val hyperPlayer = mockk<HyperZonePlayer>()
-
         floodgateApiHolder.configuredPlayerPrefix = "."
         floodgateApiHolder.trustedUuids += userUuid
-        every { playerAccessor.create(channel, "BedrockUser", userUuid, any()) } returns hyperPlayer
-        every { hyperPlayer.clientOriginalName } returns "BedrockUser"
-        every { hyperPlayer.hasAttachedProfile() } returns false
-        every { hyperPlayer.getSubmittedCredentials() } answers { submittedCredentials.toList() }
-        every { hyperPlayer.submitCredential(any()) } answers {
-            submittedCredentials += firstArg<HyperZoneCredential>()
-        }
-        every { hyperPlayer.overVerify() } just runs
-        every { profileService.getAttachedProfile(hyperPlayer) } returns null
         // 服务现在通过凭证与 ProfileService 交互；按凭证渠道参数匹配模拟行为
         every { profileService.canCreate(match<HyperZoneCredential> {
             it.getRegistrationName() == "BedrockUser" && it.getSuggestedProfileCreateUuid() == userUuid
@@ -155,18 +142,17 @@ class FloodgateAuthServiceTest {
 
         val acceptResult = service.acceptInitialProfile(channel, ".BedrockUser", userUuid, xuid)
 
-        val result = service.complete(channel, hyperPlayer)
+        val result = service.complete(channel, "BedrockUser")
 
         assertSame(FloodgateAuthService.VerifyResult.Accepted, acceptResult)
         assertTrue(result.handled)
         assertTrue(result.passed)
         assertNull(result.userMessage)
         assertNull(sessionHolder.get(channel))
-        assertEquals(1, submittedCredentials.size)
-        val credential = submittedCredentials.single() as FloodgateHyperZoneCredential
+        val credential = result.credential as FloodgateHyperZoneCredential
         assertEquals(profileId, credential.getBoundProfileId())
         assertTrue(credential.matches(userUuid))
-        verify(exactly = 1) { hyperPlayer.overVerify() }
+        assertEquals(profileId, result.profileIdHint)
         assertEquals(profileId, repository.findProfileIdByXuid(xuid))
         verify(exactly = 1) { profileService.canCreate(match<HyperZoneCredential> {
             it.getRegistrationName() == "BedrockUser" && it.getSuggestedProfileCreateUuid() == userUuid
@@ -182,8 +168,6 @@ class FloodgateAuthServiceTest {
         val xuid = 5555555555555555L
         val profileId = UUID.fromString("66666666-6666-6666-6666-666666666666")
         val resolvedProfile = Profile(profileId, "BedrockUser", userUuid)
-        val submittedCredentials = mutableListOf<HyperZoneCredential>()
-        val hyperPlayer = mockk<HyperZonePlayer>()
         val disabledConfig = FloodgateAuthConfig().apply { passFloodgateUuidToProfileResolve = false }
         val disabledService = FloodgateAuthService(
             api = api,
@@ -196,15 +180,6 @@ class FloodgateAuthServiceTest {
 
         floodgateApiHolder.configuredPlayerPrefix = "."
         floodgateApiHolder.trustedUuids += userUuid
-        every { playerAccessor.create(channel, "BedrockUser", userUuid, any()) } returns hyperPlayer
-        every { hyperPlayer.clientOriginalName } returns "BedrockUser"
-        every { hyperPlayer.hasAttachedProfile() } returns false
-        every { hyperPlayer.getSubmittedCredentials() } answers { submittedCredentials.toList() }
-        every { hyperPlayer.submitCredential(any()) } answers {
-            submittedCredentials += firstArg<HyperZoneCredential>()
-        }
-        every { hyperPlayer.overVerify() } just runs
-        every { profileService.getAttachedProfile(hyperPlayer) } returns null
         // 服务现在通过凭证与 ProfileService 交互；uuid passthrough 关闭时凭证建议 UUID 应为 null
         every { profileService.canCreate(match<HyperZoneCredential> {
             it.getRegistrationName() == "BedrockUser" && it.getSuggestedProfileCreateUuid() == null
@@ -215,7 +190,7 @@ class FloodgateAuthServiceTest {
 
         val acceptResult = disabledService.acceptInitialProfile(channel, ".BedrockUser", userUuid, xuid)
 
-        val result = disabledService.complete(channel, hyperPlayer)
+        val result = disabledService.complete(channel, "BedrockUser")
 
         assertSame(FloodgateAuthService.VerifyResult.Accepted, acceptResult)
         assertTrue(result.handled)
@@ -237,30 +212,18 @@ class FloodgateAuthServiceTest {
         val userUuid = UUID.fromString("77777777-7777-7777-7777-777777777777")
         val xuid = 7777777777777777L
         val profileId = UUID.fromString("88888888-8888-8888-8888-888888888888")
-        val submittedCredentials = mutableListOf<HyperZoneCredential>()
-        val hyperPlayer = mockk<HyperZonePlayer>()
-
         floodgateApiHolder.configuredPlayerPrefix = "."
         floodgateApiHolder.trustedUuids += userUuid
-        every { playerAccessor.create(channel, "BedrockUser", userUuid, any()) } returns hyperPlayer
-        every { hyperPlayer.clientOriginalName } returns "BedrockUser"
-        every { hyperPlayer.hasAttachedProfile() } returns false
-        every { hyperPlayer.getSubmittedCredentials() } answers { submittedCredentials.toList() }
-        every { hyperPlayer.submitCredential(any()) } answers {
-            submittedCredentials += firstArg<HyperZoneCredential>()
-        }
-        every { hyperPlayer.overVerify() } just runs
-        every { profileService.getAttachedProfile(hyperPlayer) } returns null
         repository.createOrUpdate("oldname", xuid, profileId)
 
         val acceptResult = service.acceptInitialProfile(channel, ".BedrockUser", userUuid, xuid)
 
-        val result = service.complete(channel, hyperPlayer)
+        val result = service.complete(channel, "BedrockUser")
 
         assertSame(FloodgateAuthService.VerifyResult.Accepted, acceptResult)
         assertTrue(result.handled)
         assertTrue(result.passed)
-        assertEquals(profileId, (submittedCredentials.single() as FloodgateHyperZoneCredential).getBoundProfileId())
+        assertEquals(profileId, (result.credential as FloodgateHyperZoneCredential).getBoundProfileId())
         assertEquals(profileId, repository.findProfileIdByXuid(xuid))
         assertEquals("bedrockuser", repository.getByXuid(xuid)?.name)
         verify(exactly = 0) { profileService.create(any<HyperZoneCredential>()) }
@@ -296,13 +259,7 @@ class FloodgateAuthServiceTest {
 
     @Test
     fun `complete returns unhandled when neither floodgate session nor credential exists`() {
-        val hyperPlayer = mockk<HyperZonePlayer>()
-        every { hyperPlayer.clientOriginalName } returns "BedrockUser"
-        every { hyperPlayer.hasAttachedProfile() } returns false
-        every { hyperPlayer.getSubmittedCredentials() } returns emptyList()
-        every { profileService.getAttachedProfile(hyperPlayer) } returns null
-
-        val result = service.complete(channel, hyperPlayer)
+        val result = service.complete(channel, "BedrockUser")
 
         assertFalse(result.handled)
         assertFalse(result.passed)

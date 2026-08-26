@@ -171,15 +171,10 @@ class ProfileBindingCodeServiceTest {
 
         override fun hasAttachedProfile(): Boolean = false
 
-        override fun submitCredential(credential: HyperZoneCredential) {
-            credentials += credential
-        }
-
         override fun getSubmittedCredentials(): List<HyperZoneCredential> = credentials
 
         override fun canBind(): Boolean = verified
 
-        override fun overVerify() {}
 
         override fun resetVerify() {
             verified = false

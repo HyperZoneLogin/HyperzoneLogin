@@ -25,6 +25,8 @@ import com.velocitypowered.api.proxy.Player
 import com.velocitypowered.api.proxy.ProxyServer
 import icu.h2l.api.db.HyperZoneDatabaseManager
 import icu.h2l.api.event.auth.AuthenticationFailureEvent
+import icu.h2l.api.event.auth.LoginHandleResult
+import icu.h2l.api.event.auth.LoginHandleSession
 import icu.h2l.api.log.HyperZoneDebugType
 import icu.h2l.api.log.debug
 import icu.h2l.api.log.info
@@ -50,7 +52,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import net.kyori.adventure.text.Component
 import java.net.InetSocketAddress
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -86,6 +90,7 @@ class YggdrasilAuthModule(
     private val preparedAuthResults = ConcurrentHashMap<Channel, PreparedYggdrasilAuth>()
     private val waitingAreaPlayers = ConcurrentHashMap<Channel, WaitingAreaContext>()
     private val inFlightAuthJobs = ConcurrentHashMap<Channel, Job>()
+    private val waitingAreaClaimFutures = ConcurrentHashMap<Channel, MutableList<CompletableFuture<LoginHandleResult>>>()
 
     private val coroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
@@ -140,7 +145,7 @@ class YggdrasilAuthModule(
                     waitingAreaPlayers[channel]?.let { waitingAreaContext ->
                         finalizePreparedAuth(
                             player = waitingAreaContext.player,
-                            handler = waitingAreaContext.hyperZonePlayer,
+                            session = waitingAreaContext.session,
                             preparedAuth = preparedAuth
                         )
                     } ?: run {
@@ -166,21 +171,47 @@ class YggdrasilAuthModule(
 
     override fun registerWaitingAreaPlayer(player: Player, waitingAreaPlayer: HyperZonePlayer) {
         val channel = player.getChannel()
-        waitingAreaPlayers[channel] = WaitingAreaContext(player, waitingAreaPlayer)
+        val session = DirectHyperPlayerSession(waitingAreaPlayer)
+        waitingAreaPlayers[channel] = WaitingAreaContext(player, session)
         debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "为玩家 ${player.username} 注册等待区玩家上下文" }
 
         preparedAuthResults[channel]?.let { preparedAuth ->
             debug(HyperZoneDebugType.YGGDRASIL_AUTH) {
                 "[YggdrasilFlow] 命中已完成结果，等待当前等待区启动事件结束后回调: user=${player.username}"
             }
-            dispatchCachedAuthResultLater(channel, player, waitingAreaPlayer, preparedAuth)
+            dispatchCachedAuthResultLater(channel, player, session, preparedAuth)
         } ?: run {
             debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "[YggdrasilFlow] 验证结果尚未完成，等待异步回调: user=${player.username}" }
         }
     }
 
+    override fun requestWaitingAreaAuth(
+        player: Player,
+        session: LoginHandleSession
+    ): CompletableFuture<LoginHandleResult> {
+        val channel = player.getChannel()
+        val future = CompletableFuture<LoginHandleResult>()
+        waitingAreaClaimFutures.compute(channel) { _, existing ->
+            val list = existing ?: mutableListOf()
+            list += future
+            list
+        }
+        waitingAreaPlayers[channel] = WaitingAreaContext(player, session)
+        debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "为玩家 ${player.username} 注册 claim 会话上下文" }
+        preparedAuthResults[channel]?.let { preparedAuth ->
+            dispatchCachedAuthResultLater(channel, player, session, preparedAuth)
+        }
+        future.whenComplete { _, _ ->
+            waitingAreaClaimFutures.computeIfPresent(channel) { _, existing ->
+                existing.remove(future)
+                if (existing.isEmpty()) null else existing
+            }
+        }
+        return future
+    }
+
     fun getWaitingAreaPlayer(player: Player): HyperZonePlayer? {
-        return waitingAreaPlayers[player.getChannel()]?.hyperZonePlayer
+        return (waitingAreaPlayers[player.getChannel()]?.session as? DirectHyperPlayerSession)?.player
     }
 
     override fun clearPlayerCacheOnDisconnect(player: Player) {
@@ -250,58 +281,84 @@ class YggdrasilAuthModule(
     private fun clearTransientState(channel: Channel) {
         preparedAuthResults.remove(channel)
         waitingAreaPlayers.remove(channel)
+        waitingAreaClaimFutures.remove(channel)?.forEach { future ->
+            if (!future.isDone && !future.isCancelled) {
+                future.complete(LoginHandleResult.failed("yggdrasil flow cleared"))
+            }
+        }
         inFlightAuthJobs.remove(channel)?.cancel()
     }
 
     private fun dispatchCachedAuthResultLater(
         channel: Channel,
         player: Player,
-        waitingAreaPlayer: HyperZonePlayer,
+        session: LoginHandleSession,
         preparedAuth: PreparedYggdrasilAuth
     ) {
         channel.eventLoop().execute {
             val currentContext = waitingAreaPlayers[channel]
-            if (currentContext?.player !== player || currentContext.hyperZonePlayer !== waitingAreaPlayer) {
+            if (currentContext?.player !== player || currentContext.session !== session) {
                 debug(HyperZoneDebugType.YGGDRASIL_AUTH) {
                     "[YggdrasilFlow] 等待区上下文已变更，跳过延后回调: user=${player.username}"
                 }
                 return@execute
             }
 
-            finalizePreparedAuth(player, waitingAreaPlayer, preparedAuthResults[channel] ?: preparedAuth)
+            finalizePreparedAuth(player, session, preparedAuthResults[channel] ?: preparedAuth)
         }
     }
 
     private fun finalizePreparedAuth(
         player: Player,
-        handler: HyperZonePlayer,
+        session: LoginHandleSession,
         preparedAuth: PreparedYggdrasilAuth
     ) {
+        val channel = player.getChannel()
         try {
-            preparedAuth.credentialToSubmit?.let(handler::submitCredential)
-            if (!preparedAuth.shouldOverVerify || handler.hasAttachedProfile()) {
+            if (session.hasAttachedProfile()) {
+                completeWaitingAreaClaims(channel, LoginHandleResult.success())
                 return
             }
 
-            runCatching {
-                handler.overVerify()
-            }.onFailure { throwable ->
-                val message = throwable.message ?: "认证成功，但 Profile 绑定失败"
-                val failedResult = YggdrasilAuthResult.Failed(message)
-                publishAuthFailure(player.getChannel(), player.username, failedResult)
-                handler.sendMessage(YggdrasilMessages.verifyCompleteFailed(handler, message))
-                info { "玩家 ${player.username} Yggdrasil 验证成功，但完成验证失败：$message" }
+            if (!preparedAuth.shouldOverVerify) {
+                val message = when (val result = preparedAuth.result) {
+                    is YggdrasilAuthResult.Failed -> result.reason
+                    is YggdrasilAuthResult.Timeout -> "Yggdrasil authentication timeout"
+                    is YggdrasilAuthResult.NoEntriesConfigured -> "No Yggdrasil providers configured"
+                    is YggdrasilAuthResult.Success -> "Yggdrasil verification not ready"
+                }
+                completeWaitingAreaClaims(channel, LoginHandleResult.failed(message))
                 return
             }
+            val preparedCredential = preparedAuth.credentialToSubmit
+            val profileIdHint = preparedCredential?.getBoundProfileId()
+            completeWaitingAreaClaims(
+                channel,
+                LoginHandleResult.success(
+                    credential = preparedCredential,
+                    profileIdHint = profileIdHint
+                )
+            )
 
             val success = preparedAuth.result as? YggdrasilAuthResult.Success
             if (success != null) {
                 debug(HyperZoneDebugType.YGGDRASIL_AUTH) {
-                    "玩家 ${player.username} 调用验证完成接口成功，Entry: ${success.entryId}"
+                    "玩家 ${player.username} 凭证准备完成，等待 LoginManager 完成 attach，Entry: ${success.entryId}"
                 }
             }
+        } catch (throwable: Throwable) {
+            val message = throwable.message ?: "Yggdrasil credential submit failed"
+            completeWaitingAreaClaims(channel, LoginHandleResult.failed(message))
         } finally {
             clearTransientStateAfterDispatch(player)
+        }
+    }
+
+    private fun completeWaitingAreaClaims(channel: Channel, result: LoginHandleResult) {
+        waitingAreaClaimFutures.remove(channel)?.forEach { future ->
+            if (!future.isDone && !future.isCancelled) {
+                future.complete(result)
+            }
         }
     }
 
@@ -340,3 +397,17 @@ class YggdrasilAuthModule(
         return if (ipv6ScopeIdx == -1) hostAddress else hostAddress.substring(0, ipv6ScopeIdx)
     }
 }
+
+private class DirectHyperPlayerSession(
+    val player: HyperZonePlayer
+) : LoginHandleSession {
+    override fun originalName(): String = player.clientOriginalName
+
+    override fun hasAttachedProfile(): Boolean = player.hasAttachedProfile()
+
+
+    override fun sendMessage(message: Component) {
+        player.sendMessage(message)
+    }
+}
+

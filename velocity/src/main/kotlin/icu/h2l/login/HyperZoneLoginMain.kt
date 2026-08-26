@@ -31,6 +31,7 @@ import icu.h2l.api.command.HyperChatCommandRegistration
 import icu.h2l.api.message.HyperZoneMessageServiceProvider
 import icu.h2l.api.module.HyperSubModule
 import icu.h2l.api.player.HyperZonePlayerAccessor
+import icu.h2l.api.profile.HyperZoneCredentialFlowProvider
 import icu.h2l.api.profile.CredentialChannelRegistryProvider
 import icu.h2l.api.profile.HyperZoneProfileServiceProvider
 import icu.h2l.api.util.ConfigCommentTranslatorProvider
@@ -51,6 +52,7 @@ import icu.h2l.login.inject.network.VelocityNetworkModule
 import icu.h2l.login.listener.*
 import icu.h2l.login.manager.HyperChatCommandManagerImpl
 import icu.h2l.login.manager.HyperZonePlayerManager
+import icu.h2l.login.manager.LoginManager
 import icu.h2l.login.message.MessageKeys
 import icu.h2l.login.message.MessageService
 import icu.h2l.login.module.EmbeddedModuleRegistry
@@ -69,7 +71,6 @@ import icu.h2l.login.vServer.command.ExitVServerCommand
 import icu.h2l.login.vServer.command.OverVServerCommand
 import icu.h2l.login.vServer.outpre.OutPreVServerAuth
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger
-import org.spongepowered.configurate.ConfigurationNode
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -95,6 +96,7 @@ class HyperZoneLoginMain(
     lateinit var credentialChannelRegistry: CredentialChannelRegistryImpl
     lateinit var bindingCodeService: ProfileBindingCodeService
     lateinit var messageService: MessageService
+    lateinit var loginManager: LoginManager
     val serverAdapter: HyperZoneVServerAdapter?
         get() = activeVServerAdapter
     val hyperZonePlayers: HyperZonePlayerAccessor
@@ -110,9 +112,6 @@ class HyperZoneLoginMain(
 
         @JvmStatic
         fun getCoreConfig(): CoreConfig = coreConfig
-
-        @JvmStatic
-        fun getStartConfig(): StartConfig = startConfig
 
         @JvmStatic
         fun getInstance(): HyperZoneLoginMain = instance
@@ -155,6 +154,8 @@ class HyperZoneLoginMain(
             profileService
         )
         HyperZoneProfileServiceProvider.bind(profileService)
+        loginManager = LoginManager(server, profileService)
+        HyperZoneCredentialFlowProvider.bind(loginManager)
         CredentialChannelRegistryProvider.bind(credentialChannelRegistry)
 
         activeVServerAdapter = null
@@ -228,8 +229,6 @@ class HyperZoneLoginMain(
         proxy.eventManager.register(plugin, AttachedProfileInitialGameProfileListener())
         proxy.eventManager.register(plugin, LoginProfileReplaceDefaultListener())
         proxy.eventManager.register(plugin, backendRuntimeProfileCompensator)
-        proxy.eventManager.register(plugin, LoginRenameListener())
-        proxy.eventManager.register(plugin, LoginReUuidListener())
         proxy.eventManager.register(plugin, LoginVerifyListener())
         proxy.eventManager.register(plugin, PlayerAreaLifecycleListener)
         proxy.eventManager.register(plugin, HyperZonePlayerManager)
@@ -359,24 +358,6 @@ class HyperZoneLoginMain(
 
 
     
-
-
-
-
-
-
-
-
-
-
-
-
-    private fun ConfigurationNode.getBooleanOrNull(): Boolean? {
-        return if (virtual()) null else boolean
-    }
-
-
-
 
 
 

@@ -255,6 +255,10 @@ class VelocityHyperZoneProfileService(
             }
         }
 
+        credentials.forEach { credential ->
+            credential.onConsumed(profileId)
+        }
+
         return targetProfile
     }
 

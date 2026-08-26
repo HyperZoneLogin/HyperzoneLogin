@@ -79,6 +79,10 @@ class FloodgateHyperZoneCredential(
         )
     }
 
+    override fun withRegistrationName(newRegistrationName: String): FloodgateHyperZoneCredential {
+        return withNewName(newRegistrationName)
+    }
+
     companion object {
         private const val CHANNEL_ID = "floodgate"
     }

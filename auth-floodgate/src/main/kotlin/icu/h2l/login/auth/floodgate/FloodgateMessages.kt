@@ -42,6 +42,14 @@ object FloodgateMessages {
         )
     }
 
+    fun registrationDisabledByName(playerName: String): Component {
+        return render(
+            "registration-disabled",
+            "Floodgate 已完成可信认证，但当前渠道已被管理员禁止新玩家注册。若你已有档案，请使用 /bindcode use [绑定码]。",
+            HyperZoneMessagePlaceholder.text("player", playerName)
+        )
+    }
+
     fun createBlocked(player: HyperZonePlayer): Component {
         return render(
             player,
@@ -50,8 +58,24 @@ object FloodgateMessages {
         )
     }
 
+    fun createBlockedByName(playerName: String): Component {
+        return render(
+            "create-blocked",
+            "Floodgate 已完成可信认证，但当前注册名无法创建 Profile。请使用 /rename [新注册名] 或 /bindcode use [绑定码]。",
+            HyperZoneMessagePlaceholder.text("player", playerName)
+        )
+    }
+
     fun completeFailed(player: HyperZonePlayer): Component {
         return render(player, "complete-failed", "Floodgate 登录失败：认证完成阶段出错。")
+    }
+
+    fun completeFailedByName(playerName: String): Component {
+        return render(
+            "complete-failed",
+            "Floodgate 登录失败：认证完成阶段出错。",
+            HyperZoneMessagePlaceholder.text("player", playerName)
+        )
     }
 
     fun genericDisconnect(): Component {

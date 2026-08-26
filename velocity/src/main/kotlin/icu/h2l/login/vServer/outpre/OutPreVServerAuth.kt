@@ -42,6 +42,7 @@ import icu.h2l.api.vServer.HyperZoneVServerAdapter
 import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.listener.PlayerAreaLifecycleListener
 import icu.h2l.login.manager.HyperZonePlayerManager
+import icu.h2l.login.manager.LoginManager
 import icu.h2l.login.message.MessageKeys
 import icu.h2l.login.player.VelocityHyperZonePlayer
 import icu.h2l.login.util.ConnectMessageKeys
@@ -53,6 +54,7 @@ import icu.h2l.login.vServer.outpre.session.StruckInitialJoinSession
 import io.netty.channel.Channel
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.jvm.optionals.getOrNull
 
@@ -226,8 +228,14 @@ class OutPreVServerAuth(
             return
         }
 
-        val authStartEvent = VServerAuthStartEvent(player, hyperPlayer)
-        server.eventManager.fire(authStartEvent).join()
+        HyperZoneLoginMain.getInstance().loginManager.dispatch(
+            proxyPlayer = player,
+            hyperZonePlayer = hyperPlayer,
+            metadata = mapOf(
+                "source" to "outpre-rejoin",
+                "mode" to "outpre",
+            )
+        )
         if (hyperPlayer.hasAttachedProfile()) {
             return
         }
@@ -362,18 +370,34 @@ class OutPreVServerAuth(
         hyperPlayer: VelocityHyperZonePlayer,
         state: OutPreState,
         source: String
-    ) {
-        val authStartEvent = VServerAuthStartEvent(player, hyperPlayer)
-        server.eventManager.fire(authStartEvent)
-        trace(
-            "$source after-authStart channel=${
-                player.getChannel().id()
-            } player=${player.username} attachedProfile=${hyperPlayer.hasAttachedProfile()} ${
-                describeState(
-                    state
-                )
-            }"
+    ): CompletableFuture<LoginManager.Result> {
+        val dispatchFuture = HyperZoneLoginMain.getInstance().loginManager.dispatch(
+            proxyPlayer = player,
+            hyperZonePlayer = hyperPlayer,
+            metadata = mapOf(
+                "source" to source,
+                "mode" to "outpre",
+                "authTarget" to state.authTargetLabel,
+                "initialFlowPending" to state.initialFlowPending.toString(),
+                "struck" to (!state.inAuthHold && state.hasConnectedToAuthServerOnce).toString(),
+            )
         )
+        dispatchFuture.whenCompleteAsync({ result, throwable ->
+            if (throwable != null) {
+                trace(
+                    "$source login-dispatch-error channel=${player.getChannel().id()} player=${player.username} error=${throwable.message}"
+                )
+                return@whenCompleteAsync
+            }
+            val resolved = result ?: LoginManager.Result(
+                status = LoginManager.Status.INTERNAL_ERROR,
+                reason = "dispatch returned null"
+            )
+            trace(
+                "$source after-login-dispatch channel=${player.getChannel().id()} player=${player.username} attachedProfile=${hyperPlayer.hasAttachedProfile()} result=${resolved.status} winner=${resolved.winnerModuleId} failures=${resolved.failures.size} ${describeState(state)}"
+            )
+        }, player.getChannel().eventLoop())
+        return dispatchFuture
     }
 
     /**

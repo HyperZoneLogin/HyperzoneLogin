@@ -27,8 +27,8 @@ import com.velocitypowered.api.proxy.Player
 import icu.h2l.api.command.HyperChatBrigadierRegistration
 import icu.h2l.api.command.HyperChatCommandExecutor
 import icu.h2l.api.command.HyperChatCommandInvocation
-import icu.h2l.api.event.auth.LoginRenameEvent
 import icu.h2l.api.message.HyperZoneMessagePlaceholder
+import icu.h2l.api.profile.CredentialChannelRegistryProvider
 import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.manager.HyperZonePlayerManager
 import icu.h2l.login.message.MessageKeys
@@ -97,8 +97,35 @@ class RenameCommand : HyperChatCommandExecutor {
             return
         }
 
+        val pendingCredential = hyperZonePlayer.getSubmittedCredentials()
+            .singleOrNull { it.getBoundProfileId() == null } ?: run {
+            messages.send(source, MessageKeys.Rename.CONTEXT_CONFLICT)
+            return
+        }
+
+        val channelAbility = CredentialChannelRegistryProvider.getOrNull()?.getChannelAbility(pendingCredential.channelId)
+        if (channelAbility?.canRegister == false) {
+            messages.send(
+                source,
+                MessageKeys.Rename.EVENT_FAILED,
+                HyperZoneMessagePlaceholder.text("reason", "当前渠道 [${pendingCredential.channelId}] 已被管理员禁止新玩家注册")
+            )
+            return
+        }
+
+        val renamedCredential = pendingCredential.withRegistrationName(newRegistrationName) ?: run {
+            messages.send(source, MessageKeys.Rename.CONTEXT_CONFLICT)
+            return
+        }
+
         runCatching {
-            main.proxy.eventManager.fire(LoginRenameEvent(hyperZonePlayer, newRegistrationName)).join()
+            main.loginManager.replaceCredential(hyperZonePlayer, pendingCredential.channelId, renamedCredential)
+            if (main.profileService.canCreate(renamedCredential)) {
+                val createdProfile = main.profileService.create(renamedCredential)
+                main.profileService.bindSubmittedCredentials(hyperZonePlayer, createdProfile.id)
+                main.profileService.attachProfile(hyperZonePlayer, createdProfile.id)
+                    ?: throw IllegalStateException("rename 后 attach Profile 失败: ${createdProfile.id}")
+            }
         }.onSuccess {
             messages.send(
                 source,

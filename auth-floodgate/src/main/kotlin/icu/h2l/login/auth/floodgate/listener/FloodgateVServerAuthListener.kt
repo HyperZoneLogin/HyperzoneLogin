@@ -23,37 +23,51 @@ package icu.h2l.login.auth.floodgate.listener
 
 import com.velocitypowered.api.event.Subscribe
 import com.velocitypowered.api.event.connection.DisconnectEvent
-import icu.h2l.api.event.vServer.VServerAuthStartEvent
+import icu.h2l.api.event.auth.LoginHandleRequestEvent
+import icu.h2l.api.event.auth.LoginHandleResult
 import icu.h2l.api.log.HyperZoneDebugType
 import icu.h2l.api.log.debug
 import icu.h2l.api.player.getChannel
 import icu.h2l.login.auth.floodgate.FloodgateMessages
 import icu.h2l.login.auth.floodgate.service.FloodgateAuthService
+import java.util.concurrent.CompletableFuture
 
 class FloodgateVServerAuthListener(
     private val authService: FloodgateAuthService
 ) {
+
     @Subscribe(priority = Short.MAX_VALUE)
-    fun onVServerAuthStart(event: VServerAuthStartEvent) {
-        debug(HyperZoneDebugType.FLOODGATE) {
-            "onVServerAuthStart before complete channel=${event.proxyPlayer.getChannel()} player=${event.hyperZonePlayer.clientOriginalName} attachedProfile=${event.hyperZonePlayer.hasAttachedProfile()}"
-        }
-        val result = authService.complete(event.proxyPlayer.getChannel(), event.hyperZonePlayer)
-        debug(HyperZoneDebugType.FLOODGATE) {
-            "onVServerAuthStart after complete channel=${event.proxyPlayer.getChannel()} player=${event.hyperZonePlayer.clientOriginalName} handled=${result.handled} passed=${result.passed} disconnectOnFailure=${result.disconnectOnFailure} attachedProfile=${event.hyperZonePlayer.hasAttachedProfile()}"
-        }
-        if (!result.handled) {
-            return
-        }
-        if (!result.passed) {
-            if (result.disconnectOnFailure) {
-                event.proxyPlayer.disconnect(result.userMessage ?: FloodgateMessages.genericDisconnect())
-            } else {
-                result.userMessage?.let {
-                    event.hyperZonePlayer.sendMessage(it)
-                }
+    fun onLoginHandleRequest(event: LoginHandleRequestEvent) {
+        event.claim("auth-floodgate:primary") { context ->
+            debug(HyperZoneDebugType.FLOODGATE) {
+                "onLoginHandleRequest before complete channel=${context.proxyPlayer.getChannel()} player=${context.session.originalName()} attachedProfile=${context.session.hasAttachedProfile()}"
             }
-            return
+            val result = authService.complete(
+                channel = context.proxyPlayer.getChannel(),
+                playerName = context.session.originalName()
+            )
+            debug(HyperZoneDebugType.FLOODGATE) {
+                "onLoginHandleRequest after complete channel=${context.proxyPlayer.getChannel()} player=${context.session.originalName()} handled=${result.handled} passed=${result.passed} disconnectOnFailure=${result.disconnectOnFailure} attachedProfile=${context.session.hasAttachedProfile()}"
+            }
+            if (!result.handled) {
+                return@claim CompletableFuture.completedFuture(LoginHandleResult.failed("not a floodgate player"))
+            }
+            if (!result.passed) {
+                if (result.disconnectOnFailure) {
+                    context.proxyPlayer.disconnect(result.userMessage ?: FloodgateMessages.genericDisconnect())
+                } else {
+                    result.userMessage?.let(context.session::sendMessage)
+                }
+                return@claim CompletableFuture.completedFuture(
+                    LoginHandleResult.failed("floodgate authentication rejected")
+                )
+            }
+            CompletableFuture.completedFuture(
+                LoginHandleResult.success(
+                    credential = result.credential,
+                    profileIdHint = result.profileIdHint
+                )
+            )
         }
     }
 
@@ -62,4 +76,3 @@ class FloodgateVServerAuthListener(
         authService.clear(event.player.getChannel())
     }
 }
-

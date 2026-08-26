@@ -24,6 +24,7 @@ package icu.h2l.api.player
 import com.velocitypowered.api.proxy.Player
 import com.velocitypowered.api.util.GameProfile
 import icu.h2l.api.profile.HyperZoneCredential
+import icu.h2l.api.profile.HyperZoneCredentialFlowProvider
 import net.kyori.adventure.text.Component
 import java.util.*
 
@@ -61,7 +62,7 @@ interface HyperZonePlayer {
     /**
      * 当前会话完成认证的渠道 ID。
      *
-     * 该值在认证模块通过 [submitCredential] 提交凭证时由核心层自动记录；
+     * 该值在登录管理器提交凭证时由核心层自动记录；
      * 在凭证提交前（或 [resetVerify] 后）返回 null。
      *
      * 示例值：`"floodgate"`、`"offline"`、`"yggdrasil"`。
@@ -84,55 +85,27 @@ interface HyperZonePlayer {
     fun hasAttachedProfile(): Boolean
 
     /**
-     * 向当前登录会话提交一个已认证凭证。
-     *
-     * 子模块应在"认证成功后、调用 overVerify() 前"提交凭证，
-     * 由核心在完成验证时统一根据凭证 attach 正式 Profile。
-     *
-     * 每个玩家同一时刻只能持有一个凭证。若当前会话已存在任意凭证，
-     * 则必须先调用 [destroyCredential] 移除旧凭证，再提交新凭证；
-     * 直接重复提交将抛出 [IllegalStateException]。
-     *
-     * @param credential 要提交到当前会话的可信凭证
-     * @throws IllegalStateException 若当前会话已存在凭证
-     */
-    fun submitCredential(credential: HyperZoneCredential)
-
-    /**
-     * 销毁当前会话中指定渠道的凭证。
-     *
-     * 子模块在响应 rename / reuuid 事件时，应先销毁旧凭证，
-     * 再以新状态重新提交，确保凭证始终保持不可变性。
-     *
-     * @param channelId 要销毁的凭证所属渠道标识
-     */
-    fun destroyCredential(channelId: String) {}
-
-    /**
      * 获取当前会话已提交的全部凭证快照。
      */
-    fun getSubmittedCredentials(): List<HyperZoneCredential>
+    fun getSubmittedCredentials(): List<HyperZoneCredential> =
+        HyperZoneCredentialFlowProvider.getOrNull()?.getSubmittedCredentials(this).orEmpty()
 
     /**
      * 判断是否允许进行绑定流程。
      *
      * 该判断通常用于“当前会话已有可信凭证，但尚未 attach 正式档案”的场景。
      */
-    fun canBind(): Boolean
+    fun canBind(): Boolean = getSubmittedCredentials().isNotEmpty()
 
-    /**
-     * 结束玩家验证流程。
-     *
-     * 实现通常应在该时刻推动从等待区进入正式游戏链路。
-     */
-    fun overVerify()
 
     /**
      * 将玩家重新置为未验证状态。
      *
      * 主要用于主动登出、敏感操作后重新鉴权等场景。
      */
-    fun resetVerify()
+    fun resetVerify() {
+        HyperZoneCredentialFlowProvider.getOrNull()?.resetVerify(this)
+    }
 
     /**
      * 发送消息给玩家。

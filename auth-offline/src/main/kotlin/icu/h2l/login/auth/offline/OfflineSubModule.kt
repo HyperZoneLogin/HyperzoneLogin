@@ -33,7 +33,6 @@ import icu.h2l.login.auth.offline.config.OfflineAuthMessageResourceLoader
 import icu.h2l.login.auth.offline.db.OfflineAuthRepository
 import icu.h2l.login.auth.offline.db.OfflineAuthTableManager
 import icu.h2l.login.auth.offline.listener.OfflinePreLoginListener
-import icu.h2l.login.auth.offline.listener.OfflineRenameReUuidListener
 import icu.h2l.login.auth.offline.listener.OfflineSessionAuthListener
 import icu.h2l.login.auth.offline.mail.JakartaMailOfflineAuthEmailSender
 import icu.h2l.login.auth.offline.mail.LoggingOfflineAuthEmailSender
@@ -99,7 +98,6 @@ class OfflineSubModule : HyperSubModule {
         // Register pre-login listener (handles channel init + offline UUID matching)
         proxy.eventManager.register(api, OfflinePreLoginListener())
         proxy.eventManager.register(api, OfflineSessionAuthListener(offlineAuthService))
-        proxy.eventManager.register(api, OfflineRenameReUuidListener())
 
         OfflineAuthCommandRegistrar.registerAll(
             commandManager = api.chatCommandManager,

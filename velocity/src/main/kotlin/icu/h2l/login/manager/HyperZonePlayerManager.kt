@@ -76,7 +76,9 @@ object HyperZonePlayerManager : HyperZonePlayerAccessor {
     }
 
     fun remove(player: Player) {
-        playersByChannel.remove(player.getChannel())?.let { removedPlayer ->
+        val channel = player.getChannel()
+        HyperZoneLoginMain.getInstance().loginManager.clearCredentialsByChannel(channel)
+        playersByChannel.remove(channel)?.let { removedPlayer ->
             runCatching {
                 HyperZoneLoginMain.getInstance().profileService.clear(removedPlayer)
             }

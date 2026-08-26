@@ -80,6 +80,10 @@ class YggdrasilHyperZoneCredential(
         )
     }
 
+    override fun withReUuidRequest(): YggdrasilHyperZoneCredential {
+        return withNewSuggestedUuid(null)
+    }
+
     companion object {
         private const val CHANNEL_ID = "yggdrasil"
     }

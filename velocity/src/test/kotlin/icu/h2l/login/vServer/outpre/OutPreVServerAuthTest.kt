@@ -26,11 +26,12 @@ import com.velocitypowered.api.proxy.ProxyServer
 import com.velocitypowered.proxy.connection.MinecraftConnection
 import com.velocitypowered.proxy.connection.client.ConnectedPlayer
 import icu.h2l.api.HyperZoneApi
-import icu.h2l.api.event.vServer.VServerAuthStartEvent
+import icu.h2l.api.event.auth.LoginHandleRequestEvent
 import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.database.DatabaseConfig
 import icu.h2l.login.database.DatabaseHelper
 import icu.h2l.login.manager.HyperZonePlayerManager
+import icu.h2l.login.manager.LoginManager
 import icu.h2l.login.message.MessageService
 import icu.h2l.login.profile.VelocityHyperZoneProfileService
 import icu.h2l.login.vServer.outpre.handler.OutPreAuthSessionHandler
@@ -39,7 +40,6 @@ import io.mockk.just
 import io.mockk.mockk
 import io.mockk.runs
 import io.mockk.spyk
-import io.mockk.verify
 import io.netty.channel.embedded.EmbeddedChannel
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger
 import org.junit.jupiter.api.AfterEach
@@ -72,56 +72,29 @@ class OutPreVServerAuthTest {
             isAccessible = true
         }
 
-        @Test
-        fun `beginInitialJoin fires auth start immediately for struck mode`() {
-            val eventManager = mockk<EventManager>()
-            val proxyServer = mockk<ProxyServer>()
-            every { proxyServer.eventManager } returns eventManager
-
-            val outPre = OutPreVServerAuth(proxyServer)
-            bootstrapMain(proxyServer, outPre)
-            val session = createSession(isActiveStates = listOf(true), isOnline = true)
-            val bridge = mockk<OutPreBackendBridge>(relaxed = true)
-            val handler = mockk<OutPreAuthSessionHandler>(relaxed = true)
-            every { outPre.createBridge(any()) } returns bridge
-            var authStartFired = false
-
-            every { eventManager.fire(any<Any>()) } answers {
-                val event = firstArg<Any>()
-                if (event is VServerAuthStartEvent) {
-                    authStartFired = true
-                }
-                CompletableFuture.completedFuture(event)
-            }
-
-            outPre.beginInitialJoin(session.player, handler)
-
-            assertTrue(authStartFired)
-            verify(exactly = 0) { bridge.connect() }
-        }
-        var authStartFired = false
-        var stateWasVisibleDuringAuthStart = false
-        var authServerJoinedAtAuthStart = false
+        var authRequestFired = false
+        var stateWasVisibleDuringAuthRequest = false
+        var authServerJoinedAtAuthRequest = false
 
         every { eventManager.fire(any<Any>()) } answers {
             val event = firstArg<Any>()
-            if (event is VServerAuthStartEvent) {
-                authStartFired = true
+            if (event is LoginHandleRequestEvent) {
+                authRequestFired = true
                 val state = currentState(outPre, session.channel, statesField)
-                stateWasVisibleDuringAuthStart = state != null
-                authServerJoinedAtAuthStart = state?.readBoolean("hasConnectedToAuthServerOnce") == true
+                stateWasVisibleDuringAuthRequest = state != null
+                authServerJoinedAtAuthRequest = state?.readBoolean("hasConnectedToAuthServerOnce") == true
             }
             CompletableFuture.completedFuture(event)
         }
 
         outPre.beginInitialJoin(session.player, handler)
-        assertFalse(authStartFired)
+        assertFalse(authRequestFired)
 
         bridgeCallbackSlot.captured.onJoined()
 
-        assertTrue(authStartFired)
-        assertTrue(stateWasVisibleDuringAuthStart)
-        assertTrue(authServerJoinedAtAuthStart)
+        assertTrue(authRequestFired)
+        assertTrue(stateWasVisibleDuringAuthRequest)
+        assertTrue(authServerJoinedAtAuthRequest)
         assertTrue(hasState(outPre, session.channel, statesField))
     }
 
@@ -144,7 +117,8 @@ class OutPreVServerAuthTest {
             main.activeVServerAdapter = outPre
             main.profileService = createProfileService(proxyServer)
             main.messageService = MessageService(main.dataDirectory, main.logger)
-            setStaticField("coreConfig", icu.h2l.login.config.CoreConfig())
+            main.loginManager = LoginManager(proxyServer, main.profileService)
+                setCoreConfig(icu.h2l.login.config.CoreConfig())
         }
     }
 
@@ -195,8 +169,8 @@ class OutPreVServerAuthTest {
         return field.getBoolean(this)
     }
 
-    private fun setStaticField(name: String, value: Any) {
-        val field = HyperZoneLoginMain::class.java.getDeclaredField(name).apply {
+    private fun setCoreConfig(value: Any) {
+        val field = HyperZoneLoginMain::class.java.getDeclaredField("coreConfig").apply {
             isAccessible = true
         }
         field.set(null, value)

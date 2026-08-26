@@ -69,6 +69,24 @@ interface HyperZoneCredential {
     }
 
     /**
+     * 返回一个应用了注册名变更的新凭证实例。
+     *
+     * 默认返回 null，表示该渠道不支持 rename。
+     */
+    fun withRegistrationName(newRegistrationName: String): HyperZoneCredential? {
+        return null
+    }
+
+    /**
+     * 返回一个用于 reUUID 流程的新凭证实例。
+     *
+     * 默认返回 null，表示该渠道不支持 reUUID。
+     */
+    fun withReUuidRequest(): HyperZoneCredential? {
+        return null
+    }
+
+    /**
      * 在真正写入绑定关系前做一次校验。
      *
      * 返回 null 表示允许绑定；否则返回拒绝原因。
@@ -87,4 +105,13 @@ interface HyperZoneCredential {
      * @param profileId 要绑定到的正式档案标识
      */
     fun bind(profileId: UUID): Boolean
+
+    /**
+     * 核心层确认凭证消费完成（通常是绑定并 attach 成功）后的回调。
+     *
+     * 默认空实现；渠道可按需落库或清理一次性状态。
+     */
+    fun onConsumed(profileId: UUID) {
+        // no-op by default
+    }
 }

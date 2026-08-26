@@ -124,6 +124,10 @@ class OfflineHyperZoneCredential(
         )
     }
 
+    override fun withRegistrationName(newRegistrationName: String): OfflineHyperZoneCredential {
+        return withNewName(newRegistrationName)
+    }
+
     /**
      * 创建一个关闭 UUID 建议的凭证副本，用于 ReUuid 流程。
      *
@@ -139,6 +143,10 @@ class OfflineHyperZoneCredential(
             pendingRegistrationId = pendingRegistrationId,
             passProfileCreateUuid = false
         )
+    }
+
+    override fun withReUuidRequest(): OfflineHyperZoneCredential {
+        return withReUuid()
     }
 
     @Suppress("unused")

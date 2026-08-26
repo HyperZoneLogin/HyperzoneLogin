@@ -24,8 +24,8 @@ package icu.h2l.login.auth.online.listener
 import com.velocitypowered.api.event.Subscribe
 import com.velocitypowered.api.event.connection.DisconnectEvent
 import com.velocitypowered.api.proxy.Player
+import icu.h2l.api.event.auth.LoginHandleRequestEvent
 import icu.h2l.api.event.connection.OpenStartAuthEvent
-import icu.h2l.api.event.vServer.VServerAuthStartEvent
 import icu.h2l.api.log.HyperZoneDebugType
 import icu.h2l.api.log.debug
 import icu.h2l.api.player.HyperZonePlayer
@@ -33,6 +33,7 @@ import icu.h2l.api.player.getChannel
 import icu.h2l.login.auth.online.iface.YggdrasilAuthFlow
 import io.netty.channel.Channel
 import java.util.*
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 
 class AuthListener(
@@ -62,13 +63,23 @@ class AuthListener(
         }
     }
 
+
     @Subscribe
-    fun onWaitingAreaJoin(event: VServerAuthStartEvent) {
-        onWaitingAreaJoin(
-            channel = event.proxyPlayer.getChannel(),
-            proxyPlayer = event.proxyPlayer,
-            hyperZonePlayer = event.hyperZonePlayer
-        )
+    fun onLoginHandleRequest(event: LoginHandleRequestEvent) {
+        if (!event.proxyPlayer.isOnlineMode) return
+        if (event.hyperZonePlayer.hasAttachedProfile()) return
+
+        event.claim("auth-yggd:waiting-area") { context ->
+            val channel = context.proxyPlayer.getChannel()
+            if (pendingContexts.remove(channel) == null) {
+                return@claim CompletableFuture.completedFuture(
+                    icu.h2l.api.event.auth.LoginHandleResult.failed("no pending yggdrasil context")
+                )
+            }
+            val future = yggdrasilAuthModule.requestWaitingAreaAuth(context.proxyPlayer, context.session)
+            context.cancelSignal.whenComplete { _, _ -> future.cancel(false) }
+            future
+        }
     }
 
     internal fun onWaitingAreaJoin(channel: Channel, proxyPlayer: Player, hyperZonePlayer: HyperZonePlayer) {

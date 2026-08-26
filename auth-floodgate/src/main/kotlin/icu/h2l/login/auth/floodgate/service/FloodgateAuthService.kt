@@ -24,7 +24,6 @@ package icu.h2l.login.auth.floodgate.service
 import icu.h2l.api.HyperZoneApi
 import icu.h2l.api.log.HyperZoneDebugType
 import icu.h2l.api.log.debug
-import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.profile.CredentialChannelRegistryProvider
 import icu.h2l.api.profile.HyperZoneProfileService
 import icu.h2l.api.profile.HyperZoneProfileServiceProvider
@@ -59,6 +58,8 @@ class FloodgateAuthService(
     data class CompleteResult(
         val handled: Boolean,
         val passed: Boolean,
+        val credential: FloodgateHyperZoneCredential? = null,
+        val profileIdHint: UUID? = null,
         val disconnectOnFailure: Boolean = false,
         val userMessage: Component? = null
     )
@@ -87,98 +88,75 @@ class FloodgateAuthService(
         return VerifyResult.Accepted
     }
 
-    fun complete(channel: Channel, hyperZonePlayer: HyperZonePlayer): CompleteResult {
+    fun complete(channel: Channel, playerName: String): CompleteResult {
         val session = sessionHolder.get(channel)
         trace(
-            "complete start channel=$channel player=${hyperZonePlayer.clientOriginalName} sessionPresent=${session != null} attachedProfile=${profileService.getAttachedProfile(hyperZonePlayer)?.id} credentialTypes=${hyperZonePlayer.getSubmittedCredentials().map { it.javaClass.simpleName }}"
+            "complete start channel=$channel player=$playerName sessionPresent=${session != null}"
         )
-        if (session == null && !hasFloodgateCredential(hyperZonePlayer)) {
-            trace("complete ignored channel=$channel player=${hyperZonePlayer.clientOriginalName}: no session and no floodgate credential")
+        if (session == null) {
+            trace("complete ignored channel=$channel player=$playerName: no floodgate session")
             return CompleteResult(handled = false, passed = false)
         }
 
         return try {
-            if (session != null && findCredential(hyperZonePlayer, session.userUUID) == null) {
-                val suggestedProfileCreateUuid = resolveProfileUuid(session.userUUID)
-                val knownProfileId = resolveKnownProfileId(hyperZonePlayer, session)
-                    ?: run {
-                        // 在尝试建档之前检查渠道能力
-                        val channelAbility = CredentialChannelRegistryProvider.getOrNull()?.getChannelAbility("floodgate")
-                        if (channelAbility?.canRegister == false) {
-                            return CompleteResult(
-                                handled = true,
-                                passed = false,
-                                disconnectOnFailure = false,
-                                userMessage = FloodgateMessages.registrationDisabled(hyperZonePlayer)
-                            )
-                        }
-                        createAndBindProfileIfAllowed(hyperZonePlayer, session, suggestedProfileCreateUuid)
+            val suggestedProfileCreateUuid = resolveProfileUuid(session.userUUID)
+            val knownProfileId = resolveKnownProfileId(session)
+                ?: run {
+                    val channelAbility = CredentialChannelRegistryProvider.getOrNull()?.getChannelAbility("floodgate")
+                    if (channelAbility?.canRegister == false) {
+                        return CompleteResult(
+                            handled = true,
+                            passed = false,
+                            disconnectOnFailure = false,
+                            userMessage = FloodgateMessages.registrationDisabledByName(playerName)
+                        )
                     }
-                trace(
-                    "complete preparing credential channel=$channel player=${hyperZonePlayer.clientOriginalName} sessionName=${session.userName} sessionUuid=${session.userUUID} xuid=${session.xuid} suggestedProfileCreateUuid=$suggestedProfileCreateUuid knownProfileId=$knownProfileId"
-                )
-                hyperZonePlayer.submitCredential(
-                    FloodgateHyperZoneCredential(
-                        repository = repository,
-                        trustedName = session.userName,
-                        trustedUuid = session.userUUID,
-                        xuid = session.xuid,
-                        suggestedProfileCreateUuid = suggestedProfileCreateUuid,
-                        knownProfileId = knownProfileId
-                    )
-                )
-                trace(
-                    "complete credential submitted channel=$channel player=${hyperZonePlayer.clientOriginalName} credentialTypes=${hyperZonePlayer.getSubmittedCredentials().map { it.javaClass.simpleName }}"
-                )
-
-                if (knownProfileId == null) {
-                    trace("complete blocked channel=$channel player=${hyperZonePlayer.clientOriginalName}: no known profile id")
-                    return CompleteResult(
-                        handled = true,
-                        passed = false,
-                        disconnectOnFailure = false,
-                        userMessage = FloodgateMessages.createBlocked(hyperZonePlayer)
-                    )
+                    createAndBindProfileIfAllowed(session, suggestedProfileCreateUuid)
                 }
+
+            if (knownProfileId == null) {
+                trace("complete blocked channel=$channel player=$playerName: no known profile id")
+                return CompleteResult(
+                    handled = true,
+                    passed = false,
+                    disconnectOnFailure = false,
+                    userMessage = FloodgateMessages.createBlockedByName(playerName)
+                )
             }
-            trace(
-                "complete before overVerify channel=$channel player=${hyperZonePlayer.clientOriginalName} attachedProfile=${profileService.getAttachedProfile(hyperZonePlayer)?.id}"
-            )
-            hyperZonePlayer.overVerify()
-            trace(
-                "complete after overVerify channel=$channel player=${hyperZonePlayer.clientOriginalName} attachedProfile=${profileService.getAttachedProfile(hyperZonePlayer)?.id}"
+
+            val credential = FloodgateHyperZoneCredential(
+                repository = repository,
+                trustedName = session.userName,
+                trustedUuid = session.userUUID,
+                xuid = session.xuid,
+                suggestedProfileCreateUuid = suggestedProfileCreateUuid,
+                knownProfileId = knownProfileId
             )
             sessionHolder.remove(channel)
-            trace("complete success channel=$channel player=${hyperZonePlayer.clientOriginalName} sessionCleared=true")
-            CompleteResult(handled = true, passed = true)
+            trace("complete success channel=$channel player=$playerName sessionCleared=true")
+            CompleteResult(
+                handled = true,
+                passed = true,
+                credential = credential,
+                profileIdHint = knownProfileId
+            )
         } catch (throwable: Throwable) {
-            logger.warning("Floodgate 玩家 ${hyperZonePlayer.clientOriginalName} 完成认证失败: ${throwable.message}")
+            logger.warning("Floodgate 玩家 $playerName 完成认证失败: ${throwable.message}")
             trace(
-                "complete failed channel=$channel player=${hyperZonePlayer.clientOriginalName} attachedProfile=${profileService.getAttachedProfile(hyperZonePlayer)?.id} error=${throwable.message}"
+                "complete failed channel=$channel player=$playerName error=${throwable.message}"
             )
             CompleteResult(
                 handled = true,
                 passed = false,
                 disconnectOnFailure = true,
-                userMessage = FloodgateMessages.completeFailed(hyperZonePlayer)
+                userMessage = FloodgateMessages.completeFailedByName(playerName)
             )
         }
     }
 
-
-    private fun hasFloodgateCredential(hyperZonePlayer: HyperZonePlayer): Boolean {
-        return hyperZonePlayer.getSubmittedCredentials().any { it is FloodgateHyperZoneCredential }
-    }
-
     private fun resolveKnownProfileId(
-        hyperZonePlayer: HyperZonePlayer,
         session: FloodgateSessionHolder.FloodgateSession,
     ): UUID? {
-        val attachedProfileId = profileService.getAttachedProfile(hyperZonePlayer)?.id
-        if (attachedProfileId != null) {
-            repository.createOrUpdate(session.userName, session.xuid, attachedProfileId)
-            return attachedProfileId
-        }
 
         val repositoryProfileId = repository.findProfileIdByXuid(session.xuid) ?: return null
         repository.updateEntryName(session.xuid, session.userName)
@@ -186,7 +164,6 @@ class FloodgateAuthService(
     }
 
     private fun createAndBindProfileIfAllowed(
-        hyperZonePlayer: HyperZonePlayer,
         session: FloodgateSessionHolder.FloodgateSession,
         suggestedProfileCreateUuid: UUID?,
     ): UUID? {
@@ -211,12 +188,6 @@ class FloodgateAuthService(
         return createdProfile.id
     }
 
-    private fun findCredential(hyperZonePlayer: HyperZonePlayer, userUUID: UUID): FloodgateHyperZoneCredential? {
-        return hyperZonePlayer.getSubmittedCredentials()
-            .asSequence()
-            .filterIsInstance<FloodgateHyperZoneCredential>()
-            .firstOrNull { it.matches(userUUID) }
-    }
 
     fun clear(channel: Channel) {
         sessionHolder.remove(channel)

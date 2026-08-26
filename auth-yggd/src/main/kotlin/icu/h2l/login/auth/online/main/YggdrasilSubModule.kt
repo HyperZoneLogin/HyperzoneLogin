@@ -29,7 +29,6 @@ import icu.h2l.api.module.HyperSubModule
 import icu.h2l.api.profile.HyperZoneProfileServiceProvider
 import icu.h2l.login.auth.online.db.EntryTableManager
 import icu.h2l.login.auth.online.listener.AuthListener
-import icu.h2l.login.auth.online.listener.ReUuidListener
 import icu.h2l.login.auth.online.manager.EntryConfigManager
 import icu.h2l.login.auth.online.manager.YggdrasilAuthModule
 
@@ -68,7 +67,6 @@ class YggdrasilSubModule : HyperSubModule {
         val authListener = AuthListener(yggdrasilAuthModule)
 
         proxy.eventManager.register(api, authListener)
-        proxy.eventManager.register(api, ReUuidListener())
 
         this.entryConfigManager = entryConfigManager
         this.entryTableManager = entryTableManager

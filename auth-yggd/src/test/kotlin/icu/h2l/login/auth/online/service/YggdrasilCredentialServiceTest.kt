@@ -30,7 +30,6 @@ import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.profile.HyperZoneCredential
 import icu.h2l.api.profile.HyperZoneProfileService
 import icu.h2l.login.auth.online.config.EntryConfig
-import icu.h2l.login.auth.online.credential.YggdrasilHyperZoneCredential
 import icu.h2l.login.auth.online.db.EntryTableManager
 import icu.h2l.login.auth.online.manager.EntryConfigManager
 import icu.h2l.login.auth.online.record.YggdrasilAuthResult
@@ -250,19 +249,10 @@ class YggdrasilCredentialServiceTest {
 
         override fun hasAttachedProfile(): Boolean = false
 
-        override fun submitCredential(credential: HyperZoneCredential) {
-            submittedCredentials += credential
-        }
-
-        override fun destroyCredential(channelId: String) {
-            submittedCredentials.removeIf { it.channelId == channelId }
-        }
-
         override fun getSubmittedCredentials(): List<HyperZoneCredential> = submittedCredentials.toList()
 
         override fun canBind(): Boolean = true
 
-        override fun overVerify() = Unit
 
         override fun resetVerify() = Unit
 

@@ -19,20 +19,36 @@
  *
  */
 
-package icu.h2l.api.event.auth
+package icu.h2l.api.profile
 
 import icu.h2l.api.player.HyperZonePlayer
 
-/**
- * 等待区中的登录会话主动修改"建档注册名"后触发。
- *
- * 事件只携带当前事件发起者本身；
- * 各监听器必须仅处理该玩家当前会话，不得影响其他等待区玩家。
- *
- * @property hyperZonePlayer 发起 rename 的当前登录态玩家
- * @property newRegistrationName 更新后的注册名（即玩家希望使用的新建档名称）
- */
-class LoginRenameEvent(
-    val hyperZonePlayer: HyperZonePlayer,
-    val newRegistrationName: String
-)
+interface HyperZoneCredentialFlow {
+    fun submitCredential(player: HyperZonePlayer, credential: HyperZoneCredential)
+
+    fun replaceCredential(player: HyperZonePlayer, oldChannelId: String, credential: HyperZoneCredential)
+
+    fun getSubmittedCredentials(player: HyperZonePlayer): List<HyperZoneCredential>
+
+    fun clearCredentials(player: HyperZonePlayer)
+
+    fun overVerify(player: HyperZonePlayer)
+
+    @Suppress("unused")
+    fun resetVerify(player: HyperZonePlayer)
+}
+
+object HyperZoneCredentialFlowProvider {
+    @Volatile
+    private var flow: HyperZoneCredentialFlow? = null
+
+    fun bind(flow: HyperZoneCredentialFlow) {
+        this.flow = flow
+    }
+
+    fun get(): HyperZoneCredentialFlow =
+        flow ?: error("HyperZone credential flow is not available yet")
+
+    fun getOrNull(): HyperZoneCredentialFlow? = flow
+}
+

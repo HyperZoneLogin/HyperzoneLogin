@@ -22,9 +22,9 @@
 package icu.h2l.login.auth.online.record
 
 import com.velocitypowered.api.proxy.Player
-import icu.h2l.api.player.HyperZonePlayer
+import icu.h2l.api.event.auth.LoginHandleSession
 
 data class WaitingAreaContext(
     val player: Player,
-    val hyperZonePlayer: HyperZonePlayer
+    val session: LoginHandleSession
 )

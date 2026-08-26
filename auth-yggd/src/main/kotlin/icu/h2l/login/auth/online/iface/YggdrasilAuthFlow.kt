@@ -22,9 +22,12 @@
 package icu.h2l.login.auth.online.iface
 
 import com.velocitypowered.api.proxy.Player
+import icu.h2l.api.event.auth.LoginHandleResult
+import icu.h2l.api.event.auth.LoginHandleSession
 import icu.h2l.api.player.HyperZonePlayer
 import io.netty.channel.Channel
 import java.util.*
+import java.util.concurrent.CompletableFuture
 
 interface YggdrasilAuthFlow {
     fun startYggdrasilAuth(
@@ -36,6 +39,8 @@ interface YggdrasilAuthFlow {
     )
 
     fun registerWaitingAreaPlayer(player: Player, waitingAreaPlayer: HyperZonePlayer)
+
+    fun requestWaitingAreaAuth(player: Player, session: LoginHandleSession): CompletableFuture<LoginHandleResult>
 
     fun clearPlayerCacheOnDisconnect(player: Player)
 }

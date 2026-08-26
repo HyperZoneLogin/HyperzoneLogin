@@ -27,7 +27,6 @@ import icu.h2l.api.command.HyperChatCommandInvocation
 import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.manager.HyperZonePlayerManager
 import icu.h2l.login.message.MessageKeys
-import icu.h2l.login.player.VelocityHyperZonePlayer
 
 class OverVServerCommand : HyperChatCommandExecutor {
     override fun execute(invocation: HyperChatCommandInvocation) {
@@ -60,13 +59,8 @@ class OverVServerCommand : HyperChatCommandExecutor {
             return
         }
 
-        if (hyperZonePlayer !is VelocityHyperZonePlayer) {
-            messages.send(source, MessageKeys.Over.FAILED)
-            return
-        }
-
         runCatching {
-            hyperZonePlayer.runCoreAuthorizedOverVerify()
+            HyperZoneLoginMain.getInstance().loginManager.overVerify(hyperZonePlayer)
         }.onFailure { throwable ->
             HyperZoneLoginMain.getInstance().logger.warn(
                 "玩家 ${hyperZonePlayer.clientOriginalName} 通过 /over 完成慢测试验证失败: ${throwable.message}",

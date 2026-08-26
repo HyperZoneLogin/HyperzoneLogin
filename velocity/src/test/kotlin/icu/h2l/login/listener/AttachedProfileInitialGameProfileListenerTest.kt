@@ -36,6 +36,7 @@ import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.database.DatabaseConfig
 import icu.h2l.login.database.DatabaseHelper
 import icu.h2l.login.manager.DatabaseManager
+import icu.h2l.login.manager.LoginManager
 import icu.h2l.login.manager.HyperZonePlayerManager
 import icu.h2l.login.player.VelocityHyperZonePlayer
 import icu.h2l.login.profile.VelocityHyperZoneProfileService
@@ -146,6 +147,7 @@ class AttachedProfileInitialGameProfileListenerTest {
             plugin = mockk<HyperZoneApi>(relaxed = true),
         ).also { main ->
             main.profileService = createProfileService(proxyServer)
+            main.loginManager = mockk<LoginManager>(relaxed = true)
         }
     }
 
