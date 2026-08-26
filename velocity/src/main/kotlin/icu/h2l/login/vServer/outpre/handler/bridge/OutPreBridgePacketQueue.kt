@@ -57,7 +57,8 @@ class OutPreBridgePacketQueue(
     init {
         bridge.addPhaseListener { _ ->
             clientEventLoop.execute {
-                if (!bridge.isConnected()) {
+                val phase = bridge.phase()
+                if (phase == OutPreBackendBridge.Phase.CLOSING || phase == OutPreBackendBridge.Phase.CLOSED) {
                     clear()
                     return@execute
                 }

@@ -82,6 +82,8 @@ class OutPreBackendBridge(
     private var bridgeSessionHandler: OutPreBackendBridgeSessionHandler? = null
 
     @Volatile
+    // True only during 1.20.2+ config handshake after backend sent FinishedUpdate,
+    // while waiting for the client FinishedUpdate ack before forwarding it back to backend.
     private var awaitingClientConfigurationAck = false
 
     @Volatile
@@ -132,7 +134,12 @@ class OutPreBackendBridge(
     }
 
     fun isConnected(): Boolean {
-        return backendConnection != null
+        return backendConnection?.isClosed == false
+    }
+
+    fun isAwaitingClientConfigurationAck(): Boolean {
+        // Exposes "business-ready" config ack state (not just socket connected).
+        return awaitingClientConfigurationAck && phase == Phase.CONFIG && backendConnection?.isClosed == false
     }
 
     fun phase(): Phase {
@@ -195,12 +202,14 @@ class OutPreBackendBridge(
     }
 
     fun onBackendLoginSucceeded(usesConfigurationPhase: Boolean) {
+        // Entering a new login/config round always clears stale ack state.
         awaitingClientConfigurationAck = false
         updatePhase(if (usesConfigurationPhase) Phase.CONFIG else Phase.LOGIN)
         connectFuture.complete(ConnectionRequestResults.successful(registeredServer))
     }
 
     fun markAwaitingClientConfigurationAck() {
+        // Backend asked to finish config; now we must wait for client FinishedUpdate.
         awaitingClientConfigurationAck = true
     }
 
@@ -212,6 +221,7 @@ class OutPreBackendBridge(
             if (!awaitingClientConfigurationAck || connection.isClosed) {
                 return@execute
             }
+            // Consume client ack once, then send FinishedUpdate to backend to complete switch.
             awaitingClientConfigurationAck = false
             connection.write(FinishedUpdatePacket.INSTANCE)
             connection.setActiveSessionHandler(StateRegistry.PLAY, handler)

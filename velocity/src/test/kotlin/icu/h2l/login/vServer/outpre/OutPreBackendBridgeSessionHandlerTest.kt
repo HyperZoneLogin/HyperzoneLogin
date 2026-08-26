@@ -50,7 +50,7 @@ class OutPreBackendBridgeSessionHandlerTest {
             shouldConsumeFinishedUpdateForVelocityRelease(
                 releaseInProgress = true,
                 configMode = true,
-                bridgeConnected = false,
+                bridgeAwaitingClientConfigurationAck = false,
             )
         )
     }
@@ -61,7 +61,7 @@ class OutPreBackendBridgeSessionHandlerTest {
             shouldConsumeFinishedUpdateForVelocityRelease(
                 releaseInProgress = false,
                 configMode = true,
-                bridgeConnected = true,
+                bridgeAwaitingClientConfigurationAck = true,
             )
         )
     }
@@ -72,7 +72,7 @@ class OutPreBackendBridgeSessionHandlerTest {
             shouldConsumeFinishedUpdateForVelocityRelease(
                 releaseInProgress = true,
                 configMode = false,
-                bridgeConnected = false,
+                bridgeAwaitingClientConfigurationAck = false,
             )
         )
     }
@@ -82,7 +82,7 @@ class OutPreBackendBridgeSessionHandlerTest {
         assertTrue(
             shouldReleaseDirectlyToVelocityConfig(
                 configMode = true,
-                bridgeConnected = false,
+                bridgeAwaitingClientConfigurationAck = false,
             )
         )
     }
@@ -92,7 +92,7 @@ class OutPreBackendBridgeSessionHandlerTest {
         assertFalse(
             shouldReleaseDirectlyToVelocityConfig(
                 configMode = false,
-                bridgeConnected = false,
+                bridgeAwaitingClientConfigurationAck = false,
             )
         )
     }

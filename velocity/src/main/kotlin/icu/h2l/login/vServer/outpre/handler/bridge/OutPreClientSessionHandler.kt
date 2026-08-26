@@ -120,7 +120,7 @@ open class OutPreClientBridgeSessionHandlerLogic(
 
             if (shouldReleaseDirectlyToVelocityConfig(
                     configMode = configMode,
-                    bridgeConnected = bridge.isConnected(),
+                    bridgeAwaitingClientConfigurationAck = bridge.isAwaitingClientConfigurationAck(),
                 )
             ) {
                 configMode = false
@@ -279,7 +279,7 @@ class OutPreClientBridgeSessionHandler(
         if (shouldConsumeFinishedUpdateForVelocityRelease(
                 releaseInProgress = releaseCallback != null && releaseToVelocityInProgress,
                 configMode = configMode,
-                bridgeConnected = bridge.isConnected(),
+                bridgeAwaitingClientConfigurationAck = bridge.isAwaitingClientConfigurationAck(),
             )
         ) {
             releaseToVelocityCallback = null
@@ -334,14 +334,14 @@ class OutPreClientBridgeSessionHandler(
 internal fun shouldConsumeFinishedUpdateForVelocityRelease(
     releaseInProgress: Boolean,
     configMode: Boolean,
-    bridgeConnected: Boolean,
+    bridgeAwaitingClientConfigurationAck: Boolean,
 ): Boolean {
-    return releaseInProgress && (!configMode || !bridgeConnected)
+    return releaseInProgress && (!configMode || !bridgeAwaitingClientConfigurationAck)
 }
 
 internal fun shouldReleaseDirectlyToVelocityConfig(
     configMode: Boolean,
-    bridgeConnected: Boolean,
+    bridgeAwaitingClientConfigurationAck: Boolean,
 ): Boolean {
-    return configMode && !bridgeConnected
+    return configMode && !bridgeAwaitingClientConfigurationAck
 }
