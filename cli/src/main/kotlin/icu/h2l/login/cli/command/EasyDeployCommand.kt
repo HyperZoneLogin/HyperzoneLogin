@@ -489,21 +489,25 @@ class EasyDeployCommand : Runnable {
             System.err.println("[Paper] WARN: Failed to prewarm bootstrap cache in ${firstServerDir.path}: ${e.message}")
         }
 
-        // Copy the cache from first server to others
-        val firstLibsDir = firstServerDir.resolve(".libs")
-        if (firstLibsDir.exists() && firstLibsDir.isDirectory) {
-            serverConfigs.drop(1).forEach { config ->
-                val serverDir = baseDir.resolve(config.dirName)
-                val serverLibsDir = serverDir.resolve(".libs")
-                try {
-                    println("[Paper] Copying bootstrap cache from ${serverConfigs[0].dirName}/ to ${config.dirName}/")
-                    if (serverLibsDir.exists()) {
-                        serverLibsDir.deleteRecursively()
+        // Copy the cache from first server to others (try multiple possible cache locations)
+        val cacheDirs = listOf(".libs", ".cache", "cache")
+        serverConfigs.drop(1).forEach { config ->
+            val serverDir = baseDir.resolve(config.dirName)
+            serverDir.mkdirs()
+
+            cacheDirs.forEach { cacheDir ->
+                val firstCacheDir = firstServerDir.resolve(cacheDir)
+                if (firstCacheDir.exists() && firstCacheDir.isDirectory) {
+                    val targetCacheDir = serverDir.resolve(cacheDir)
+                    try {
+                        if (!targetCacheDir.exists()) {
+                            println("[Paper] Copying bootstrap cache ($cacheDir) from ${serverConfigs[0].dirName}/ to ${config.dirName}/")
+                            firstCacheDir.copyRecursively(targetCacheDir, overwrite = true)
+                            println("  [copy]   Cache synced")
+                        }
+                    } catch (e: Exception) {
+                        System.err.println("[Paper] WARN: Failed to copy bootstrap cache: ${e.message}")
                     }
-                    firstLibsDir.copyRecursively(serverLibsDir)
-                    println("  [copy]   Caches synced")
-                } catch (e: Exception) {
-                    System.err.println("[Paper] WARN: Failed to copy bootstrap cache: ${e.message}")
                 }
             }
         }

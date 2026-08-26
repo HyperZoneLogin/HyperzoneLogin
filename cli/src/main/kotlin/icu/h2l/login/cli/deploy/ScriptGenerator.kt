@@ -175,30 +175,36 @@ class ScriptGenerator(
 
     private fun generateWindowsLaunchAllScript(servers: List<ServerScript>, velocityConfig: ServerScript) {
         val allConfigs = servers + listOf(velocityConfig)
-        val serverTabs = allConfigs.joinToString(" ^; ") { config ->
-            """new-tab --title "${config.label}" cmd /k "cd /d ""%BASE_DIR%\${config.dirName}"" && call start.bat""""
-        }
+
+        // For wt (Windows Terminal), build multi-line command
+        val wtCommands = allConfigs.mapIndexed { index, config ->
+            if (index == 0) {
+                """wt new-tab --title "${config.label}" cmd /k "cd /d ""%BASE_DIR%\${config.dirName}"" && call start.bat""""
+            } else {
+                """^; new-tab --title "${config.label}" cmd /k "cd /d ""%BASE_DIR%\${config.dirName}"" && call start.bat""""
+            }
+        }.joinToString(" ")
 
         val serverStarts = allConfigs.joinToString("\n                ") { config ->
-            """start "${config.label}" cmd /k "title ${config.label} && cd /d ""%BASE_DIR%\${config.dirName}"" && call start.bat""""
+            """start "" "cmd" /k "title ${config.label} & cd /d ""%BASE_DIR%\${config.dirName}"" & call start.bat""""
         }
 
         val script = """
             @echo off
-            setlocal
+            setlocal enabledelayedexpansion
             title HZL Control
 
             set "BASE_DIR=%~dp0"
-            set "BASE_DIR=%BASE_DIR:~0,-1%"
+            set "BASE_DIR=!BASE_DIR:~0,-1!"
 
             where wt >nul 2>nul
             if errorlevel 1 (
-                echo Windows Terminal (wt.exe) not found. Falling back to start commands.
+                echo Windows Terminal ^(wt.exe^) not found. Falling back to start commands.
                 $serverStarts
                 exit /b 0
             )
 
-            wt $serverTabs
+            $wtCommands
         """.trimIndent() + "\n"
 
         val launchAll = baseDir.resolve("start-all.bat")
