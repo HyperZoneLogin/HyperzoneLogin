@@ -3,6 +3,7 @@
   "name": "HyperZoneLogin VC Runtest",
   "version": "dev",
   "authors": ["ksqeib"],
+  "dependencies": [{"id":"floodgate","optional":true}],
   "main": "icu.h2l.login.vcruntest.VcRuntestPlugin"
 }
 

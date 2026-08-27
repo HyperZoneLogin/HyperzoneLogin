@@ -34,27 +34,44 @@ import icu.h2l.api.module.HyperSubModule;
 import icu.h2l.api.player.HyperZonePlayerAccessor;
 import icu.h2l.api.profile.CredentialChannelRegistry;
 import icu.h2l.api.vServer.HyperZoneVServerAdapter;
-import icu.h2l.login.HyperZoneLoginMain;
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 
+import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 
 /**
  * Stable bridge plugin for vc-runtest.
  *
- * This plugin is the Velocity-registered object, so Velocity's EventManager
- * accepts it as a plugin container for event listener registration.  It directly
- * implements {@link HyperZoneApi} and boots {@link HyperZoneLoginMain} from the
- * Gradle runtimeClasspath (no jar copying, no network download).
+ * The bridge itself stays as a normal Velocity plugin instance, but HyperZoneLogin
+ * runtime classes are side-loaded through a dedicated child-first classloader.
+ * This keeps the plugin container identity valid for Velocity event registration
+ * while allowing runtime classes to resolve dependency-plugin classes (for example
+ * Floodgate API) through Velocity's plugin dependency classloader graph.
  */
 public final class VcRuntestPlugin implements HyperZoneApi {
+    private static final String HZL_MAIN_CLASS_NAME = "icu.h2l.login.HyperZoneLoginMain";
+
     private final ProxyServer velocityProxy;
     private final ComponentLogger logger;
     private final Path runtimeDataDirectory;
 
-    private HyperZoneLoginMain runtime;
+    private volatile Object runtime;
+    private volatile Method runtimeOnEnable;
+    private volatile Method runtimeGetDatabaseManager;
+    private volatile Method runtimeGetHyperZonePlayers;
+    private volatile Method runtimeGetChatCommandManager;
+    private volatile Method runtimeGetServerAdapter;
+    private volatile Method runtimeGetCredentialChannelRegistry;
+    private volatile Method runtimeRegisterModule;
 
     @Inject
     public VcRuntestPlugin(
@@ -64,28 +81,48 @@ public final class VcRuntestPlugin implements HyperZoneApi {
     ) {
         this.velocityProxy = proxy;
         this.logger = logger;
-        // Put HZL data next to the vc-runtest data dir so configs look the same
-        // as a real install (plugins/hyperzonelogin/).
         this.runtimeDataDirectory = dataDirectory.resolveSibling("hyperzonelogin");
     }
 
     @Subscribe
-    public void onEnable(ProxyInitializeEvent event) throws IOException {
+    public void onEnable(ProxyInitializeEvent event) throws Exception {
         Files.createDirectories(this.runtimeDataDirectory);
-        // Bind THIS (a real Velocity plugin instance) as the HyperZoneApi so that
-        // all event.register(api, listener) calls work because Velocity knows about us.
         HyperZoneApiProvider.INSTANCE.bind(this);
-        this.runtime = new HyperZoneLoginMain(
+
+        ClassLoader pluginClassLoader = getClass().getClassLoader();
+        List<ClassLoader> dependencyClassLoaders = resolveDependencyPluginClassLoaders();
+        ClassLoader runtimeClassLoader = new ChildFirstRuntimeClassLoader(
+            buildRuntimeClasspathUrls(),
+            pluginClassLoader,
+            dependencyClassLoaders
+        );
+
+        Class<?> runtimeClass = Class.forName(HZL_MAIN_CLASS_NAME, true, runtimeClassLoader);
+        Constructor<?> constructor = runtimeClass.getConstructor(
+            ProxyServer.class,
+            ComponentLogger.class,
+            Path.class,
+            HyperZoneApi.class
+        );
+        Object runtimeInstance = constructor.newInstance(
             this.velocityProxy,
             this.logger,
             this.runtimeDataDirectory,
             this
         );
-        this.runtime.onEnable(event);
-        this.logger.info("vc-runtest bridge: HyperZoneLogin started from Gradle classpath");
-    }
 
-    // ── HyperZoneApi ──────────────────────────────────────────────────────────
+        this.runtime = runtimeInstance;
+        this.runtimeOnEnable = runtimeClass.getMethod("onEnable", ProxyInitializeEvent.class);
+        this.runtimeGetDatabaseManager = runtimeClass.getMethod("getDatabaseManager");
+        this.runtimeGetHyperZonePlayers = runtimeClass.getMethod("getHyperZonePlayers");
+        this.runtimeGetChatCommandManager = runtimeClass.getMethod("getChatCommandManager");
+        this.runtimeGetServerAdapter = runtimeClass.getMethod("getServerAdapter");
+        this.runtimeGetCredentialChannelRegistry = runtimeClass.getMethod("getCredentialChannelRegistry");
+        this.runtimeRegisterModule = runtimeClass.getMethod("registerModule", HyperSubModule.class, HyperZoneApi.class);
+
+        this.runtimeOnEnable.invoke(runtimeInstance, event);
+        this.logger.info("vc-runtest bridge: HyperZoneLogin started from side-loaded runtime classpath");
+    }
 
     @Override
     public ProxyServer getProxy() {
@@ -99,31 +136,161 @@ public final class VcRuntestPlugin implements HyperZoneApi {
 
     @Override
     public HyperZoneDatabaseManager getDatabaseManager() {
-        return this.runtime.getDatabaseManager();
+        return invokeRuntime(HyperZoneDatabaseManager.class, this.runtimeGetDatabaseManager);
     }
 
     @Override
     public HyperZonePlayerAccessor getHyperZonePlayers() {
-        return this.runtime.getHyperZonePlayers();
+        return invokeRuntime(HyperZonePlayerAccessor.class, this.runtimeGetHyperZonePlayers);
     }
 
     @Override
     public HyperChatCommandManager getChatCommandManager() {
-        return this.runtime.getChatCommandManager();
+        return invokeRuntime(HyperChatCommandManager.class, this.runtimeGetChatCommandManager);
     }
 
     @Override
     public HyperZoneVServerAdapter getServerAdapter() {
-        return this.runtime.getServerAdapter();
+        return invokeRuntime(HyperZoneVServerAdapter.class, this.runtimeGetServerAdapter);
     }
 
     @Override
     public CredentialChannelRegistry getCredentialChannelRegistry() {
-        return this.runtime.getCredentialChannelRegistry();
+        return invokeRuntime(CredentialChannelRegistry.class, this.runtimeGetCredentialChannelRegistry);
     }
 
     @Override
     public void registerModule(HyperSubModule module) {
-        this.runtime.registerModule(module, this);
+        Object runtimeInstance = requireRuntime();
+        try {
+            this.runtimeRegisterModule.invoke(runtimeInstance, module, this);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("Failed to register module through side-loaded HyperZoneLogin runtime", e);
+        }
+    }
+
+    private <T> T invokeRuntime(Class<T> expectedType, Method method) {
+        Object runtimeInstance = requireRuntime();
+        try {
+            Object result = method.invoke(runtimeInstance);
+            return expectedType.cast(result);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("Failed to invoke runtime method " + method.getName(), e);
+        }
+    }
+
+    private Object requireRuntime() {
+        Object runtimeInstance = this.runtime;
+        if (runtimeInstance == null) {
+            throw new IllegalStateException("HyperZoneLogin runtime has not been initialized yet");
+        }
+        return runtimeInstance;
+    }
+
+    private static URL[] buildRuntimeClasspathUrls() {
+        List<URL> urls = new ArrayList<>();
+        String classPath = System.getProperty("java.class.path", "");
+        for (String entry : classPath.split(File.pathSeparator)) {
+            if (entry == null || entry.isBlank()) {
+                continue;
+            }
+            Path path = Path.of(entry).toAbsolutePath().normalize();
+            if (!Files.exists(path)) {
+                continue;
+            }
+            try {
+                urls.add(path.toUri().toURL());
+            } catch (Exception e) {
+                throw new IllegalStateException("Unable to add runtime classpath entry: " + path, e);
+            }
+        }
+        return urls.toArray(URL[]::new);
+    }
+
+    private static final class ChildFirstRuntimeClassLoader extends URLClassLoader {
+        private final List<ClassLoader> dependencyClassLoaders;
+
+        ChildFirstRuntimeClassLoader(URL[] urls, ClassLoader parent, List<ClassLoader> dependencyClassLoaders) {
+            super(urls, parent);
+            this.dependencyClassLoaders = dependencyClassLoaders;
+        }
+
+        @Override
+        protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+            if (!shouldLoadChildFirst(name)) {
+                try {
+                    return super.loadClass(name, resolve);
+                } catch (ClassNotFoundException ignored) {
+                    Class<?> fromDependency = tryDependencyClassLoaders(name);
+                    if (fromDependency != null) {
+                        if (resolve) {
+                            resolveClass(fromDependency);
+                        }
+                        return fromDependency;
+                    }
+                    throw ignored;
+                }
+            }
+
+            synchronized (getClassLoadingLock(name)) {
+                Class<?> loaded = findLoadedClass(name);
+                if (loaded == null) {
+                    try {
+                        loaded = findClass(name);
+                    } catch (ClassNotFoundException ignored) {
+                        Class<?> fromDependency = tryDependencyClassLoaders(name);
+                        loaded = fromDependency != null ? fromDependency : super.loadClass(name, false);
+                    }
+                }
+                if (resolve) {
+                    resolveClass(loaded);
+                }
+                return loaded;
+            }
+        }
+
+        private static boolean shouldLoadChildFirst(String className) {
+            return className.startsWith("icu.h2l.login.")
+                && !className.startsWith("icu.h2l.login.vcruntest.");
+        }
+
+        private Class<?> tryDependencyClassLoaders(String className) {
+            for (ClassLoader classLoader : this.dependencyClassLoaders) {
+                try {
+                    return Class.forName(className, false, classLoader);
+                } catch (ClassNotFoundException ignored) {
+                    // Try next dependency loader.
+                }
+            }
+            return null;
+        }
+    }
+
+    private List<ClassLoader> resolveDependencyPluginClassLoaders() {
+        List<ClassLoader> classLoaders = new ArrayList<>();
+        addDependencyPluginClassLoader(classLoaders, "floodgate");
+        return classLoaders;
+    }
+
+    private void addDependencyPluginClassLoader(List<ClassLoader> out, String pluginId) {
+        Optional<?> pluginContainer = this.velocityProxy.getPluginManager().getPlugin(pluginId);
+        if (pluginContainer.isEmpty()) {
+            return;
+        }
+        try {
+            Object container = pluginContainer.get();
+            Method getInstanceMethod = container.getClass().getMethod("getInstance");
+            Object instanceOptional = getInstanceMethod.invoke(container);
+            if (!(instanceOptional instanceof Optional<?> optionalInstance) || optionalInstance.isEmpty()) {
+                return;
+            }
+            Object pluginInstance = optionalInstance.get();
+            ClassLoader classLoader = pluginInstance.getClass().getClassLoader();
+            if (classLoader != null && !out.contains(classLoader)) {
+                out.add(classLoader);
+            }
+        } catch (ReflectiveOperationException ignored) {
+            // Leave unresolved; runtime will continue and may still resolve from parent/urls.
+        }
     }
 }

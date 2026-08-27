@@ -304,6 +304,7 @@ class HyperZoneLoginMain(
         registerModule(embeddedModule, plugin)
     }
 
+
     /**
      * Trigger re-join authentication flow in the active waiting-area implementation.
      */
