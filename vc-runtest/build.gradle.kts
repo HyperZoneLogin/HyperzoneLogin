@@ -19,217 +19,203 @@
  *
  */
 
-import org.gradle.api.tasks.Sync
 import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.JavaExec
+import org.gradle.jvm.tasks.Jar
 import org.gradle.jvm.toolchain.JavaLanguageVersion
-import java.util.Locale
 
 plugins {
     java
 }
 
+tasks.withType<JavaCompile>().configureEach {
+    options.release.set(25)
+}
+
 dependencies {
+    compileOnly(libs.velocityApi)
+    compileOnly(project(":api"))
+    compileOnly(project(":velocity"))
+
     runtimeOnly(libs.velocityProxy)
     runtimeOnly(libs.velocityApi)
+    runtimeOnly(project(":api"))
+    runtimeOnly(project(":velocity"))
+    runtimeOnly(project(":auth-floodgate"))
+    runtimeOnly(project(":auth-offline"))
+    runtimeOnly(project(":auth-yggd"))
+    runtimeOnly(project(":data-merge"))
+    runtimeOnly(project(":profile-skin"))
+    runtimeOnly(project(":safe"))
+
+    // Runtime libraries that are normally downloaded by the main plugin bootstrap.
+    // In the dev environment we provide them directly on the classpath so no network
+    // access is required and class loading works without the bootstrap download step.
+    runtimeOnly(libs.configurateExtraKotlin)
+    runtimeOnly(libs.configurateHocon)
+    runtimeOnly(libs.configurateGson)
+    runtimeOnly(libs.configurateYaml)
+    runtimeOnly(libs.exposedCore)
+    runtimeOnly(libs.exposedJdbc)
+    runtimeOnly(libs.sqliteJdbc)
+    runtimeOnly(libs.mysql)
+    runtimeOnly(libs.mariadb)
+    runtimeOnly(libs.hikari)
+    runtimeOnly(libs.angusMail)
+    runtimeOnly(libs.googleAuth)
+    runtimeOnly(libs.h2)
+    runtimeOnly(libs.asm)
+    runtimeOnly(libs.asmCommons)
+    runtimeOnly(libs.jarRelocator)
+    runtimeOnly(libs.bstatsVelocity)
 }
 
 val runDir = layout.projectDirectory.dir("run")
-val velocityToml = runDir.file("velocity.toml")
-val runtimeDependencyProjects = listOf(
-    project(":velocity"),
-    project(":auth-offline"),
-    project(":data-merge"),
-)
+val runPluginsDir = runDir.dir("plugins")
+val vcRuntestPluginJar = tasks.named<Jar>("jar")
 
-fun cacheFileName(groupId: String, artifactId: String, version: String): String =
-    (groupId + "-" + artifactId + "-" + version + ".jar")
-        .lowercase(Locale.ROOT)
-        .replace(':', '-')
-        .replace('.', '-')
+fun writeIfMissing(target: File, content: String) {
+    if (target.exists()) return
+    target.parentFile.mkdirs()
+    target.writeText(content)
+}
 
-fun velocityTomlContent(): String =
-    """
-    config-version = "2.8"
-    bind = "127.0.0.1:25575"
-    motd = "<green>HyperZoneLogin VC Runtest"
-    show-max-players = 1
-    online-mode = false
-    force-key-authentication = false
-    prevent-client-proxy-connections = false
-    player-info-forwarding-mode = "modern"
-    forwarding-secret-file = "forwarding.secret"
-    announce-forge = false
-    kick-existing-players = false
-    ping-passthrough = "DISABLED"
-    sample-players-in-ping = false
-    enable-player-address-logging = false
+fun stageRunDirectoryConfigFiles(runDirFile: File) {
+    writeIfMissing(
+        runDirFile.resolve("velocity.toml"),
+        """
+        config-version = "2.8"
+        bind = "127.0.0.1:25575"
+        motd = "<green>HyperZoneLogin VC Runtest"
+        show-max-players = 1
+        online-mode = false
+        force-key-authentication = false
+        prevent-client-proxy-connections = false
+        player-info-forwarding-mode = "modern"
+        forwarding-secret-file = "forwarding.secret"
+        announce-forge = false
+        kick-existing-players = false
+        ping-passthrough = "DISABLED"
+        sample-players-in-ping = false
+        enable-player-address-logging = false
 
-    [packet-limiter]
-    interval = 7
-    packets-per-second = -1
-    bytes-per-second = -1
-    decompressed-bytes-per-second = 5242880
+        [packet-limiter]
+        interval = 7
+        packets-per-second = -1
+        bytes-per-second = -1
+        decompressed-bytes-per-second = 5242880
 
-    [servers]
-    play = "127.0.0.1:30067"
-    outpre-auth = "127.0.0.1:30066"
-    try = [
-        "play"
-    ]
+        [servers]
+        play = "127.0.0.1:30067"
+        outpre-auth = "127.0.0.1:30066"
+        try = [
+            "play"
+        ]
 
-    [forced-hosts]
+        [forced-hosts]
 
-    [advanced]
-    compression-threshold = 256
-    compression-level = -1
-    login-ratelimit = 0
-    connection-timeout = 5000
-    read-timeout = 30000
-    haproxy-protocol = false
-    tcp-fast-open = false
-    bungee-plugin-message-channel = true
-    show-ping-requests = false
-    failover-on-unexpected-server-disconnect = true
-    announce-proxy-commands = true
-    log-command-executions = false
-    log-player-connections = true
-    accepts-transfers = false
-    enable-reuse-port = false
-    command-rate-limit = 50
-    forward-commands-if-rate-limited = true
-    kick-after-rate-limited-commands = 0
-    tab-complete-rate-limit = 10
-    kick-after-rate-limited-tab-completes = 0
+        [advanced]
+        compression-threshold = 256
+        compression-level = -1
+        login-ratelimit = 0
+        connection-timeout = 5000
+        read-timeout = 30000
+        haproxy-protocol = false
+        tcp-fast-open = false
+        bungee-plugin-message-channel = true
+        show-ping-requests = false
+        failover-on-unexpected-server-disconnect = true
+        announce-proxy-commands = true
+        log-command-executions = false
+        log-player-connections = true
+        accepts-transfers = false
+        enable-reuse-port = false
+        command-rate-limit = 50
+        forward-commands-if-rate-limited = true
+        kick-after-rate-limited-commands = 0
+        tab-complete-rate-limit = 10
+        kick-after-rate-limited-tab-completes = 0
 
-    [query]
-    enabled = false
-    port = 25565
-    map = "Velocity"
-    show-plugins = false
-    """.trimIndent() + "\n"
+        [query]
+        enabled = false
+        port = 25565
+        map = "Velocity"
+        show-plugins = false
+        """.trimIndent() + "\n"
+    )
 
-fun bStatsConfigContent(): String =
-    """
+    writeIfMissing(
+        runDirFile.resolve("forwarding.secret"),
+        "xQHleQQvdFNe\n"
+    )
+
+    writeIfMissing(
+        runDirFile.resolve("plugins/bStats/config.txt"),
+        """
         enabled=false
         server-uuid=a8c7c030-3822-47d9-a9fc-124c59009ca8
         log-errors=false
         log-sent-data=false
         log-response-status-text=false
-    """.trimIndent() + "\n"
+        """.trimIndent() + "\n"
+    )
 
-fun startConfContent(): String =
-    """
-    language="zh_cn"
-    format=hocon
-    ready=true
-    """.trimIndent() + "\n"
-
-fun stageVelocityRunDirectory(runDirFile: File, overwriteConfigFiles: Boolean) {
-    val libsDir = runDirFile.resolve("plugins/hyperzonelogin/libs")
-    libsDir.mkdirs()
-
-    runtimeDependencyProjects
-        .mapNotNull { it.configurations.findByName("needPackageResolver") }
-        .forEach { configuration ->
-            configuration.resolvedConfiguration.resolvedArtifacts
-                .filter { artifact ->
-                    artifact.extension == "jar" && artifact.moduleVersion.id.group != "unspecified"
-                }
-                .sortedBy { artifact ->
-                    val moduleId = artifact.moduleVersion.id
-                    moduleId.group + ":" + artifact.name + ":" + moduleId.version
-                }
-                .forEach { artifact ->
-                    val moduleId = artifact.moduleVersion.id
-                    val targetFile = libsDir.resolve(cacheFileName(moduleId.group, artifact.name, moduleId.version))
-                    artifact.file.copyTo(targetFile, overwrite = true)
-                }
-        }
-
-    if (overwriteConfigFiles || !velocityToml.asFile.exists()) {
-        velocityToml.asFile.writeText(velocityTomlContent())
-    }
-
-    val bStatsConfig = runDirFile.resolve("plugins/bStats/config.txt")
-    bStatsConfig.parentFile.mkdirs()
-    if (overwriteConfigFiles || !bStatsConfig.exists()) {
-        bStatsConfig.writeText(bStatsConfigContent())
-    }
-
-    val forwardingSecret = runDirFile.resolve("forwarding.secret")
-    if (overwriteConfigFiles || !forwardingSecret.exists()) {
-        forwardingSecret.writeText("xQHleQQvdFNe\n")
-    }
-
-    val startConf = runDirFile.resolve("plugins/hyperzonelogin/start.conf")
-    startConf.parentFile.mkdirs()
-    if (overwriteConfigFiles || !startConf.exists()) {
-        startConf.writeText(startConfContent())
-    }
+    writeIfMissing(
+        runDirFile.resolve("plugins/hyperzonelogin/start.conf"),
+        """
+        language="zh_cn"
+        format=hocon
+        ready=true
+        """.trimIndent() + "\n"
+    )
 }
 
-val prepareVelocityRun = tasks.register<Sync>("prepareVelocityRun") {
-    group = "application"
-    description = "Fully resets the local Velocity proxy run directory with the HyperZoneLogin monolith plugin."
-
-    dependsOn(rootProject.tasks.named("collectPluginJars"))
-
-    into(runDir)
-    from(rootProject.layout.buildDirectory.dir("HZL")) {
-        into("plugins")
+tasks.named<Jar>("jar") {
+    from(sourceSets.named("main").get().output)
+    from(layout.projectDirectory.dir("src/main/resources")) {
+        include("velocity-plugin.json")
     }
-    doFirst {
-        runDir.asFile.resolve("plugins")
-            .listFiles()
-            ?.filter { file -> file.isFile && file.name.startsWith("HyperZoneLogin-") && file.name.endsWith(".jar") }
-            ?.forEach { file ->
-                file.delete()
-            }
-    }
-    doLast {
-        val runDirFile = runDir.asFile
-        runDirFile.mkdirs()
-        stageVelocityRunDirectory(runDirFile, overwriteConfigFiles = true)
-    }
+    duplicatesStrategy = org.gradle.api.file.DuplicatesStrategy.EXCLUDE
 }
 
-val stageVelocityRun = tasks.register<Copy>("stageVelocityRun") {
+val installVcRuntestPlugin = tasks.register<Copy>("installVcRuntestPlugin") {
     group = "application"
-    description = "Stages the local Velocity proxy run directory without removing existing config files."
+    description = "Installs the stable vc-runtest bridge plugin jar into the local Velocity plugins directory."
 
-    dependsOn(rootProject.tasks.named("collectPluginJars"))
-
-    into(runDir)
-    from(rootProject.layout.buildDirectory.dir("HZL")) {
-        into("plugins")
+    dependsOn(vcRuntestPluginJar)
+    into(runPluginsDir)
+    from(vcRuntestPluginJar.flatMap { it.archiveFile }) {
+        rename { "vc-runtest.jar" }
     }
+
     doFirst {
-        runDir.asFile.resolve("plugins")
-            .listFiles()
-            ?.filter { file -> file.isFile && file.name.startsWith("HyperZoneLogin-") && file.name.endsWith(".jar") }
+        runPluginsDir.asFile.mkdirs()
+        runPluginsDir.asFile.listFiles()
+            ?.filter { file -> file.isFile && (file.name.startsWith("HyperZoneLogin-") || file.name == "vc-runtest.jar") }
             ?.forEach { file ->
-                file.delete()
+                if (file.name.startsWith("HyperZoneLogin-")) {
+                    file.delete()
+                }
             }
-    }
-
-    doLast {
-        val runDirFile = runDir.asFile
-        runDirFile.mkdirs()
-        stageVelocityRunDirectory(runDirFile, overwriteConfigFiles = false)
     }
 }
 
 tasks.register<JavaExec>("runVelocity") {
     group = "application"
-    description = "Runs a local Velocity proxy with HyperZoneLogin plugins staged in run/plugins."
+    description = "Runs a local Velocity proxy with a persistent vc-runtest bridge plugin and direct module classpath loading."
 
-    dependsOn(stageVelocityRun)
+    dependsOn(installVcRuntestPlugin)
 
-    classpath = sourceSets.named("main").get().runtimeClasspath
-    mainClass.set("com.velocitypowered.proxy.Velocity")
+    doFirst {
+        val runDirFile = runDir.asFile
+        runDirFile.mkdirs()
+        stageRunDirectoryConfigFiles(runDirFile)
+    }
+
     workingDir = runDir.asFile
     standardInput = System.`in`
+    classpath = sourceSets.named("main").get().runtimeClasspath
+    mainClass.set("com.velocitypowered.proxy.Velocity")
     jvmArgs(
         "-Dfile.encoding=UTF-8",
         "-Dsun.stdout.encoding=UTF-8",

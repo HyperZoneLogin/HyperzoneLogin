@@ -1,4 +1,0 @@
-Manifest-Version: 1.0
-Main-Class: icu.h2l.login.cli.MainKt
-Multi-Release: true
-

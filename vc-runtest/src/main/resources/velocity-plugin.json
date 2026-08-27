@@ -1,0 +1,8 @@
+{
+  "id": "vc-runtest",
+  "name": "HyperZoneLogin VC Runtest",
+  "version": "dev",
+  "authors": ["ksqeib"],
+  "main": "icu.h2l.login.vcruntest.VcRuntestPlugin"
+}
+
