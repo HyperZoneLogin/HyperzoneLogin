@@ -43,16 +43,15 @@ velocity / 主插件 (HyperZoneLogin 核心)
     - `outpre`：先挂起正常 Velocity 注册，把登录阶段连接桥接到真实认证服，认证完成后再继续正常初始服流程；
   - `backend-server.conf` 只负责 `backend` 模式配置：
     - `fallbackAuthServer`
-    - `postAuthDefaultServer`
     - `rememberRequestedServerDuringAuth`
   - 使用 `backend` 模式时，未认证玩家会被固定送入该服务器等待认证；
   - `outpre` 改为使用独立的 `vserver-outpre.conf`：
     - `authHost` / `authPort`：outpre 要直连桥接到的真实认证服；
     - `authLabel`：仅用于日志/状态标识的逻辑名，不需要在 Velocity 中注册；
-    - `postAuthDefaultServer`：认证完成后默认进入的子服务器；
     - `rememberRequestedServerDuringAuth`：是否记住玩家在认证阶段切换出来的目标服；
     - `presentedHost` / `presentedPort` / `presentedPlayerIp`：转接到认证服时，对后端暴露的连接信息；
-  - 这些参数只由 `vserver-outpre.conf` 控制，不再与 `backend` 模式共享，也不再从 Velocity 的 `virtual host / forced hosts / attempt-connection-order` 推导；
+     - 认证完成后的目标服回落遵循 Velocity 原生的 `forced-hosts` / `try`（attempt-connection-order）顺序；
+     - 这些参数只由 `vserver-outpre.conf` 控制，不再与 `backend` 模式共享；
   - `outpre` 的认证服无需在 Velocity 中注册；只要配置好 `authHost/authPort` 即可进行直连桥接；
   - 认证完成前，玩家不能进入其他后端；
   - 若 `rememberRequestedServerDuringAuth=true`，则会记住玩家原本想去的服务器，并在认证成功后自动连接过去。

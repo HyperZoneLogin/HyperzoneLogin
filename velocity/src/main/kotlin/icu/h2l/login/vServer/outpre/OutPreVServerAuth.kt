@@ -45,6 +45,7 @@ import icu.h2l.login.message.MessageKeys
 import icu.h2l.login.player.VelocityHyperZonePlayer
 import icu.h2l.login.util.ConnectMessageKeys
 import icu.h2l.login.util.connectPlayerToServer
+import icu.h2l.login.util.resolveVelocityInitialTargetServerName
 import icu.h2l.login.vServer.outpre.handler.OutPreAuthSessionHandler
 import icu.h2l.login.vServer.outpre.session.OutPreInitialJoinSession
 import icu.h2l.login.vServer.outpre.session.OutPreInitialJoinSessionFactory
@@ -215,7 +216,7 @@ class OutPreVServerAuth(
         val resolvedTargetName = preferredTargetServerName
             ?.takeUnless { it.isBlank() || it.equals(authTargetLabel, ignoreCase = true) }
             ?.takeIf { server.getServer(it).isPresent }
-            ?: resolveFallbackTargetServerName(authTargetLabel)
+            ?: resolveFallbackTargetServerName(player, authTargetLabel)
         return resolvedTargetName?.let { server.getServer(it).orElse(null) }
     }
 
@@ -268,7 +269,7 @@ class OutPreVServerAuth(
         }
 
         PlayerAreaLifecycleListener.markWaitingAreaLeavePending(player, PlayerAreaTransitionReason.EXIT_REQUEST)
-        return connectPlayerToServer(player, server, resolveTargetServerName(state), ConnectMessageKeys.EXIT)
+        return connectPlayerToServer(player, server, resolveTargetServerName(player, state), ConnectMessageKeys.EXIT)
     }
 
     override fun onVerified(player: Player) {
@@ -422,7 +423,7 @@ class OutPreVServerAuth(
 
     private fun connectVerifiedPlayerToResolvedTarget(player: Player, state: OutPreState): Boolean {
         clearInitialSession(player.getChannel(), state)
-        return connectPlayerToServer(player, server, resolveTargetServerName(state), ConnectMessageKeys.VERIFIED)
+        return connectPlayerToServer(player, server, resolveTargetServerName(player, state), ConnectMessageKeys.VERIFIED)
     }
 
     // ---- 状态 / 配置辅助 ----
@@ -447,21 +448,13 @@ class OutPreVServerAuth(
         return HyperZoneLoginMain.getCoreConfig().vServer.rememberRequestedServerDuringAuth
     }
 
-    private fun resolveTargetServerName(state: OutPreState): String? =
+    private fun resolveTargetServerName(player: Player, state: OutPreState): String? =
         state.returnTargetServerName
             ?.takeUnless { it.isBlank() || it.equals(state.authTargetLabel, ignoreCase = true) }
-            ?: resolveFallbackTargetServerName(state.authTargetLabel)
+            ?: resolveFallbackTargetServerName(player, state.authTargetLabel)
 
-    private fun resolveFallbackTargetServerName(authServerName: String): String? {
-        val directConfiguredTarget = HyperZoneLoginMain.getCoreConfig().vServer.postAuthDefaultServer
-            .trim()
-            .takeUnless { it.isBlank() || it.equals(authServerName, ignoreCase = true) }
-            ?.takeIf { server.getServer(it).isPresent }
-        if (directConfiguredTarget != null) {
-            return directConfiguredTarget
-        }
-
-        return null
+    private fun resolveFallbackTargetServerName(player: Player, authServerName: String): String? {
+        return resolveVelocityInitialTargetServerName(server, player, authServerName)
     }
 
 }

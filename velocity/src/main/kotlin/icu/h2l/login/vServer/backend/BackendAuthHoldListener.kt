@@ -30,7 +30,6 @@ import com.velocitypowered.api.proxy.Player
 import com.velocitypowered.api.proxy.ProxyServer
 import com.velocitypowered.api.proxy.server.RegisteredServer
 import icu.h2l.api.event.area.PlayerAreaTransitionReason
-import icu.h2l.api.event.vServer.VServerAuthStartEvent
 import icu.h2l.api.event.vServer.VServerJoinEvent
 import icu.h2l.api.message.HyperZoneMessagePlaceholder
 import icu.h2l.api.player.getChannel
@@ -41,6 +40,7 @@ import icu.h2l.login.manager.HyperZonePlayerManager
 import icu.h2l.login.manager.LoginManager
 import icu.h2l.login.message.MessageKeys
 import icu.h2l.login.player.VelocityHyperZonePlayer
+import icu.h2l.login.util.resolveVelocityInitialTargetServerName
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
@@ -268,33 +268,7 @@ class BackendAuthHoldListener(
             return directTarget
         }
 
-        val configuredDefaultTarget = HyperZoneLoginMain.getCoreConfig().vServer.postAuthDefaultServer
-            .trim()
-            .takeUnless { it.isBlank() || it.equals(authServerName, ignoreCase = true) }
-            ?.takeIf { server.getServer(it).isPresent }
-        if (configuredDefaultTarget != null) {
-            return configuredDefaultTarget
-        }
-
-        val config = server.configuration
-        val hostKey = player.virtualHost
-            .map { it.hostString.lowercase(Locale.ROOT) }
-            .orElse("")
-        val forcedOrder = config.forcedHosts[hostKey].orEmpty()
-        val connectionOrder = if (forcedOrder.isNotEmpty()) {
-            forcedOrder
-        } else {
-            config.attemptConnectionOrder
-        }
-
-        connectionOrder.firstOrNull { candidate ->
-            !candidate.equals(authServerName, ignoreCase = true) && server.getServer(candidate).isPresent
-        }?.let { return it }
-
-        return server.allServers
-            .firstOrNull { candidate -> !candidate.serverInfo.name.equals(authServerName, ignoreCase = true) }
-            ?.serverInfo
-            ?.name
+        return resolveVelocityInitialTargetServerName(server, player, authServerName)
     }
 
     private fun fireJoin(
@@ -360,7 +334,7 @@ class BackendAuthHoldListener(
         val state = backendHoldStates[player.getChannel()]
         val authServerName = state?.authServerName ?: configuredAuthServerName()
         val returnTarget = state?.returnTargetServerName
-            ?: resolveFallbackTargetServerName(player, authServerName)
+            ?: resolveVelocityInitialTargetServerName(server, player, authServerName)
 
         return connectPlayerToTarget(
             player = player,
@@ -455,36 +429,6 @@ class BackendAuthHoldListener(
         return currentServerName.equals(authServerName, ignoreCase = true)
     }
 
-    private fun resolveFallbackTargetServerName(player: Player, authServerName: String): String? {
-        val directConfiguredTarget = HyperZoneLoginMain.getCoreConfig().vServer.postAuthDefaultServer
-            .trim()
-            .takeUnless { it.isBlank() || it.equals(authServerName, ignoreCase = true) }
-            ?.takeIf { server.getServer(it).isPresent }
-        if (directConfiguredTarget != null) {
-            return directConfiguredTarget
-        }
-
-        val config = server.configuration
-        val hostKey = player.virtualHost
-            .map { it.hostString.lowercase(Locale.ROOT) }
-            .orElse("")
-        val forcedOrder = config.forcedHosts[hostKey].orEmpty()
-        val connectionOrder = if (forcedOrder.isNotEmpty()) {
-            forcedOrder
-        } else {
-            config.attemptConnectionOrder
-        }
-
-        connectionOrder.firstOrNull { candidate ->
-            !candidate.equals(authServerName, ignoreCase = true) && server.getServer(candidate).isPresent
-        }?.let { return it }
-
-        return server.allServers
-            .firstOrNull { candidate -> !candidate.serverInfo.name.equals(authServerName, ignoreCase = true) }
-            ?.serverInfo
-            ?.name
-    }
-
     private fun connectPlayerToTarget(
         player: Player,
         targetServerName: String?,
@@ -497,7 +441,7 @@ class BackendAuthHoldListener(
         val messages = HyperZoneLoginMain.getInstance().messageService
         val resolvedTarget = targetServerName
             ?.takeUnless { it.isBlank() || it.equals(authServerName, ignoreCase = true) }
-            ?: resolveFallbackTargetServerName(player, authServerName)
+            ?: resolveVelocityInitialTargetServerName(server, player, authServerName)
         val hyperPlayer = getHyperPlayer(player)
 
         if (resolvedTarget == null) {

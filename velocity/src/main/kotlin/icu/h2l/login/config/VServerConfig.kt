@@ -32,9 +32,6 @@ data class VServerConfig(
     @Comment("config.vserver.mode")
     val mode: String = "outpre",
 
-    // 认证完成后默认进入的服务器
-    @Comment("config.vserver.post-auth-default-server")
-    val postAuthDefaultServer: String = "play",
 
     // 记住认证时收到的服务器跳转请求
     @Comment("config.vserver.remember-requested-server")
@@ -118,10 +115,6 @@ data class VServerConfig(
 
         fun resolveOutprePresentedPort(authAddress: InetSocketAddress): Int {
             return presentedPort.takeIf { it in 1..65535 } ?: authAddress.port
-        }
-
-        fun resolveOutprePresentedPlayerIp(clientIp: String): String {
-            return presentedPlayerIp.trim().ifBlank { clientIp }
         }
     }
 }
