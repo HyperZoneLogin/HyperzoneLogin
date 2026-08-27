@@ -26,6 +26,7 @@ import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.profile.HyperZoneProfileService
 import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.database.BindingCodeStore
+import icu.h2l.login.manager.LoginManager
 import icu.h2l.login.message.MessageKeys
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.event.ClickEvent
@@ -40,7 +41,8 @@ import kotlin.concurrent.withLock
 
 class ProfileBindingCodeService(
     private val repository: BindingCodeStore,
-    private val profileService: HyperZoneProfileService
+    private val profileService: HyperZoneProfileService,
+    private val loginManager: LoginManager,
 ) {
     data class Result(
         val success: Boolean,
@@ -156,7 +158,7 @@ class ProfileBindingCodeService(
                     )
                 }
 
-                profileService.attachProfile(player, attachedProfile.id)
+                attachProfile(player, attachedProfile.id)
                     ?: return@withLock Result(
                         false,
                         messages?.render(player, MessageKeys.BindCode.USE_ATTACH_FAILED)
@@ -252,6 +254,9 @@ class ProfileBindingCodeService(
     private fun normalizeCode(rawCode: String): String {
         return rawCode.trim().uppercase(Locale.ROOT)
     }
+
+    private fun attachProfile(player: HyperZonePlayer, profileId: UUID) =
+        loginManager.attachProfile(player, profileId)
 
     companion object {
         private const val BIND_CODE_CHARS = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"

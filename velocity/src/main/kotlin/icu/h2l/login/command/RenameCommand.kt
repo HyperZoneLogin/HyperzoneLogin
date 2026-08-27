@@ -123,7 +123,7 @@ class RenameCommand : HyperChatCommandExecutor {
             if (main.profileService.canCreate(renamedCredential)) {
                 val createdProfile = main.profileService.create(renamedCredential)
                 main.profileService.bindSubmittedCredentials(hyperZonePlayer, createdProfile.id)
-                main.profileService.attachProfile(hyperZonePlayer, createdProfile.id)
+                main.loginManager.attachProfile(hyperZonePlayer, createdProfile.id)
                     ?: throw IllegalStateException("rename 后 attach Profile 失败: ${createdProfile.id}")
             }
         }.onSuccess {

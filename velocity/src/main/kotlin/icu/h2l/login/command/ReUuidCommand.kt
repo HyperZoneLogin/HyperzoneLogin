@@ -113,7 +113,7 @@ class ReUuidCommand : HyperChatCommandExecutor {
             if (main.profileService.canCreateWithReUuid(renamedRegistrationName)) {
                 val createdProfile = main.profileService.createWithReUuid(renamedRegistrationName)
                 main.profileService.bindSubmittedCredentials(hyperZonePlayer, createdProfile.id)
-                main.profileService.attachProfile(hyperZonePlayer, createdProfile.id)
+                main.loginManager.attachProfile(hyperZonePlayer, createdProfile.id)
                     ?: throw IllegalStateException("reUUID 后 attach Profile 失败: ${createdProfile.id}")
             }
         }.onSuccess {

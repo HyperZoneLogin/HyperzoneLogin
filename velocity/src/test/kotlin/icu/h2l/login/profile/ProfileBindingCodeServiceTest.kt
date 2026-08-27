@@ -21,11 +21,14 @@
 
 package icu.h2l.login.profile
 
+import com.velocitypowered.api.proxy.ProxyServer
 import icu.h2l.api.db.Profile
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.profile.HyperZoneCredential
 import icu.h2l.api.profile.HyperZoneProfileService
 import icu.h2l.login.database.BindingCodeStore
+import icu.h2l.login.manager.LoginManager
+import io.mockk.mockk
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import org.junit.jupiter.api.Assertions.*
@@ -44,7 +47,11 @@ class ProfileBindingCodeServiceTest {
         repository = FakeBindingCodeStore()
         profileService = FakeProfileService()
         hyperZonePlayer = FakeHyperZonePlayer()
-        bindingCodeService = ProfileBindingCodeService(repository, profileService)
+        bindingCodeService = ProfileBindingCodeService(
+            repository,
+            profileService,
+            LoginManager(mockk<ProxyServer>(relaxed = true), profileService),
+        )
     }
 
     @Test

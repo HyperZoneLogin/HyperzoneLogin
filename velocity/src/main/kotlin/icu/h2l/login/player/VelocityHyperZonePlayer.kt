@@ -23,21 +23,13 @@ package icu.h2l.login.player
 
 import com.velocitypowered.api.proxy.Player
 import com.velocitypowered.api.util.GameProfile
-import icu.h2l.api.event.area.PlayerAreaTransitionReason
-import icu.h2l.api.log.HyperZoneDebugType
-import icu.h2l.api.log.debug
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.util.RemapUtils
 import icu.h2l.login.HyperZoneLoginMain
-import icu.h2l.login.listener.PlayerAreaLifecycleListener
-import icu.h2l.login.manager.HyperZonePlayerManager
-import icu.h2l.login.message.MessageKeys
 import net.kyori.adventure.text.Component
 import java.util.*
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicReference
 
 /**
  * `HyperZonePlayer` 的 Velocity 实现。
@@ -54,16 +46,8 @@ class VelocityHyperZonePlayer(
     override val clientOriginalUUID: UUID?,
     override val isOnlinePlayer: Boolean,
 ) : HyperZonePlayer {
-
-    companion object {
-        private val readyTransitionOwners = ConcurrentHashMap<UUID, VelocityHyperZonePlayer>()
-    }
-
-
     private var proxyPlayer: Player? = null
     private val hasBoundProxyPlayer = AtomicBoolean(false)
-
-    private val hasNotifiedReadyState = AtomicBoolean(false)
 
     /**
      * 玩家是否已经生成过可直接发送消息的实体。
@@ -74,7 +58,6 @@ class VelocityHyperZonePlayer(
      * 玩家进入可收消息阶段前缓存的提示消息。
      */
     private val messageQueue = ConcurrentLinkedQueue<Component>()
-    private val lastReadyConflictPlayerIds = AtomicReference<Set<UUID>>(emptySet())
 
     /**
      * 等待区转发用的临时档案。
@@ -119,11 +102,6 @@ class VelocityHyperZonePlayer(
         return HyperZoneLoginMain.getInstance().profileService.hasAttachedProfile(this)
     }
 
-    internal fun resetTransientLoginState() {
-        hasNotifiedReadyState.set(false)
-        lastReadyConflictPlayerIds.set(emptySet())
-    }
-
     override fun sendMessage(message: Component) {
         if (hasSpawned.get()) {
             proxyPlayer?.sendMessage(message)
@@ -153,96 +131,6 @@ class VelocityHyperZonePlayer(
 
     override fun getApplyGameProfile(): GameProfile? {
         return ProfileSkinApplySupport.apply(this)
-    }
-
-    internal fun onAttachedProfileAvailable() {
-        tryLeaveWaiting()
-    }
-
-    private fun tryLeaveWaiting() {
-        debug(HyperZoneDebugType.OUTPRE_TRACE) {
-            "hyperPlayer.tryLeaveWaiting player=$clientOriginalName attachedProfile=${hasAttachedProfile()} proxyBound=${proxyPlayer != null}"
-        }
-
-        if (!hasAttachedProfile()) {
-            return
-        }
-
-        val player = proxyPlayer ?: return
-        val main = HyperZoneLoginMain.getInstance()
-        val profileService = main.profileService
-        val attachedProfileId = profileService.getAttachedProfileId(this) ?: return
-
-        val transitionOwner = readyTransitionOwners.putIfAbsent(attachedProfileId, this)
-        if (transitionOwner != null && transitionOwner !== this) {
-            notifyProfileConflict(listOf(transitionOwner))
-            return
-        }
-
-        try {
-            val conflictingPlayers = main.proxy.allPlayers.asSequence()
-                .mapNotNull { onlinePlayer ->
-                    val otherHyperPlayer = HyperZonePlayerManager.getByPlayerOrNull(onlinePlayer) ?: return@mapNotNull null
-                    if (otherHyperPlayer === this) {
-                        return@mapNotNull null
-                    }
-
-                    if (profileService.getAttachedProfileId(otherHyperPlayer) != attachedProfileId) {
-                        return@mapNotNull null
-                    }
-
-                    val isStillInWaitingArea = main.serverAdapter?.isPlayerInWaitingArea(onlinePlayer) == true
-                    if (isStillInWaitingArea && !otherHyperPlayer.hasNotifiedReadyState.get()) {
-                        return@mapNotNull null
-                    }
-
-                    otherHyperPlayer
-                }
-                .toList()
-
-            if (conflictingPlayers.isNotEmpty()) {
-                notifyProfileConflict(conflictingPlayers)
-                return
-            }
-
-            lastReadyConflictPlayerIds.set(emptySet())
-            if (!hasNotifiedReadyState.compareAndSet(false, true)) {
-                return
-            }
-
-            PlayerAreaLifecycleListener.markWaitingAreaLeavePending(player, PlayerAreaTransitionReason.VERIFIED)
-            main.serverAdapter?.onVerified(player)
-        } finally {
-            readyTransitionOwners.remove(attachedProfileId, this)
-        }
-    }
-
-    private fun notifyProfileConflict(conflictingPlayers: List<VelocityHyperZonePlayer>) {
-        val conflictPlayerIds = conflictingPlayers.asSequence()
-            .filter { it !== this }
-            .mapNotNull { it.clientOriginalUUID }
-            .toSet()
-        if (conflictPlayerIds.isEmpty()) {
-            return
-        }
-
-        val previousConflictPlayerIds = lastReadyConflictPlayerIds.getAndSet(conflictPlayerIds)
-        if (previousConflictPlayerIds == conflictPlayerIds) {
-            return
-        }
-
-        sendMessage(HyperZoneLoginMain.getInstance().messageService.render(this, MessageKeys.Player.PROFILE_CONFLICT_SELF))
-        conflictingPlayers.forEach { conflictingPlayer ->
-            if (conflictingPlayer === this) {
-                return@forEach
-            }
-            conflictingPlayer.sendMessage(
-                HyperZoneLoginMain.getInstance().messageService.render(
-                    conflictingPlayer,
-                    MessageKeys.Player.PROFILE_CONFLICT_OTHER
-                )
-            )
-        }
     }
 }
 

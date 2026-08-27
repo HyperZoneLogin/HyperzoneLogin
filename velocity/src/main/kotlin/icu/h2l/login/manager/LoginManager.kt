@@ -23,18 +23,26 @@ package icu.h2l.login.manager
 
 import com.velocitypowered.api.proxy.Player
 import com.velocitypowered.api.proxy.ProxyServer
+import icu.h2l.api.db.Profile
+import icu.h2l.api.event.area.PlayerAreaTransitionReason
 import icu.h2l.api.event.auth.LoginClaim
 import icu.h2l.api.event.auth.LoginHandleContext
 import icu.h2l.api.event.auth.LoginHandleRequestEvent
 import icu.h2l.api.event.auth.LoginHandleResult
 import icu.h2l.api.event.auth.LoginHandleSession
+import icu.h2l.api.log.HyperZoneDebugType
+import icu.h2l.api.log.debug
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.player.getChannel
 import icu.h2l.api.profile.HyperZoneCredentialFlow
 import icu.h2l.api.profile.HyperZoneCredential
 import icu.h2l.api.profile.HyperZoneProfileService
+import icu.h2l.login.HyperZoneLoginMain
+import icu.h2l.login.listener.PlayerAreaLifecycleListener
+import icu.h2l.login.message.MessageKeys
 import icu.h2l.login.player.VelocityHyperZonePlayer
 import io.netty.channel.Channel
+import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
@@ -48,6 +56,9 @@ class LoginManager(
     private val timeoutMillis: Long = DEFAULT_TIMEOUT_MILLIS,
 ) : HyperZoneCredentialFlow {
     private val credentialsByChannel = ConcurrentHashMap<Channel, HyperZoneCredential>()
+    private val readyTransitionOwners = ConcurrentHashMap<UUID, VelocityHyperZonePlayer>()
+    private val notifiedReadyPlayers = ConcurrentHashMap.newKeySet<VelocityHyperZonePlayer>()
+    private val lastReadyConflictPlayerIds = ConcurrentHashMap<VelocityHyperZonePlayer, Set<UUID>>()
 
     override fun submitCredential(player: HyperZonePlayer, credential: HyperZoneCredential) {
         submitCredentialByChannel(resolveChannel(player), credential)
@@ -77,13 +88,127 @@ class LoginManager(
     }
 
     override fun overVerify(player: HyperZonePlayer) {
-        profileService.attachVerifiedCredentialProfile(player)
+        val attachedProfile = profileService.attachVerifiedCredentialProfile(player)
+        if (attachedProfile == null) {
+            player.sendMessage(HyperZoneLoginMain.getInstance().messageService.render(player, MessageKeys.Player.VERIFIED_UNBOUND))
+            return
+        }
+        onProfileAttached(player)
+    }
+
+//    和login的区别是 这个会尝试离开等待区
+    fun attachProfile(player: HyperZonePlayer, profileId: UUID): Profile? {
+        val attachedProfile = profileService.attachProfile(player, profileId) ?: return null
+        onProfileAttached(player)
+        return attachedProfile
+    }
+
+    fun onProfileAttached(player: HyperZonePlayer) {
+        val velocityPlayer = player as? VelocityHyperZonePlayer ?: return
+        runCatching {
+            tryLeaveWaiting(velocityPlayer)
+        }.onFailure { throwable ->
+            debug(HyperZoneDebugType.OUTPRE_TRACE) {
+                "loginManager.onProfileAttached transition failed player=${velocityPlayer.clientOriginalName} reason=${throwable.message}"
+            }
+        }
     }
 
     override fun resetVerify(player: HyperZonePlayer) {
         clearCredentials(player)
         if (player is VelocityHyperZonePlayer) {
-            player.resetTransientLoginState()
+            resetTransientLoginState(player)
+        }
+    }
+
+    private fun resetTransientLoginState(player: VelocityHyperZonePlayer) {
+        notifiedReadyPlayers.remove(player)
+        lastReadyConflictPlayerIds.remove(player)
+    }
+
+    private fun tryLeaveWaiting(hyperPlayer: VelocityHyperZonePlayer) {
+        debug(HyperZoneDebugType.OUTPRE_TRACE) {
+            "loginManager.tryLeaveWaiting player=${hyperPlayer.clientOriginalName} attachedProfile=${hyperPlayer.hasAttachedProfile()} proxyBound=${hyperPlayer.getProxyPlayerOrNull() != null}"
+        }
+
+        if (!hyperPlayer.hasAttachedProfile()) {
+            return
+        }
+
+        val player = hyperPlayer.getProxyPlayerOrNull() ?: return
+        val main = HyperZoneLoginMain.getInstance()
+        val attachedProfileId = profileService.getAttachedProfile(hyperPlayer)?.id ?: return
+
+        val transitionOwner = readyTransitionOwners.putIfAbsent(attachedProfileId, hyperPlayer)
+        if (transitionOwner != null && transitionOwner !== hyperPlayer) {
+            notifyProfileConflict(hyperPlayer, listOf(transitionOwner))
+            return
+        }
+
+        try {
+            val conflictingPlayers = server.allPlayers.asSequence()
+                .mapNotNull { onlinePlayer ->
+                    val otherHyperPlayer = HyperZonePlayerManager.getByPlayerOrNull(onlinePlayer) ?: return@mapNotNull null
+                    if (otherHyperPlayer === hyperPlayer) {
+                        return@mapNotNull null
+                    }
+
+                    if (profileService.getAttachedProfile(otherHyperPlayer)?.id != attachedProfileId) {
+                        return@mapNotNull null
+                    }
+
+                    val isStillInWaitingArea = main.serverAdapter?.isPlayerInWaitingArea(onlinePlayer) == true
+                    if (isStillInWaitingArea && !notifiedReadyPlayers.contains(otherHyperPlayer)) {
+                        return@mapNotNull null
+                    }
+
+                    otherHyperPlayer
+                }
+                .toList()
+
+            if (conflictingPlayers.isNotEmpty()) {
+                notifyProfileConflict(hyperPlayer, conflictingPlayers)
+                return
+            }
+
+            lastReadyConflictPlayerIds.remove(hyperPlayer)
+            if (!notifiedReadyPlayers.add(hyperPlayer)) {
+                return
+            }
+
+            PlayerAreaLifecycleListener.markWaitingAreaLeavePending(player, PlayerAreaTransitionReason.VERIFIED)
+            main.serverAdapter?.onVerified(player)
+        } finally {
+            readyTransitionOwners.remove(attachedProfileId, hyperPlayer)
+        }
+    }
+
+    private fun notifyProfileConflict(player: VelocityHyperZonePlayer, conflictingPlayers: List<VelocityHyperZonePlayer>) {
+        val conflictPlayerIds = conflictingPlayers.asSequence()
+            .filter { it !== player }
+            .mapNotNull { it.clientOriginalUUID }
+            .toSet()
+        if (conflictPlayerIds.isEmpty()) {
+            return
+        }
+
+        val previousConflictPlayerIds = lastReadyConflictPlayerIds.put(player, conflictPlayerIds)
+        if (previousConflictPlayerIds == conflictPlayerIds) {
+            return
+        }
+
+        val messageService = HyperZoneLoginMain.getInstance().messageService
+        player.sendMessage(messageService.render(player, MessageKeys.Player.PROFILE_CONFLICT_SELF))
+        conflictingPlayers.forEach { conflictingPlayer ->
+            if (conflictingPlayer === player) {
+                return@forEach
+            }
+            conflictingPlayer.sendMessage(
+                messageService.render(
+                    conflictingPlayer,
+                    MessageKeys.Player.PROFILE_CONFLICT_OTHER
+                )
+            )
         }
     }
 
@@ -155,6 +280,7 @@ class LoginManager(
         val failures = CopyOnWriteArrayList<ModuleFailure>()
         val cancelSignal = CompletableFuture<Void>()
         val runningTasks = CopyOnWriteArrayList<Pair<String, CompletableFuture<LoginHandleResult>>>()
+        val playerChannel = proxyPlayer.getChannel()
 
         fun completeOnce(result: Result) {
             if (!completed.compareAndSet(false, true)) {
@@ -179,7 +305,7 @@ class LoginManager(
             }
         }
 
-        claims.forEach { claim ->
+        val startedClaims = claims.map { claim ->
             val claimFuture = try {
                 claim.handler.handle(
                     LoginHandleContext(
@@ -195,10 +321,14 @@ class LoginManager(
                 )
             }
             runningTasks += claim.moduleId to claimFuture
+            claim to claimFuture
+        }
 
-            claimFuture.whenCompleteAsync { result, throwable ->
+        startedClaims.forEach { (claim, claimFuture) ->
+            claimFuture.whenComplete { result, throwable ->
+                playerChannel.eventLoop().execute {
                 if (completed.get()) {
-                    return@whenCompleteAsync
+                    return@execute
                 }
 
                 if (throwable != null) {
@@ -212,14 +342,14 @@ class LoginManager(
                             )
                         )
                     }
-                    return@whenCompleteAsync
+                    return@execute
                 }
 
                 val handledResult = result ?: LoginHandleResult.failed("claim completed without result")
                 if (handledResult.success) {
                     if (hyperZonePlayer.hasAttachedProfile()) {
                         completeOnce(Result(status = Status.SUCCESS, winnerModuleId = claim.moduleId))
-                        return@whenCompleteAsync
+                        return@execute
                     }
 
                     val credential = handledResult.credential
@@ -234,11 +364,11 @@ class LoginManager(
                                 )
                             )
                         }
-                        return@whenCompleteAsync
+                                return@execute
                     }
 
                     val submitThrowable = runCatching {
-                        submitCredentialByChannel(proxyPlayer.getChannel(), credential)
+                        submitCredentialByChannel(playerChannel, credential)
                     }.exceptionOrNull()
                     if (submitThrowable != null) {
                         failures += ModuleFailure(
@@ -254,23 +384,23 @@ class LoginManager(
                                 )
                             )
                         }
-                        return@whenCompleteAsync
+                                return@execute
                     }
 
                     val verifyThrowable = runCatching {
                         overVerify(hyperZonePlayer)
                     }.exceptionOrNull()
                     if (verifyThrowable != null) {
-                        clearCredentialsByChannel(proxyPlayer.getChannel())
+                        clearCredentialsByChannel(playerChannel)
                         failures += ModuleFailure(
                             claim.moduleId,
                             "manager overVerify failed: ${verifyThrowable.message ?: "unknown error"}"
                         )
                     } else if (hyperZonePlayer.hasAttachedProfile()) {
                         completeOnce(Result(status = Status.SUCCESS, winnerModuleId = claim.moduleId))
-                        return@whenCompleteAsync
+                        return@execute
                     } else {
-                        clearCredentialsByChannel(proxyPlayer.getChannel())
+                        clearCredentialsByChannel(playerChannel)
                         failures += ModuleFailure(claim.moduleId, "claimed success but profile was not attached")
                     }
                 } else {
@@ -285,6 +415,7 @@ class LoginManager(
                             reason = "all claims failed"
                         )
                     )
+                }
                 }
             }
         }

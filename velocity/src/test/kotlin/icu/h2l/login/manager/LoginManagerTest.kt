@@ -90,7 +90,9 @@ class LoginManagerTest {
             CompletableFuture.completedFuture(event)
         }
 
-        val result = LoginManager(proxyServer, profileService, timeoutMillis = 300).dispatch(player, hyperPlayer).join()
+        val resultFuture = LoginManager(proxyServer, profileService, timeoutMillis = 300).dispatch(player, hyperPlayer)
+        channel.runUntilComplete(resultFuture)
+        val result = resultFuture.join()
 
         assertEquals(LoginManager.Status.ALL_FAILED, result.status)
         assertEquals(2, result.failures.size)
@@ -114,6 +116,7 @@ class LoginManagerTest {
         every { player.getChannel() } returns channel
         every { hyperPlayer.getProxyPlayerOrNull() } returns player
         every { hyperPlayer.hasAttachedProfile() } answers { attached.get() }
+        every { profileService.getAttachedProfile(hyperPlayer) } returns null
         every { profileService.attachVerifiedCredentialProfile(hyperPlayer) } answers { attached.set(true); attachedProfile }
         every { eventManager.fire(any<Any>()) } answers {
             val event = firstArg<Any>()
@@ -126,7 +129,9 @@ class LoginManagerTest {
             CompletableFuture.completedFuture(event)
         }
 
-        val result = LoginManager(proxyServer, profileService, timeoutMillis = 400).dispatch(player, hyperPlayer).join()
+        val resultFuture = LoginManager(proxyServer, profileService, timeoutMillis = 400).dispatch(player, hyperPlayer)
+        channel.runUntilComplete(resultFuture)
+        val result = resultFuture.join()
 
         assertEquals(LoginManager.Status.SUCCESS, result.status)
         assertEquals("winner", result.winnerModuleId)
@@ -159,6 +164,14 @@ class LoginManagerTest {
         val result = LoginManager(proxyServer, profileService, timeoutMillis = 60).dispatch(player, hyperPlayer).join()
 
         assertEquals(LoginManager.Status.TIMEOUT, result.status)
+    }
+
+    private fun EmbeddedChannel.runUntilComplete(future: CompletableFuture<*>) {
+        val deadline = System.nanoTime() + 1_000_000_000L
+        while (!future.isDone && System.nanoTime() < deadline) {
+            runPendingTasks()
+            Thread.sleep(1)
+        }
     }
 }
 

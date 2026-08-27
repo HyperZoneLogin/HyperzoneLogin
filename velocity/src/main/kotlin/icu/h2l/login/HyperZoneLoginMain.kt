@@ -148,14 +148,15 @@ class HyperZoneLoginMain(
         // 创建基础表（Profile 表等）
         createBaseTables()
         profileService = VelocityHyperZoneProfileService(databaseHelper)
-        backendRuntimeProfileCompensator = BackendRuntimeProfileCompensator(profileService, logger)
-        bindingCodeService = ProfileBindingCodeService(
-            BindingCodeRepository(databaseManager, databaseManager.getBindingCodeTable()),
-            profileService
-        )
         HyperZoneProfileServiceProvider.bind(profileService)
         loginManager = LoginManager(server, profileService)
         HyperZoneCredentialFlowProvider.bind(loginManager)
+        backendRuntimeProfileCompensator = BackendRuntimeProfileCompensator(profileService, logger)
+        bindingCodeService = ProfileBindingCodeService(
+            BindingCodeRepository(databaseManager, databaseManager.getBindingCodeTable()),
+            profileService,
+            loginManager,
+        )
         CredentialChannelRegistryProvider.bind(credentialChannelRegistry)
 
         activeVServerAdapter = null
