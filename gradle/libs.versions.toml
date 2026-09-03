@@ -28,11 +28,17 @@ bstats = "3.2.1"
 jarRelocator = "1.7"
 junitBom = "5.10.0"
 picocli = "4.7.6"
+lombok = "1.18.46"
 
 [libraries]
 
 brigadier = "com.velocitypowered:velocity-brigadier:1.0.0-SNAPSHOT"
+adventureApi = { group = "net.kyori", name = "adventure-api", version.ref = "adventure" }
+adventureNbt = { group = "net.kyori", name = "adventure-nbt", version.ref = "adventure" }
 adventureTextSerializerGson = { group = "net.kyori", name = "adventure-text-serializer-gson", version.ref = "adventure" }
+adventureTextSerializerJsonLegacyImpl = { group = "net.kyori", name = "adventure-text-serializer-json-legacy-impl", version.ref = "adventure" }
+adventureTextSerializerLegacy = { group = "net.kyori", name = "adventure-text-serializer-legacy", version.ref = "adventure" }
+adventureTextSerializerPlain = { group = "net.kyori", name = "adventure-text-serializer-plain", version.ref = "adventure" }
 adventureTextLoggerSlf4j = { group = "net.kyori", name = "adventure-text-logger-slf4j", version.ref = "adventure" }
 adventureTextMinimessage = { group = "net.kyori", name = "adventure-text-minimessage", version.ref = "adventure" }
 
@@ -74,10 +80,12 @@ junitPlatformLauncher = { group = "org.junit.platform", name = "junit-platform-l
 
 picocli = { group = "info.picocli", name = "picocli", version.ref = "picocli" }
 picocliCodegen = { group = "info.picocli", name = "picocli-codegen", version.ref = "picocli" }
+lombok = { group = "org.projectlombok", name = "lombok", version.ref = "lombok" }
 
 [plugins]
 
 kotlin = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlinLombok = { id = "org.jetbrains.kotlin.plugin.lombok", version.ref = "kotlin" }
 shadow = { id = "com.gradleup.shadow", version.ref = "shadow" }
 spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
 

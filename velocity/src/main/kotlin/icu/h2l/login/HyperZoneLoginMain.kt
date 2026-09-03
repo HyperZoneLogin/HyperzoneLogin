@@ -260,12 +260,34 @@ class HyperZoneLoginMain(
     }
 
     private fun registerConfiguredEmbeddedModules() {
+        registerBackendNanolimboEmbeddedModule()
         registerEmbeddedModule(EmbeddedModuleRegistry.authFloodgate, coreConfig.modules.authFloodgate)
         registerEmbeddedModule(EmbeddedModuleRegistry.authOffline, coreConfig.modules.authOffline)
         registerEmbeddedModule(EmbeddedModuleRegistry.authYggd, coreConfig.modules.authYggd)
         registerEmbeddedModule(EmbeddedModuleRegistry.safe, coreConfig.modules.safe)
         registerEmbeddedModule(EmbeddedModuleRegistry.profileSkin, coreConfig.modules.profileSkin)
         registerEmbeddedModule(EmbeddedModuleRegistry.dataMerge, coreConfig.modules.dataMerge)
+    }
+
+    private fun registerBackendNanolimboEmbeddedModule() {
+        val spec = EmbeddedModuleRegistry.backendNanolimbo
+        if (!coreConfig.modules.backendNanolimbo) {
+            registerEmbeddedModule(spec, false)
+            return
+        }
+
+        val configuredMode = normalizeVServerMode(coreConfig.vServer.mode)
+        if (configuredMode != "outpre") {
+            logger.info("内置模块已禁用: ${spec.displayName} (vServer.mode=$configuredMode，仅 outpre 模式启用)")
+            return
+        }
+
+        if (coreConfig.vServer.outpre.resolveOutpreAuthAddress() == null) {
+            logger.info("内置模块已禁用: ${spec.displayName} (vserver outpre authHost/authPort 无效)")
+            return
+        }
+
+        registerEmbeddedModule(spec, true)
     }
 
     private fun registerEmbeddedModule(spec: EmbeddedModuleSpec, enabled: Boolean) {

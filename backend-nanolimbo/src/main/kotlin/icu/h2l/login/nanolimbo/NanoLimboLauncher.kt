@@ -19,37 +19,12 @@
  *
  */
 
-pluginManagement {
-    repositories {
-        val isCi = System.getenv("CI") == "true"
-        if (!isCi) {
-            maven("https://maven.aliyun.com/repository/central")
-            maven("https://mirrors.cloud.tencent.com/nexus/repository/maven-public/")
-        }
-        maven("https://plugins.gradle.org/m2/")
-        gradlePluginPortal()
-        mavenCentral()
-    }
-    plugins {
-        kotlin("kapt") version "2.4.0"
-        kotlin("plugin.lombok") version "2.4.0"
+package icu.h2l.login.nanolimbo
+
+object NanoLimboLauncher {
+    @JvmStatic
+    fun main(args: Array<String>) {
+        ua.nanit.limbo.NanoLimbo.main(args)
     }
 }
-plugins {
-    id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
-}
 
-
-rootProject.name = "HyperzoneLogin"
-
-include("velocity")
-include("vc-runtest")
-include("api")
-include("auth-floodgate")
-include("auth-yggd")
-include("auth-offline")
-include("safe")
-include("data-merge")
-include("profile-skin")
-include("cli")
-include("backend-nanolimbo")

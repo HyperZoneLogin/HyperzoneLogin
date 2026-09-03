@@ -171,7 +171,8 @@ public final class HyperZoneLoginBootstrap implements HyperZoneApi {
     }
 
     private List<HyperDependency> readRuntimeDependencies() throws IOException {
-        List<HyperDependency> dependencies = HyperDependencyManifest.readFrom(getClass().getClassLoader());
+        List<HyperDependency> dependencies = new java.util.ArrayList<>();
+        dependencies.addAll(HyperDependencyManifest.readFrom(getClass().getClassLoader()));
         if (dependencies.isEmpty()) {
             throw new IllegalStateException("插件 jar 内未找到构建生成的运行库清单: " + HyperDependencyManifest.RESOURCE_PATH);
         }

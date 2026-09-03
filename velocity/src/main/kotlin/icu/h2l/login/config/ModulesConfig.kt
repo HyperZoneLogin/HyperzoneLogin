@@ -49,4 +49,9 @@ class ModulesConfig {
     // 数据迁移
     @Comment("config.modules.data-merge")
     val dataMerge: Boolean = false
+
+    // 内置 NanoLimbo 后端；作为 outpre 的本地后端服务使用
+    @Suppress("unused")
+    @Comment("config.modules.backend-nanolimbo")
+    val backendNanolimbo: Boolean = true
 }

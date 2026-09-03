@@ -75,6 +75,14 @@ object EmbeddedModuleRegistry {
         implementationClassName = "icu.h2l.login.merge.MergeSubModule",
     )
 
+    @Suppress("unused")
+    val backendNanolimbo = EmbeddedModuleSpec(
+        configKey = "backendNanolimbo",
+        displayName = "Backend NanoLimbo",
+        externalPluginId = "hzl-backend-nanolimbo",
+        implementationClassName = "icu.h2l.login.backend.nanolimbo.NanoLimboSubModule",
+    )
+
     fun instantiate(spec: EmbeddedModuleSpec, classLoader: ClassLoader): HyperSubModule? {
         val moduleClass = try {
             Class.forName(spec.implementationClassName, true, classLoader)
