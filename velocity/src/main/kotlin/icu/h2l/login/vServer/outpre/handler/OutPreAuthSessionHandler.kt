@@ -47,6 +47,7 @@ import com.velocitypowered.proxy.protocol.packet.SetCompressionPacket
 import icu.h2l.api.log.HyperZoneDebugType
 import icu.h2l.api.log.debug
 import icu.h2l.login.HyperZoneLoginMain
+import icu.h2l.login.compat.VelocityLoginCompatibilityProvider
 import icu.h2l.login.inject.network.NettyReflectionHelper
 import icu.h2l.login.inject.network.NettyReflectionHelper.reflectedCleanup
 import icu.h2l.login.inject.network.NettyReflectionHelper.reflectedDelegatedConnection
@@ -258,7 +259,7 @@ open class OutPreAuthSessionHandlerLogic(
                             NettyReflectionHelper.setPermissionFunction(connectedPlayer, function)
                         }
 
-                        server.eventManager.fire(LoginEvent(connectedPlayer, serverIdHash)).thenAcceptAsync({ loginEvent ->
+                        server.eventManager.fire(LoginEvent(connectedPlayer, serverIdHash)).thenComposeAsync({ loginEvent ->
                             if (mcConnection.isClosed) {
                                 server.eventManager.fireAndForget(
                                     DisconnectEvent(
@@ -266,28 +267,32 @@ open class OutPreAuthSessionHandlerLogic(
                                         DisconnectEvent.LoginStatus.CANCELLED_BY_USER_BEFORE_COMPLETE
                                     ),
                                 )
-                                return@thenAcceptAsync
+                                return@thenComposeAsync CompletableFuture.completedFuture(null)
                             }
 
                             val reason: Optional<Component> = loginEvent.result.reasonComponent
                             if (reason.isPresent) {
                                 connectedPlayer.disconnect0(reason.get(), false)
-                                return@thenAcceptAsync
+                                return@thenComposeAsync CompletableFuture.completedFuture(null)
                             }
 
 //                            这里register的特别晚，可以忽略
-                            if (!server.registerConnection(connectedPlayer)) {
+                            VelocityLoginCompatibilityProvider.current.registerConnection(server, connectedPlayer).thenAcceptAsync({ registered ->
+                                if (!registered) {
 //                                player.disconnect0(
 //                                    Component.translatable("velocity.error.already-connected-proxy"),
 //                                    false
 //                                )
 //                                return@thenAcceptAsync
-                                debug(HyperZoneDebugType.OUTPRE_TRACE) {
-                                    "register connection failed for player {${connectedPlayer.username},maybe using Ambassador"
+                                    debug(HyperZoneDebugType.OUTPRE_TRACE) {
+                                        "register connection failed for player {${connectedPlayer.username},maybe using Ambassador"
+                                    }
+                                } else {
+                                    VelocityLoginCompatibilityProvider.current.completeRegisteredLogin(server, connectedPlayer)
                                 }
-                            }
 
-                            continueReleasedFlow(connectedPlayer, preferredTargetServerName)
+                                continueReleasedFlow(connectedPlayer, preferredTargetServerName)
+                            }, eventLoop)
                         }, eventLoop)
                     }, eventLoop)
                 }, eventLoop)
@@ -297,6 +302,7 @@ open class OutPreAuthSessionHandlerLogic(
             null
         }
     }
+
 
     private fun continueReleasedFlow(player: ConnectedPlayer, preferredTargetServerName: String?) {
         debug(HyperZoneDebugType.OUTPRE_TRACE) {

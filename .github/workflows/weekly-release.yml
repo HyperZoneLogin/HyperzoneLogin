@@ -38,7 +38,7 @@ jobs:
           echo "name=HyperZoneLogin $TAG" >> "$GITHUB_OUTPUT"
 
       - name: Build plugin jars
-        run: ./gradlew clean build -PreleaseChannel=WEEKLY
+        run: ./gradlew clean build buildCtdDistributions -PreleaseChannel=WEEKLY
 
       - name: Update weekly tag
         run: |
@@ -58,10 +58,11 @@ jobs:
           removeArtifacts: true
           artifacts: |
             build/HZL/*
+            build/HZL-ctd/*
           body: |
             This is an automatically generated weekly prerelease build for HyperZoneLogin.
 
-            Included artifacts are collected from `build/HZL/`.
+            Included artifacts are collected from `build/HZL/` and VelocityCTD artifacts are collected from `build/HZL-ctd/`.
 
             If you encounter issues, please open an Issue and include environment, modules, logs, config snippets, and reproduction steps.
           generateReleaseNotes: true

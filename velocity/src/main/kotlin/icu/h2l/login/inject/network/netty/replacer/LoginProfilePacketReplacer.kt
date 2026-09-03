@@ -24,7 +24,6 @@ package icu.h2l.login.inject.network.netty.replacer
 import com.velocitypowered.api.proxy.Player
 import com.velocitypowered.api.proxy.ServerConnection
 import com.velocitypowered.api.util.GameProfile
-import com.velocitypowered.proxy.config.PlayerInfoForwarding
 import com.velocitypowered.proxy.config.VelocityConfiguration
 import com.velocitypowered.proxy.connection.MinecraftConnection
 import com.velocitypowered.proxy.connection.PlayerDataForwarding

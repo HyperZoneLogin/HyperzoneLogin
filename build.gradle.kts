@@ -20,6 +20,7 @@
  */
 
 import org.gradle.jvm.tasks.Jar
+import org.gradle.api.tasks.GradleBuild
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.temporal.WeekFields
@@ -250,6 +251,10 @@ subprojects {
         maven("https://maven.fabricmc.net/")
         maven("https://repo.opencollab.dev/maven-snapshots")
         maven("https://maven.elytrium.net/repo/")
+        maven {
+            name = "velocityctdSnapshots"
+            url = uri("https://repo.velocityctd.com/snapshots")
+        }
     }
 
     tasks.withType(ProcessResources::class.java).configureEach {
@@ -295,6 +300,7 @@ subprojects {
 
 val pluginBundleDir = layout.buildDirectory.dir("HZL")
 val splitPluginBundleDir = layout.buildDirectory.dir("HZL-split")
+val ctdPluginBundleDir = layout.buildDirectory.dir("HZL-ctd")
 
 val collectPluginJars = tasks.register<Sync>("collectPluginJars") {
     group = "build"
@@ -328,6 +334,26 @@ val collectSplitPluginJars = tasks.register<Sync>("collectSplitPluginJars") {
         }
 }
 
+val buildVelocityCtd = tasks.register<GradleBuild>("buildVelocityCtd") {
+    group = "build"
+    description = "Builds VelocityCTD-flavored HyperZoneLogin jars using com.velocityctd Velocity dependencies."
+    dir = rootDir
+    tasks = listOf(":velocity:jar", ":velocity:monolithJar")
+    startParameter.projectProperties.putAll(gradle.startParameter.projectProperties)
+    startParameter.projectProperties["velocityCtd"] = "true"
+}
+
+val collectCtdPluginJars = tasks.register<Sync>("collectCtdPluginJars") {
+    group = "build"
+    description = "Collects VelocityCTD-flavored HyperZoneLogin jars into one distribution directory."
+    into(ctdPluginBundleDir)
+    dependsOn(buildVelocityCtd)
+
+    val velocityProject = project(":velocity")
+    from(velocityProject.layout.buildDirectory.file("libs/HyperZoneLogin-${version}-ctd.jar"))
+    from(velocityProject.layout.buildDirectory.file("libs/HyperZoneLogin-${version}-all-ctd.jar"))
+}
+
 val buildMonolith = tasks.register("buildMonolith") {
     group = "build"
     description = "Builds the all-in-one HyperZoneLogin distribution."
@@ -339,6 +365,12 @@ val buildAllDistributions = tasks.register("buildAllDistributions") {
     description = "Builds both the all-in-one and split HyperZoneLogin distributions."
     dependsOn(collectPluginJars)
     dependsOn(collectSplitPluginJars)
+}
+
+val buildCtdDistributions = tasks.register("buildCtdDistributions") {
+    group = "build"
+    description = "Builds the VelocityCTD-flavored HyperZoneLogin distribution."
+    dependsOn(collectCtdPluginJars)
 }
 
 val printVersionInfo = tasks.register("printVersionInfo") {

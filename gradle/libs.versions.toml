@@ -3,6 +3,7 @@ metadata.format.version = "1.1"
 [versions]
 
 velocity = "4.1.0-SNAPSHOT"
+velocityCtd = "4.1.2-SNAPSHOT"
 asm = "9.7"
 shadow = "9.4.1"
 spotless = "7.2.1"
@@ -44,6 +45,8 @@ adventureTextMinimessage = { group = "net.kyori", name = "adventure-text-minimes
 
 velocityApi = { group = "com.velocitypowered", name = "velocity-api", version.ref = "velocity" }
 velocityProxy = { group = "com.velocitypowered", name = "velocity-proxy", version.ref = "velocity" }
+velocityCtdApi = { group = "com.velocityctd", name = "velocity-api", version.ref = "velocityCtd" }
+velocityCtdProxy = { group = "com.velocityctd", name = "velocity-proxy", version.ref = "velocityCtd" }
 
 asm = { group = "org.ow2.asm", name = "asm", version.ref = "asm" }
 asmCommons = { group = "org.ow2.asm", name = "asm-commons", version.ref = "asm" }

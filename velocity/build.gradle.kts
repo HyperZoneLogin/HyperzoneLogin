@@ -35,6 +35,22 @@ val bstatsRelocatedClasspath = configurations.create("bstatsRelocatedClasspath")
     isCanBeResolved = true
 }
 
+val velocityCtdBuild = providers.gradleProperty("velocityCtd")
+    .map { it.equals("true", ignoreCase = true) }
+    .orElse(false)
+    .get()
+val velocityApiDependency = if (velocityCtdBuild) libs.velocityCtdApi else libs.velocityApi
+val velocityProxyDependency = if (velocityCtdBuild) libs.velocityCtdProxy else libs.velocityProxy
+val velocityCompatibilitySourceDir = if (velocityCtdBuild) "src/ctd/kotlin" else "src/official/kotlin"
+
+kotlin {
+    sourceSets {
+        named("main") {
+            kotlin.srcDir(velocityCompatibilitySourceDir)
+        }
+    }
+}
+
 val embeddedModuleProjects = listOf(
     project(":backend-nanolimbo"),
     project(":auth-floodgate"),
@@ -78,8 +94,8 @@ dependencies {
     needPackageCompileOnly(libs.mariadb)
     needPackageCompileOnly(libs.hikari)
 //    VC
-    compileOnly(libs.velocityApi)
-    compileOnly(libs.velocityProxy) // From Elytrium Repo.
+    compileOnly(velocityApiDependency)
+    compileOnly(velocityProxyDependency) // From Elytrium Repo or VelocityCTD snapshots.
     compileOnly(libs.floodgateApi)
     add(bstatsRelocatedClasspath.name, libs.bstatsVelocity)
     compileOnly(files(relocateBstatsCompileOnlyJar.flatMap { it.archiveFile }))
@@ -108,13 +124,14 @@ dependencies {
     compileOnly(libs.guava)
     compileOnly(libs.brigadier)
 
-    annotationProcessor(libs.velocityApi)
+    annotationProcessor(velocityApiDependency)
 
     testImplementation(platform(libs.junitBom))
     testImplementation(libs.junitJupiter)
-    testImplementation(libs.velocityApi)
-    testImplementation(libs.velocityProxy) {
+    testImplementation(velocityApiDependency)
+    testImplementation(velocityProxyDependency) {
         exclude(group = "com.velocitypowered", module = "velocity-proxy-log4j2-plugin")
+        exclude(group = "com.velocityctd", module = "velocity-proxy-log4j2-plugin")
     }
     testImplementation(libs.nettyAll)
     testImplementation(libs.adventureTextLoggerSlf4j)
@@ -139,7 +156,7 @@ tasks {
 
     named<Jar>("jar") {
         archiveBaseName.set("HyperZoneLogin")
-        archiveClassifier.set("")
+        archiveClassifier.set(if (velocityCtdBuild) "ctd" else "")
         duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 
         val apiProject = project(":api")
@@ -152,7 +169,7 @@ tasks {
         group = "build"
         description = "Builds an all-in-one HyperZoneLogin jar with embedded optional modules and CLI tool."
         archiveBaseName.set("HyperZoneLogin")
-        archiveClassifier.set("all")
+        archiveClassifier.set(if (velocityCtdBuild) "all-ctd" else "all")
         duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 
         val currentSourceSets = project.extensions.getByType(SourceSetContainer::class.java)
