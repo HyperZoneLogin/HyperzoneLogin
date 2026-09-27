@@ -21,16 +21,17 @@
 
 package icu.h2l.api.message
 
+import icu.h2l.api.util.ConfigCommentTranslatorProvider
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 
 /**
- * 帮助子模块把内置消息资源复制到数据目录中的工具入口。
+ * 复制子模块消息和配置注释资源。
  */
 object HyperZoneModuleMessageResources {
     /**
-     * 将模块 jar 内打包的 locale 文件复制到 `messages/<namespace>` 目录。
+     * 将模块 jar 内打包的 locale 文件复制到 `messages/<namespace>` 和 `config-comments/<namespace>` 目录。
      *
      * 已存在的目标文件会被保留，不会覆盖用户自定义内容。
      */
@@ -40,23 +41,34 @@ object HyperZoneModuleMessageResources {
         classLoader: ClassLoader,
         locales: List<String> = listOf("en_us", "zh_cn", "ru_ru")
     ) {
-        val messageDir = dataDirectory.resolve("messages").resolve(namespace)
-        Files.createDirectories(messageDir)
+        val messageDirectory = dataDirectory.resolve("messages").resolve(namespace)
+        val commentDirectory = dataDirectory.resolve("config-comments").resolve(namespace)
+        Files.createDirectories(messageDirectory)
+        Files.createDirectories(commentDirectory)
 
         locales.forEach { localeKey ->
-            val target = messageDir.resolve("$localeKey.conf")
-            if (Files.exists(target)) {
-                return@forEach
-            }
-
-            val resourcePath = "messages/$namespace/$localeKey.conf"
-            val resource = classLoader.getResourceAsStream(resourcePath) ?: return@forEach
-            resource.use { input ->
-                Files.copy(input, target, StandardCopyOption.REPLACE_EXISTING)
-            }
+            copyFile(messageDirectory, namespace, classLoader, "messages", localeKey)
+            copyFile(commentDirectory, namespace, classLoader, "config-comments", localeKey)
         }
 
         HyperZoneMessageServiceProvider.getOrNull()?.reload()
+        ConfigCommentTranslatorProvider.getOrNull()?.reload()
+    }
+
+    private fun copyFile(
+        dir: Path,
+        namespace: String,
+        classLoader: ClassLoader,
+        type: String,
+        locale: String
+    ) {
+        val messageTarget = dir.resolve("$locale.conf")
+        if (Files.notExists(messageTarget)) {
+            val resourcePath = "$type/$namespace/$locale.conf"
+            val resource = classLoader.getResourceAsStream(resourcePath)
+            resource?.use { input ->
+                Files.copy(input, messageTarget, StandardCopyOption.REPLACE_EXISTING)
+            }
+        }
     }
 }
-
