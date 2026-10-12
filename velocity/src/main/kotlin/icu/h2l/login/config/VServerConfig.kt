@@ -37,6 +37,10 @@ data class VServerConfig(
     @Comment("config.vserver.remember-requested-server")
     val rememberRequestedServerDuringAuth: Boolean = true,
 
+    // 隐藏认证服，禁止玩家通过 /server 进入
+    @Comment("config.vserver.hide-auth-servers")
+    val hideAuthServers: Boolean = true,
+
     val backend: BackendConfig = BackendConfig(),
 
     val outpre: OutpreConfig = OutpreConfig()

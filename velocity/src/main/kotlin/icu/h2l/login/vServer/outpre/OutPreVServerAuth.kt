@@ -319,6 +319,21 @@ class OutPreVServerAuth(
     fun onServerPreConnect(event: ServerPreConnectEvent) {
         val player = event.player
         val messages = HyperZoneLoginMain.getInstance().messageService
+
+        // 永久禁止玩家通过 /server 进入认证服
+        if (hideAuthServers()) {
+            val fallbackAuth = HyperZoneLoginMain.getCoreConfig().vServer.backend.fallbackAuthServer
+            val targetName = event.originalServer.serverInfo.name
+            val isAuthServer = (registeredServer != null && event.originalServer == registeredServer)
+                    || targetName.equals(configuredAuthTargetLabel(), ignoreCase = true)
+                    || (fallbackAuth.isNotBlank() && targetName.equals(fallbackAuth, ignoreCase = true))
+            if (isAuthServer && !player.currentServer.map { it.server }.filter { it == event.originalServer }.isPresent) {
+                player.sendMessage(messages.render(player, MessageKeys.BackendAuth.AUTH_SERVER_HIDDEN))
+                event.result = ServerPreConnectEvent.ServerResult.denied()
+                return
+            }
+        }
+
         val state = states[player.getChannel()] ?: return
         if (!needsAuthServerProtection(state)) return
 
@@ -446,6 +461,10 @@ class OutPreVServerAuth(
 
     private fun rememberRequestedServerDuringAuth(): Boolean {
         return HyperZoneLoginMain.getCoreConfig().vServer.rememberRequestedServerDuringAuth
+    }
+
+    private fun hideAuthServers(): Boolean {
+        return HyperZoneLoginMain.getCoreConfig().vServer.hideAuthServers
     }
 
     private fun resolveTargetServerName(player: Player, state: OutPreState): String? =

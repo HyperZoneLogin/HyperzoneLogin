@@ -174,6 +174,20 @@ class BackendAuthHoldListener(
     fun onServerPreConnect(event: ServerPreConnectEvent) {
         val player = event.player
         val messages = HyperZoneLoginMain.getInstance().messageService
+
+        // 永久禁止玩家通过 /server 进入认证服
+        if (hideAuthServers()) {
+            val authServerName = configuredAuthServerName()
+            if (authServerName.isNotBlank()
+                && event.originalServer.serverInfo.name.equals(authServerName, ignoreCase = true)
+                && !player.currentServer.map { it.server }.filter { it == event.originalServer }.isPresent
+            ) {
+                player.sendMessage(messages.render(player, MessageKeys.BackendAuth.AUTH_SERVER_HIDDEN))
+                event.result = ServerPreConnectEvent.ServerResult.denied()
+                return
+            }
+        }
+
         val state = backendHoldStates[player.getChannel()] ?: return
         if (!needsAuthServerProtection(state)) return
 
@@ -371,6 +385,10 @@ class BackendAuthHoldListener(
 
     private fun rememberRequestedServerDuringAuth(): Boolean {
         return HyperZoneLoginMain.getCoreConfig().vServer.rememberRequestedServerDuringAuth
+    }
+
+    private fun hideAuthServers(): Boolean {
+        return HyperZoneLoginMain.getCoreConfig().vServer.hideAuthServers
     }
 
     private fun beginBackendAuthHold(player: Player, authServerName: String, targetServerName: String?): BackendHoldState {

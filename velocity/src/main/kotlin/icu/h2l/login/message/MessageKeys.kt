@@ -112,6 +112,7 @@ object MessageKeys {
         const val MISCONFIGURED_DISCONNECT = "backend-auth.misconfigured-disconnect"
         const val UNAVAILABLE_DISCONNECT = "backend-auth.unavailable-disconnect"
         const val MUST_VERIFY_BEFORE_TRANSFER = "backend-auth.must-verify-before-transfer"
+        const val AUTH_SERVER_HIDDEN = "backend-auth.auth-server-hidden"
         const val EXIT_NO_TARGET = "backend-auth.exit.no-target"
         const val EXIT_SERVER_MISSING = "backend-auth.exit.server-missing"
         const val EXIT_FAILURE_EXCEPTION = "backend-auth.exit.failure-exception"
