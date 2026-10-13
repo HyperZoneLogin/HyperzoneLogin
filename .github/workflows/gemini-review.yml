@@ -1,0 +1,33 @@
+name: Gemini AI Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: '请输入需要 Review 的 PR 编号 (例如: 12)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Run Gemini Code Review
+        uses: petarzarkov/gemini-code-review-action@v1.1.3
+        with:
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          model: gemini-2.5-flash
+          language: Chinese
+          # 如果是手动触发，传入输入的 PR 编号；否则走当前事件上下文
+          pr_id: ${{ github.event.inputs.pr_number || github.event.pull_request.number }}
