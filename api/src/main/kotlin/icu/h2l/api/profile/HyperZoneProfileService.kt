@@ -38,6 +38,16 @@ interface HyperZoneProfileService {
     fun getProfile(profileId: UUID): Profile?
 
     /**
+     * 根据玩家正式游戏名读取一个正式 [Profile]。
+     */
+    fun getProfileByName(name: String): Profile?
+
+    /**
+     * 根据玩家正式游戏 UUID 读取一个正式 [Profile]。
+     */
+    fun getProfileByUuid(playerUuid: UUID): Profile?
+
+    /**
      * 登录流程中的“resolve”语义必须明确等价于“按既有 profileId 解析已有档案”，
      * 严禁再把“可能创建新档案”混入 resolve 语义。
      */

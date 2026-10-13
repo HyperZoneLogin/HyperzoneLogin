@@ -62,6 +62,14 @@ class VelocityHyperZoneProfileService(
         return databaseHelper.getProfile(profileId)
     }
 
+    override fun getProfileByName(name: String): Profile? {
+        return databaseHelper.getProfileByName(name)
+    }
+
+    override fun getProfileByUuid(playerUuid: UUID): Profile? {
+        return databaseHelper.getProfileByUuid(playerUuid)
+    }
+
     override fun getAttachedProfile(player: HyperZonePlayer): Profile? {
         val profileId = attachedProfiles[player] ?: return null
         return databaseHelper.getProfile(profileId)

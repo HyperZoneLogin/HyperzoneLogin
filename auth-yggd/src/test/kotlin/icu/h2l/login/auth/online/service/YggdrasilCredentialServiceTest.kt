@@ -208,6 +208,10 @@ class YggdrasilCredentialServiceTest {
 
         override fun getProfile(profileId: UUID): Profile? = null
 
+        override fun getProfileByName(name: String) = null
+
+        override fun getProfileByUuid(playerUuid: UUID): Profile? = null
+
         override fun getAttachedProfile(player: HyperZonePlayer): Profile? = null
 
         override fun attachProfile(player: HyperZonePlayer, profileId: UUID): Profile? = null
