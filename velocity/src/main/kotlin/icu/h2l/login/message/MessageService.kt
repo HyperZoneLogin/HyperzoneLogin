@@ -124,7 +124,6 @@ class MessageService(
         return when (normalized) {
             "en" -> "en_us"
             "zh" -> "zh_cn"
-            "ru" -> "ru_ru"
             else -> normalized
         }
     }
@@ -240,7 +239,7 @@ class MessageService(
     companion object {
         private const val MESSAGES_DIRECTORY = "messages"
         private const val DEFAULT_LOCALE = "en_us"
-        private val BUNDLED_LOCALES = listOf("en_us", "zh_cn", "ru_ru")
+        private val BUNDLED_LOCALES = listOf("en_us", "zh_cn")
     }
 }
 

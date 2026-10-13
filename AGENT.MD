@@ -127,7 +127,7 @@ HyperZoneLogin 的登录链路属于**严格状态机**，禁止使用会混淆�
 凡是面向玩家展示的模块消息，必须接入统一 i18n：
 
 - 提供模块级消息 helper（如 `YggdrasilMessages`、`FloodgateMessages`）；
-- 提供 `messages/<namespace>/en_us.conf`、`zh_cn.conf`、`ru_ru.conf`；
+- 提供 `messages/<namespace>/en_us.conf`、`zh_cn.conf`；
 - 在模块注册阶段复制 bundled locale 到数据目录；
 - 禁止在监听器 / service 中长期保留玩家可见硬编码字符串。
 

@@ -39,7 +39,7 @@ object HyperZoneModuleMessageResources {
         dataDirectory: Path,
         namespace: String,
         classLoader: ClassLoader,
-        locales: List<String> = listOf("en_us", "zh_cn", "ru_ru")
+        locales: List<String> = listOf("en_us", "zh_cn")
     ) {
         val messageDirectory = dataDirectory.resolve("messages").resolve(namespace)
         val commentDirectory = dataDirectory.resolve("config-comments").resolve(namespace)

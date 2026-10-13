@@ -23,7 +23,7 @@ Auth Offline 模块 (hzl-auth-offline)
   - 支持邮箱绑定与找回密码；恢复邮件可走 `LOG` 或 `SMTP` 投递模式，SMTP 基于 Jakarta Mail / Angus Mail 运行库。
   - 支持短期 session 自动登录：可按 IP 绑定、按分钟过期，并在登出、改密、邮箱找回改密后立即失效；出于安全考虑默认关闭。
   - 支持 TOTP 二步验证：使用成熟验证器库生成密钥与 `otpauth://` 链接，登录时可要求 `/login <password> <code>` 双因子验证。
-  - 游戏内玩家提示现已接入主插件共享的 i18n 服务，默认语言文件位于 `messages/auth-offline/` 下的 `en_us.conf`、`zh_cn.conf`、`ru_ru.conf`。
+  - 游戏内玩家提示现已接入主插件共享的 i18n 服务，默认语言文件位于 `messages/auth-offline/` 下的 `en_us.conf`、`zh_cn.conf`。
   - 模块启动时会自动把这些默认文案复制到主插件数据目录；修改后可通过主插件 `/hzl reload` 一并重载。
 - 事件与集成：
   - 模块会在注册时向代理事件管理器注册 `OfflineAuthTableManager`、命令注册器和监听器（例如 `OfflineWaitingAreaEventListener`）。

@@ -41,7 +41,6 @@ class MessageServiceTest {
 
         assertEquals("en_us", service.normalizeLocaleKey("en"))
         assertEquals("zh_cn", service.normalizeLocaleKey("zh-CN"))
-        assertEquals("ru_ru", service.normalizeLocaleKey("ru_ru"))
     }
 
     @Test
@@ -52,7 +51,6 @@ class MessageServiceTest {
 
         assertTrue(Files.exists(tempDir.resolve("messages/en_us.conf")))
         assertTrue(Files.exists(tempDir.resolve("messages/zh_cn.conf")))
-        assertTrue(Files.exists(tempDir.resolve("messages/ru_ru.conf")))
     }
 
     @Test

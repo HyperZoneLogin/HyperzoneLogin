@@ -106,7 +106,6 @@ class ConfigCommentI18nService(
         return when (normalized) {
             "en" -> "en_us"
             "zh", "zh_hans", "zh_hans_cn" -> "zh_cn"
-            "ru" -> "ru_ru"
             else -> normalized
         }
     }
@@ -191,6 +190,6 @@ class ConfigCommentI18nService(
     companion object {
         private const val RESOURCE_DIR = "config-comments"
         private const val DEFAULT_LOCALE = "en_us"
-        private val BUNDLED_LOCALES = listOf("zh_cn", "en_us", "ru_ru")
+        private val BUNDLED_LOCALES = listOf("zh_cn", "en_us")
     }
 }
