@@ -27,7 +27,7 @@ package icu.h2l.api.util
  * 用于将 @Comment 注解中的翻译键（如 "config.core.database"）
  * 解析为当前服务端区域对应的自然语言文本，并在配置文件首次生成时写入。
  */
-fun interface ConfigCommentTranslator {
+interface ConfigCommentTranslator {
     /**
      * 将给定的翻译键翻译为本地化文本。
      *
@@ -35,5 +35,10 @@ fun interface ConfigCommentTranslator {
      * @return 翻译结果；若键不存在则返回 null（保留原始键）
      */
     fun translate(key: String): String?
+
+    /**
+     * 重载翻译资源。
+     */
+    fun reload()
 }
 

@@ -25,11 +25,11 @@ import icu.h2l.api.HyperZoneApi
 import icu.h2l.api.db.HyperZoneDatabaseManager
 import icu.h2l.api.db.table.ProfileTable
 import icu.h2l.api.log.info
+import icu.h2l.api.message.HyperZoneModuleMessageResources
 import icu.h2l.api.module.HyperSubModule
 import icu.h2l.api.profile.HyperZoneProfileServiceProvider
 import icu.h2l.login.auth.offline.command.OfflineAuthCommandRegistrar
 import icu.h2l.login.auth.offline.config.AuthOfflineConfigLoader
-import icu.h2l.login.auth.offline.config.OfflineAuthMessageResourceLoader
 import icu.h2l.login.auth.offline.db.OfflineAuthRepository
 import icu.h2l.login.auth.offline.db.OfflineAuthTableManager
 import icu.h2l.login.auth.offline.listener.OfflinePreLoginListener
@@ -55,9 +55,9 @@ class OfflineSubModule : HyperSubModule {
         val databaseManager: HyperZoneDatabaseManager = api.databaseManager
 
         val profileTable = ProfileTable(databaseManager.tablePrefix)
+        HyperZoneModuleMessageResources.copyBundledLocales(dataDirectory, "auth-offline", javaClass.classLoader)
         // Load offline matching configuration for this module
-                AuthOfflineConfigLoader.load(dataDirectory)
-        OfflineAuthMessageResourceLoader.load(dataDirectory)
+        AuthOfflineConfigLoader.load(dataDirectory)
         offlineAuthTableManager = OfflineAuthTableManager(
             databaseManager = databaseManager,
             tablePrefix = databaseManager.tablePrefix,

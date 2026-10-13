@@ -25,18 +25,26 @@ import icu.h2l.api.util.ConfigCommentTranslator
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger
 import org.spongepowered.configurate.ConfigurationNode
 import org.spongepowered.configurate.hocon.HoconConfigurationLoader
-import java.io.StringReader
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.StandardCopyOption
+import java.util.LinkedHashSet
 import java.util.Locale
+import java.util.stream.Collectors
 
 /**
  * 配置文件注释 i18n 服务。
  *
- * 从插件内置资源（config-comments/{locale}.conf）加载配置注释翻译表，
+ * 从配置目录中加载配置注释翻译表；
+ * 主插件：config-comments/{locale}.conf
+ * 子模块：config-comments/{namespace}/{locale}.conf
+ *
  * 根据服务端 JVM 区域自动选择语言，在配置首次生成时将翻译键替换为本地化文本。
  *
  * 翻译键格式：config.{模块}.{字段路径}，例如 "config.core.database"。
  */
 class ConfigCommentI18nService(
+    dataDirectory: Path,
     private val logger: ComponentLogger,
     /**
      * 覆盖语言（来自 defaultLocale 配置），null 时自动检测 JVM 区域。
@@ -44,19 +52,37 @@ class ConfigCommentI18nService(
     private val defaultLocaleOverride: String? = null,
 ) : ConfigCommentTranslator {
 
-    private val localeNodes: Map<String, ConfigurationNode> = loadBundledLocales()
+    private val configCommentsDirectory = dataDirectory.resolve(RESOURCE_DIR)
+
+    @Volatile
+    private var localeNodes: Map<String, List<ConfigurationNode>> = emptyMap()
+
+    init {
+        copyBundledLocalesIfMissing()
+        reload()
+    }
+
+    /**
+     * 重新扫描配置目录中的翻译资源。
+     */
+    override fun reload() {
+        localeNodes = loadLocaleNodes()
+    }
 
     /**
      * 翻译给定的配置注释键，返回本地化文本；键不存在则返回 null（保留原键）。
      */
     override fun translate(key: String): String? {
-        if (!key.startsWith("config.")) return null
-        val candidates = buildLocaleCandidates()
-        for (locale in candidates) {
-            val node = localeNodes[locale] ?: continue
-            // 翻译文件使用带引号的平铺键（"config.db.sqlite" = "value"），用单 key 直接查找
-            val value = node.node(key).string
-            if (!value.isNullOrBlank()) return value
+        if (!key.startsWith("config.")) {
+            return null
+        }
+        for (locale in buildLocaleCandidates()) {
+            for (node in localeNodes[locale].orEmpty()) {
+                val value = node.node(key).string
+                if (!value.isNullOrBlank()) {
+                    return value
+                }
+            }
         }
         return null
     }
@@ -85,33 +111,86 @@ class ConfigCommentI18nService(
         }
     }
 
-    private fun loadBundledLocales(): Map<String, ConfigurationNode> {
-        val result = mutableMapOf<String, ConfigurationNode>()
-        for (locale in BUNDLED_LOCALES) {
-            val resourcePath = "$RESOURCE_DIR/$locale.conf"
-            val resource = javaClass.classLoader.getResourceAsStream(resourcePath)
-            if (resource == null) {
-                logger.warn("[ConfigCommentI18n] 未找到内置翻译资源：{}", resourcePath)
-                continue
+    private fun loadLocaleNodes(): Map<String, List<ConfigurationNode>> {
+        val loaded = linkedMapOf<String, MutableList<ConfigurationNode>>()
+        val moduleDirectories = listModuleDirectories()
+        BUNDLED_LOCALES.forEach { locale ->
+            val resourceFiles = buildList {
+                add(configCommentsDirectory.resolve("$locale.conf"))
+                moduleDirectories.forEach { directory ->
+                    add(directory.resolve("$locale.conf"))
+                }
             }
-            runCatching {
-                val text = resource.use { it.readBytes().toString(Charsets.UTF_8) }
-                val node = HoconConfigurationLoader.builder()
-                    .source { StringReader(text).buffered() }
-                    .build()
-                    .load()
-                result[locale] = node
-            }.onFailure { e ->
-                logger.warn("[ConfigCommentI18n] 加载翻译资源失败：{} — {}", resourcePath, e.message)
+            resourceFiles.forEach { path ->
+                loadResource(path)?.let { node ->
+                    loaded.getOrPut(locale) { mutableListOf() }.add(node)
+                }
             }
         }
-        return result
+
+        return loaded.mapValues { (_, nodes) -> nodes.toList() }
+    }
+
+    private fun copyBundledLocalesIfMissing() {
+        runCatching {
+            Files.createDirectories(configCommentsDirectory)
+            BUNDLED_LOCALES.forEach { locale ->
+                val target = configCommentsDirectory.resolve("$locale.conf")
+                if (Files.exists(target)) {
+                    return@forEach
+                }
+
+                val resourcePath = "$RESOURCE_DIR/$locale.conf"
+                val resource = javaClass.classLoader.getResourceAsStream(resourcePath)
+                if (resource == null) {
+                    logger.warn("[ConfigCommentI18n] 未找到内置翻译资源：{}", resourcePath)
+                    return@forEach
+                }
+
+                resource.use { input ->
+                    Files.copy(input, target, StandardCopyOption.REPLACE_EXISTING)
+                }
+            }
+        }.onFailure { e ->
+            logger.warn("[ConfigCommentI18n] 复制内置翻译资源失败：{}", e.message)
+        }
+    }
+
+    private fun listModuleDirectories(): List<Path> {
+        if (Files.notExists(configCommentsDirectory)) {
+            return emptyList()
+        }
+
+        return runCatching {
+            Files.list(configCommentsDirectory).use { paths ->
+                paths
+                    .filter { Files.isDirectory(it) }
+                    .sorted(Comparator.comparing<Path, String> { it.fileName.toString() })
+                    .collect(Collectors.toList())
+            }
+        }.onFailure { e ->
+            logger.warn("[ConfigCommentI18n] 扫描翻译资源目录失败：{}", e.message)
+        }.getOrDefault(emptyList())
+    }
+
+    private fun loadResource(path: Path): ConfigurationNode? {
+        if (Files.notExists(path) || !Files.isRegularFile(path)) {
+            return null
+        }
+
+        return runCatching {
+            HoconConfigurationLoader.builder()
+                .path(path)
+                .build()
+                .load()
+        }.onFailure { e ->
+            logger.warn("[ConfigCommentI18n] 加载翻译资源失败：{} — {}", path, e.message)
+        }.getOrNull()
     }
 
     companion object {
         private const val RESOURCE_DIR = "config-comments"
         private const val DEFAULT_LOCALE = "en_us"
-        private val BUNDLED_LOCALES = listOf("zh_cn", "en_us")
+        private val BUNDLED_LOCALES = listOf("zh_cn", "en_us", "ru_ru")
     }
 }
-

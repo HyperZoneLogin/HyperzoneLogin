@@ -138,7 +138,7 @@ class HyperZoneLoginMain(
         // ── 第二步：根据 start.conf 中的 format 绑定全局配置格式 ──────────────────────
         ConfigFormatProvider.bind(ConfigFormat.fromKey(startConfig.format))
         // ── 第三步：根据 start.conf 中的 language 初始化配置注释 i18n 服务 ──────────
-        ConfigCommentTranslatorProvider.bind(ConfigCommentI18nService(logger, startConfig.language))
+        ConfigCommentTranslatorProvider.bind(ConfigCommentI18nService(dataDirectory, logger, startConfig.language))
         loadCoreConfig()
         credentialChannelRegistry = CredentialChannelRegistryImpl(coreConfig.auth)
         messageService = MessageService(dataDirectory, logger)
@@ -395,7 +395,7 @@ class HyperZoneLoginMain(
         )
         coreConfig = config
         // 配置加载完成后，用 defaultLocale 覆盖 i18n 服务，使后续模块配置首次生成时使用正确语言
-        ConfigCommentTranslatorProvider.bind(ConfigCommentI18nService(logger, config.messages.defaultLocale))
+        ConfigCommentTranslatorProvider.bind(ConfigCommentI18nService(dataDirectory, logger, config.messages.defaultLocale))
     }
 
     private fun connectDatabase() {
