@@ -36,7 +36,16 @@ class OfflineHyperZoneCredential(
     private val passProfileCreateUuid: Boolean = false
 ) : HyperZoneCredential {
     override val channelId: String = CHANNEL_ID
-    override val credentialId: String = pendingRegistrationId?.toString() ?: normalizedName
+
+    @Volatile
+    private var boundNormalizedName: String? = null
+
+    /**
+     * 待注册期间离线账号名称尚未确定，也可能被rename，用待注册 id 作为凭证标识；
+     * 在 [bind] 成功后改为落库的规范化名称。
+     */
+    override val credentialId: String
+        get() = boundNormalizedName ?: pendingRegistrationId?.toString() ?: normalizedName
 
     override fun getRegistrationName(): String = registrationName
 
@@ -79,7 +88,9 @@ class OfflineHyperZoneCredential(
     override fun bind(profileId: UUID): Boolean {
         val currentProfileId = getBoundProfileId()
         if (currentProfileId == profileId) {
+            val boundName = effectiveNormalizedName()
             pendingRegistrationId?.let(pendingRegistrations::remove)
+            markBound(boundName)
             return true
         }
         if (currentProfileId != null) {
@@ -96,11 +107,17 @@ class OfflineHyperZoneCredential(
             email = pendingRegistration.email
         )
         if (created) {
+            markBound(pendingRegistration.normalizedName)
             return true
         }
 
         pendingRegistrations.put(pendingRegistration)
-        return repository.getByName(effectiveNormalizedName())?.profileId == profileId
+        val existingName = effectiveNormalizedName()
+        if (repository.getByName(existingName)?.profileId == profileId) {
+            markBound(existingName)
+            return true
+        }
+        return false
     }
 
     /**
@@ -162,6 +179,10 @@ class OfflineHyperZoneCredential(
     private fun effectiveNormalizedName(): String {
         val registrationId = pendingRegistrationId ?: return normalizedName
         return pendingRegistrations.get(registrationId)?.normalizedName ?: normalizedName
+    }
+
+    private fun markBound(boundName: String) {
+        boundNormalizedName = boundName
     }
 
     companion object {

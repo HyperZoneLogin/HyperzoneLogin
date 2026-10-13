@@ -109,6 +109,33 @@ class OfflineHyperZoneCredentialTest {
     }
 
     @Test
+    fun `credentialId becomes the normalized name after a successful bind`() {
+        val renamed = credential.withNewName("Alice_Renamed")
+        assertEquals(pendingRegistrationId.toString(), renamed.credentialId)
+
+        assertTrue(renamed.bind(profileId))
+
+        assertEquals("alice_renamed", renamed.credentialId)
+    }
+
+    @Test
+    fun `credentialId keeps the pending id when bind fails to create an offline record`() {
+        assertTrue(
+            repository.create(
+                name = "bob",
+                passwordHash = "hashed-password",
+                hashFormat = "sha256",
+                profileId = profileId
+            )
+        )
+
+        assertFalse(credential.bind(profileId))
+
+        assertEquals(pendingRegistrationId.toString(), credential.credentialId)
+        assertNotNull(pendingRegistrations.get(pendingRegistrationId))
+    }
+
+    @Test
     fun `suggested profile create uuid follows current registration name after withNewName`() {
         assertEquals(ExtraUuidUtils.getNormalOfflineUUID("Alice"), credential.getSuggestedProfileCreateUuid())
 
