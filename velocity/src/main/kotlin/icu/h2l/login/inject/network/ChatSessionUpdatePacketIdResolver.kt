@@ -23,7 +23,6 @@ package icu.h2l.login.inject.network
 
 import com.velocitypowered.api.network.ProtocolVersion
 import icu.h2l.login.reflect.ProtocolVersionCompat
-import icu.h2l.login.reflect.ProtocolVersionCompat.noGreaterThanCompat
 import icu.h2l.login.reflect.ProtocolVersionCompat.noLessThanCompat
 
 object ChatSessionUpdatePacketIdResolver {
