@@ -1,8 +1,12 @@
 name: Gemini AI Code Review
 
 on:
+  # 1. 自动触发：PR 创建、代码更新、重新打开时
   pull_request:
     types: [opened, synchronize, reopened]
+  # 2. 手动触发：在任何 PR 下评论 "/gemini-review"
+  issue_comment:
+    types: [created]
 
 permissions:
   contents: read
@@ -11,7 +15,13 @@ permissions:
 
 jobs:
   review:
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    # 限制条件：
+    # - 必须是本仓库触发
+    # - 或者是 pull_request 事件
+    # - 或者是评论在 PR 上且内容包含 /gemini-review
+    if: >
+      github.event.pull_request.head.repo.full_name == github.repository ||
+      (github.event.issue.pull_request && contains(github.event.comment.body, '/gemini-review'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
