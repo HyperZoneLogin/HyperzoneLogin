@@ -45,7 +45,7 @@ class ServerLoginSuccessPacketReplacer(
             }
 
             val hyperPlayer = runCatching {
-                HyperZonePlayerManager.getByChannel(channel)
+                HyperZonePlayerManager.getByChannelOrNull(channel)
             }.getOrNull()
 
             if (hyperPlayer == null) {
@@ -69,6 +69,10 @@ class ServerLoginSuccessPacketReplacer(
                 msg.username = event.username
                 msg.properties = event.properties
             }
+
+            // 联动：客户端已进入 PLAY，chat session 窗口打开。
+            // 后端侧的 ChatSessionKillerPacketReplacer 据此收紧兜底退役预算。
+            hyperPlayer.markLoginSuccessSent()
 
             ctx.pipeline().remove(this)
             super.write(ctx, msg, promise)

@@ -55,6 +55,21 @@ class VelocityHyperZonePlayer(
     private val hasSpawned = AtomicBoolean(false)
 
     /**
+     * 客户端是否已收到 login success（即进入 PLAY 阶段）。
+     *
+     * 由客户端侧的 `ServerLoginSuccessPacketReplacer` 置位，供后端侧的
+     * `ChatSessionKillerPacketReplacer` 判断 chat session 窗口是否已打开，
+     * 从而决定兜底退役预算用哪一档。
+     */
+    private val loginSuccessSent = AtomicBoolean(false)
+
+    internal fun markLoginSuccessSent() {
+        loginSuccessSent.set(true)
+    }
+
+    internal fun hasLoginSuccessBeenSent(): Boolean = loginSuccessSent.get()
+
+    /**
      * 玩家进入可收消息阶段前缓存的提示消息。
      */
     private val messageQueue = ConcurrentLinkedQueue<Component>()

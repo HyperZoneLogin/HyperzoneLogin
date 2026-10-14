@@ -27,10 +27,12 @@ import com.velocitypowered.proxy.connection.client.ConnectedPlayer
 import icu.h2l.api.log.HyperZoneDebugType
 import icu.h2l.api.log.debug
 import icu.h2l.api.log.error
+import icu.h2l.api.log.warn
 import icu.h2l.login.HyperZoneLoginMain
-import icu.h2l.login.manager.HyperZonePlayerManager
-import icu.h2l.login.chatsession.packet.ChatSessionPacketView
 import icu.h2l.login.chatsession.ChatSessionUpdatePacketMatchers
+import icu.h2l.login.chatsession.packet.ChatSessionPacketView
+import icu.h2l.login.manager.HyperZonePlayerManager
+import icu.h2l.login.player.VelocityHyperZonePlayer
 import io.netty.buffer.ByteBuf
 import io.netty.channel.Channel
 import io.netty.channel.ChannelHandlerContext
@@ -48,14 +50,31 @@ import io.netty.util.ReferenceCountUtil
  * 委托给 [ChatSessionUpdatePacketMatchers]：由「版本 id 表」与「包体结构解析」两条
  * 独立通道共同判定，任一命中即丢弃。**未命中一律原样转发**，不丢弃任何无法确认的包。
  *
- * 该 handler 自身只负责取出连接上下文与玩家信息；所有结构解析都在匹配器层完成，
- * 且匹配器保证不抛异常、不推进原始缓冲区游标。
+ * ── 退役条件（三条，任一满足即自我卸载）─────────────────────────────────
+ * 1. **无需拦截**：配置关闭或玩家非正版渠道，首个包即卸载；
+ * 2. **命中并丢弃**：正常路径，本就只处理一次；
+ * 3. **兜底预算耗尽**：见 [ChatSessionKillerLifetime]。
+ *
+ * 第 3 条是本 handler 能够「必有终点」的关键。`CHAT_SESSION_UPDATE` 是客户端发的，
+ * 服务端不发、客户端被改动、或玩家始终停在等待区时，它可能永远不会到达；
+ * 若只靠前两条，本 handler 会永远留在流水线上逐包做结构解析。
+ * 因此这里无条件计数，并在超出预算时打印警告后自我卸载。
+ *
+ * ── 与 login success 的联动 ──────────────────────────────────────────────
+ * 本 handler 挂在**后端**通道，而 `ServerLoginSuccessPacketReplacer` 挂在**客户端**通道，
+ * 二者不在同一条流水线上，无法直接互相卸载。联动改走玩家对象上的标志位：
+ * 客户端侧收到 login success 时置位，本 handler 读取它来决定用哪一档预算。
+ * 该标志只用于**收紧**预算；即使它永远不置位，兜底预算也保证最终卸载。
  */
 class ChatSessionKillerPacketReplacer(
     private val channel: Channel,
 ) : ChannelOutboundHandlerAdapter() {
     private lateinit var player: ConnectedPlayer
+    private var hyperPlayer: VelocityHyperZonePlayer? = null
     private var shouldKill = true
+
+    /** 兜底退役预算；见 [ChatSessionKillerLifetime]。 */
+    private val lifetime = ChatSessionKillerLifetime()
 
     override fun write(ctx: ChannelHandlerContext, msg: Any?, promise: ChannelPromise?) {
         try {
@@ -79,7 +98,7 @@ class ChatSessionKillerPacketReplacer(
 
             val view = ChatSessionPacketView.of(msg, player.protocolVersion)
             if (view == null || !ChatSessionUpdatePacketMatchers.matches(view)) {
-                super.write(ctx, msg, promise)
+                handleMissed(ctx, msg, promise)
                 return
             }
 
@@ -108,8 +127,27 @@ class ChatSessionKillerPacketReplacer(
         }
     }
 
+    /**
+     * 未命中的包：计入兜底预算，超预算则警告并卸载，否则原样放行。
+     */
+    private fun handleMissed(ctx: ChannelHandlerContext, msg: Any?, promise: ChannelPromise?) {
+        val loginSuccessSent = hyperPlayer?.hasLoginSuccessBeenSent() == true
+
+        if (lifetime.onForwarded(loginSuccessSent)) {
+            warn {
+                "[ChatSessionKiller] 长期未命中 CHAT_SESSION_UPDATE，已超出兜底预算并主动卸载：" +
+                        "player=${player.username} protocol=${player.protocolVersion} " +
+                        "forwarded=${lifetime.forwardedCount()} " +
+                        "loginSuccessSent=$loginSuccessSent。若该玩家本应发送此包，请检查客户端或协议版本。"
+            }
+            retire()
+        }
+
+        super.write(ctx, msg, promise)
+    }
+
     private fun retire() {
-        channel.pipeline().remove(this)
+        runCatching { channel.pipeline().remove(this) }
     }
 
     private fun initFields(ctx: ChannelHandlerContext): Unit? {
@@ -124,9 +162,10 @@ class ChatSessionKillerPacketReplacer(
         }
 
         player = resolvedPlayer
-        val hyperPlayer = HyperZonePlayerManager.getByPlayerOrNull(player)
+        val resolvedHyperPlayer = HyperZonePlayerManager.getByPlayerOrNull(player)
+        hyperPlayer = resolvedHyperPlayer
         shouldKill = HyperZoneLoginMain.getCoreConfig().misc.killChatSession
-                && hyperPlayer?.isOnlinePlayer == true
+                && resolvedHyperPlayer?.isOnlinePlayer == true
         return Unit
     }
 }
