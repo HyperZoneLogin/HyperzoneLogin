@@ -21,6 +21,7 @@
 
 package icu.h2l.api.profile
 
+import icu.h2l.api.util.IPropertiesHolder
 import java.util.*
 
 /**
@@ -29,7 +30,7 @@ import java.util.*
  * 注意：凭证对象本身不直接携带 profileId 字段；
  * 是否已绑定、如何绑定到 Profile，都由各认证模块自己的实现负责。
  */
-interface HyperZoneCredential {
+interface HyperZoneCredential : IPropertiesHolder {
     /**
      * 认证渠道唯一标识，由子模块负责稳定定义。
      */
