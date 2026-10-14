@@ -36,6 +36,10 @@ class YggdrasilHyperZoneCredential(
     override val channelId: String = CHANNEL_ID
     override val credentialId: String = "$entryId:$authenticatedUUID"
 
+    init {
+        setProperty(YGGDRASIL_ENTRY_ID_PROPERTY, entryId.lowercase(Locale.getDefault()))
+    }
+
     override fun getRegistrationName(): String = authenticatedName
 
     override fun getBoundProfileId(): UUID? {
@@ -86,5 +90,7 @@ class YggdrasilHyperZoneCredential(
 
     companion object {
         private const val CHANNEL_ID = "yggdrasil"
+
+        public const val YGGDRASIL_ENTRY_ID_PROPERTY = "yggdrasil-entry-id"
     }
 }
