@@ -23,7 +23,9 @@ package icu.h2l.login
 
 // Module implementations (auth-offline, auth-yggd, data-merge) are now separate plugins
 // and will register themselves with the main plugin at runtime. Do not import them here.
+import com.velocitypowered.api.event.Subscribe
 import com.velocitypowered.api.event.proxy.ProxyInitializeEvent
+import com.velocitypowered.api.event.proxy.ProxyShutdownEvent
 import com.velocitypowered.api.proxy.ProxyServer
 import icu.h2l.api.HyperZoneApi
 import icu.h2l.api.command.HyperChatCommandManager
@@ -60,6 +62,7 @@ import icu.h2l.login.module.EmbeddedModuleSpec
 import icu.h2l.login.profile.CredentialChannelRegistryImpl
 import icu.h2l.login.profile.ProfileBindingCodeService
 import icu.h2l.login.profile.VelocityHyperZoneProfileService
+import icu.h2l.login.chatsession.idtable.ChatSessionPacketIdTable
 import icu.h2l.login.util.isSnapshotPluginVersion
 import icu.h2l.login.util.readRuntimePluginVersion
 import icu.h2l.login.util.registerApiLogger
@@ -233,6 +236,13 @@ class HyperZoneLoginMain(
         proxy.eventManager.register(plugin, LoginVerifyListener())
         proxy.eventManager.register(plugin, PlayerAreaLifecycleListener)
         proxy.eventManager.register(plugin, HyperZonePlayerManager)
+        // 卸载前把去抖窗口内可能残留的 CHAT_SESSION_UPDATE id 学习结果落盘
+        proxy.eventManager.register(plugin, object {
+            @Subscribe
+            fun onShutdown(@Suppress("UNUSED_PARAMETER") event: ProxyShutdownEvent) {
+                ChatSessionPacketIdTable.flushNow()
+            }
+        })
 
         logInternalTestWarning()
 
@@ -358,6 +368,8 @@ class HyperZoneLoginMain(
     }
 
     fun reloadRuntimeConfigs() {
+        // 先落盘去抖窗口内可能残留的学习结果，再用新文件覆盖内存表
+        ChatSessionPacketIdTable.flushNow()
         loadCoreConfig()
         if (::messageService.isInitialized) {
             messageService.load(coreConfig.messages)
@@ -396,6 +408,8 @@ class HyperZoneLoginMain(
         coreConfig = config
         // 配置加载完成后，用 defaultLocale 覆盖 i18n 服务，使后续模块配置首次生成时使用正确语言
         ConfigCommentTranslatorProvider.bind(ConfigCommentI18nService(dataDirectory, logger, config.messages.defaultLocale))
+        // CHAT_SESSION_UPDATE 的 id 表（可配置 + 自学习缓存）；必须在任何后端连接建立前加载
+        ChatSessionPacketIdTable.load(dataDirectory)
     }
 
     private fun connectDatabase() {

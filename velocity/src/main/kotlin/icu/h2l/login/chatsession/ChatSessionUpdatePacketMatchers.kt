@@ -19,7 +19,11 @@
  *
  */
 
-package icu.h2l.login.util.chat
+package icu.h2l.login.chatsession
+import icu.h2l.login.chatsession.idtable.ChatSessionPacketIdTable
+import icu.h2l.login.chatsession.matcher.PacketIdChatSessionUpdateMatcher
+import icu.h2l.login.chatsession.matcher.StructureChatSessionUpdateMatcher
+import icu.h2l.login.chatsession.packet.ChatSessionPacketView
 
 /**
  * `CHAT_SESSION_UPDATE` 匹配器集合（组合策略）。
@@ -56,10 +60,27 @@ object ChatSessionUpdatePacketMatchers {
         }.map { it.name }
     }
 
-    /** 是否判定为 `CHAT_SESSION_UPDATE` 包。任一匹配器命中即为 true。 */
+    /**
+     * 是否判定为 `CHAT_SESSION_UPDATE` 包。任一匹配器命中即为 true。
+     *
+     * 附带自学习：当**结构通道命中、id 通道落空**时，说明可能是「新版本改了 id 但结构未变」，
+     * 于是把观测到的 (协议号, id) 交给 [ChatSessionPacketIdTable] 记录。
+     * 该记录只影响后续包的 id 匹配，不改变本次判定结果；且仅对未知的更新版本生效。
+     */
     fun matches(view: ChatSessionPacketView): Boolean {
-        return MATCHERS.any { matcher ->
-            runCatching { matcher.matches(view) }.getOrDefault(false)
+        val idHit = safeMatches(PacketIdChatSessionUpdateMatcher, view)
+        val structureHit = safeMatches(StructureChatSessionUpdateMatcher, view)
+
+        if (structureHit && !idHit) {
+            runCatching {
+                ChatSessionPacketIdTable.observeUnresolvedId(view.protocolVersion, view.packetId)
+            }
         }
+
+        return idHit || structureHit
+    }
+
+    private fun safeMatches(matcher: ChatSessionUpdatePacketMatcher, view: ChatSessionPacketView): Boolean {
+        return runCatching { matcher.matches(view) }.getOrDefault(false)
     }
 }

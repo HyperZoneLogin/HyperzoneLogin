@@ -19,7 +19,10 @@
  *
  */
 
-package icu.h2l.login.util.chat
+package icu.h2l.login.chatsession.matcher
+import icu.h2l.login.chatsession.ChatSessionUpdatePacketMatcher
+import icu.h2l.login.chatsession.packet.ChatSessionPacketView
+import icu.h2l.login.chatsession.idtable.ChatSessionPacketIdTable
 
 /**
  * 基于**数据包 id** 的匹配器（快速通道）。
@@ -34,7 +37,7 @@ object PacketIdChatSessionUpdateMatcher : ChatSessionUpdatePacketMatcher {
     override val name: String = "packet-id"
 
     override fun matches(view: ChatSessionPacketView): Boolean {
-        val expected = ChatSessionUpdatePacketIdResolver.resolve(view.protocolVersion) ?: return false
+        val expected = ChatSessionPacketIdTable.resolve(view.protocolVersion) ?: return false
         return view.packetId == expected
     }
 }

@@ -30,7 +30,7 @@ import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.inject.network.netty.NettyLoginSessionHandler
 import icu.h2l.login.inject.network.netty.SeverChannelAcceptAdapter
 import icu.h2l.login.inject.network.netty.ViaChannelInitializer
-import icu.h2l.login.inject.network.netty.replacer.ChatSessionKillerPacketReplacer
+import icu.h2l.login.chatsession.net.ChatSessionKillerPacketReplacer
 import icu.h2l.login.inject.network.netty.replacer.LoginProfilePacketReplacer
 import icu.h2l.login.inject.network.netty.replacer.ServerLoginSuccessPacketReplacer
 import icu.h2l.login.reflect.VelocityInternalAccess

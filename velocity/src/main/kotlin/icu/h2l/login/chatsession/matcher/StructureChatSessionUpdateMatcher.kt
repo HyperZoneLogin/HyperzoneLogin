@@ -19,7 +19,11 @@
  *
  */
 
-package icu.h2l.login.util.chat
+package icu.h2l.login.chatsession.matcher
+import icu.h2l.login.chatsession.ChatSessionUpdatePacketMatcher
+import icu.h2l.login.chatsession.packet.ChatSessionPacketView
+import icu.h2l.login.chatsession.packet.ChatSessionUpdateLayoutResolver
+import icu.h2l.login.chatsession.packet.ChatSessionUpdatePacketLayout
 
 import io.netty.buffer.ByteBuf
 

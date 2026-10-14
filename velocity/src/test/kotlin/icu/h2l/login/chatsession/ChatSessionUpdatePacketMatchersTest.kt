@@ -19,10 +19,17 @@
  *
  */
 
-package icu.h2l.login.util.chat
+package icu.h2l.login.chatsession
 
 import com.velocitypowered.api.network.ProtocolVersion
+import icu.h2l.login.chatsession.idtable.ChatSessionPacketIdTable
+import icu.h2l.login.chatsession.idtable.ChatSessionUpdatePacketIdResolver
 import io.netty.buffer.Unpooled
+import icu.h2l.login.chatsession.matcher.PacketIdChatSessionUpdateMatcher
+import icu.h2l.login.chatsession.matcher.StructureChatSessionUpdateMatcher
+import icu.h2l.login.chatsession.packet.ChatSessionPacketView
+import icu.h2l.login.chatsession.packet.ChatSessionUpdateLayoutResolver
+import icu.h2l.login.chatsession.packet.ChatSessionUpdatePacketLayout
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -92,27 +99,27 @@ class ChatSessionUpdatePacketMatchersTest {
 
     @Test
     fun `packet id resolver covers the documented version ranges`() {
-        assertEquals(0x20, ChatSessionUpdatePacketIdResolver.resolve(ProtocolVersion.MINECRAFT_1_19_3))
-        assertEquals(0x06, ChatSessionUpdatePacketIdResolver.resolve(ProtocolVersion.MINECRAFT_1_19_4))
-        assertEquals(0x06, ChatSessionUpdatePacketIdResolver.resolve(ProtocolVersion.MINECRAFT_1_20_3))
-        assertEquals(0x07, ChatSessionUpdatePacketIdResolver.resolve(ProtocolVersion.MINECRAFT_1_20_5))
-        assertEquals(0x07, ChatSessionUpdatePacketIdResolver.resolve(ProtocolVersion.MINECRAFT_1_21))
-        assertEquals(0x08, ChatSessionUpdatePacketIdResolver.resolve(ProtocolVersion.MINECRAFT_1_21_2))
-        assertEquals(0x08, ChatSessionUpdatePacketIdResolver.resolve(ProtocolVersion.MINECRAFT_1_21_5))
+        assertEquals(0x20, ChatSessionPacketIdTable.resolve(ProtocolVersion.MINECRAFT_1_19_3))
+        assertEquals(0x06, ChatSessionPacketIdTable.resolve(ProtocolVersion.MINECRAFT_1_19_4))
+        assertEquals(0x06, ChatSessionPacketIdTable.resolve(ProtocolVersion.MINECRAFT_1_20_3))
+        assertEquals(0x07, ChatSessionPacketIdTable.resolve(ProtocolVersion.MINECRAFT_1_20_5))
+        assertEquals(0x07, ChatSessionPacketIdTable.resolve(ProtocolVersion.MINECRAFT_1_21))
+        assertEquals(0x08, ChatSessionPacketIdTable.resolve(ProtocolVersion.MINECRAFT_1_21_2))
+        assertEquals(0x08, ChatSessionPacketIdTable.resolve(ProtocolVersion.MINECRAFT_1_21_5))
     }
 
     @Test
     fun `packet id resolver returns null for versions below the feature introduction`() {
-        assertNull(ChatSessionUpdatePacketIdResolver.resolve(ProtocolVersion.MINECRAFT_1_19_1))
-        assertNull(ChatSessionUpdatePacketIdResolver.resolve(ProtocolVersion.MINECRAFT_1_16_4))
-        assertNull(ChatSessionUpdatePacketIdResolver.resolve(null))
+        assertNull(ChatSessionPacketIdTable.resolve(ProtocolVersion.MINECRAFT_1_19_1))
+        assertNull(ChatSessionPacketIdTable.resolve(ProtocolVersion.MINECRAFT_1_16_4))
+        assertNull(ChatSessionPacketIdTable.resolve(null))
     }
 
     @Test
     fun `packet id resolver keeps matching versions newer than the table`() {
         // 表中最后一个条目起始于 26.1(775)。比它更新的版本必须沿用该条目，
         // 而不是被「最新版本」截断成 null —— 这是对未来版本的兼容保证。
-        assertEquals(0x0A, ChatSessionUpdatePacketIdResolver.resolve(ProtocolVersion.MINECRAFT_26_2))
+        assertEquals(0x0A, ChatSessionPacketIdTable.resolve(ProtocolVersion.MINECRAFT_26_2))
     }
 
     @Test
@@ -121,7 +128,7 @@ class ChatSessionUpdatePacketMatchersTest {
             .filter { it.protocol >= 761 }
             .forEach { version ->
                 assertNotNull(
-                    ChatSessionUpdatePacketIdResolver.resolve(version),
+                    ChatSessionPacketIdTable.resolve(version),
                     "下界查找表在 $version 处出现空隙",
                 )
             }
@@ -136,7 +143,7 @@ class ChatSessionUpdatePacketMatchersTest {
             oneTwentyThree.versionsSupportedBy.contains("1.20.4"),
             "前提校验：1.20.3 常量应当同时代表 1.20.4",
         )
-        assertEquals(0x06, ChatSessionUpdatePacketIdResolver.resolve(oneTwentyThree))
+        assertEquals(0x06, ChatSessionPacketIdTable.resolve(oneTwentyThree))
         assertEquals(
             ChatSessionUpdatePacketLayout.UUID_THEN_PROFILE_KEY,
             ChatSessionUpdateLayoutResolver.resolve(oneTwentyThree),
@@ -148,7 +155,7 @@ class ChatSessionUpdatePacketMatchersTest {
             .forEach { version ->
                 version.versionsSupportedBy.forEach { name ->
                     assertNotNull(
-                        ChatSessionUpdatePacketIdResolver.resolve(version),
+                        ChatSessionPacketIdTable.resolve(version),
                         "版本名 $name 未覆盖",
                     )
                 }

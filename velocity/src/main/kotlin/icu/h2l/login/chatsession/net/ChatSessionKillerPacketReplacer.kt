@@ -19,7 +19,7 @@
  *
  */
 
-package icu.h2l.login.inject.network.netty.replacer
+package icu.h2l.login.chatsession.net
 
 import com.velocitypowered.proxy.connection.MinecraftConnection
 import com.velocitypowered.proxy.connection.backend.VelocityServerConnection
@@ -29,8 +29,8 @@ import icu.h2l.api.log.debug
 import icu.h2l.api.log.error
 import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.manager.HyperZonePlayerManager
-import icu.h2l.login.util.chat.ChatSessionPacketView
-import icu.h2l.login.util.chat.ChatSessionUpdatePacketMatchers
+import icu.h2l.login.chatsession.packet.ChatSessionPacketView
+import icu.h2l.login.chatsession.ChatSessionUpdatePacketMatchers
 import io.netty.buffer.ByteBuf
 import io.netty.channel.Channel
 import io.netty.channel.ChannelHandlerContext

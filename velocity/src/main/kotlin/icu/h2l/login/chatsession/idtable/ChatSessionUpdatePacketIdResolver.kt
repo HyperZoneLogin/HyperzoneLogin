@@ -19,7 +19,7 @@
  *
  */
 
-package icu.h2l.login.util.chat
+package icu.h2l.login.chatsession.idtable
 
 import com.velocitypowered.api.network.ProtocolVersion
 
@@ -62,36 +62,31 @@ object ChatSessionUpdatePacketIdResolver {
     private const val MIN_SUPPORTED_PROTOCOL: Int = PROTOCOL_1_19_3
 
     /**
-     * 一条「起始协议号 → 包 id」的映射。
-     *
-     * [fromProtocol] 为闭区间下界；上界由**下一条表项**决定，最后一条无上界。
-     */
-    private data class IdEntry(
-        val packetId: Int,
-        val fromProtocol: Int,
-    )
-
-    /**
-     * 按 [IdEntry.fromProtocol] 升序排列。
+     * 内置默认表，按起始协议号升序。
      *
      * 注释里的区间写的是**版本名**，但匹配用的是协议号。区间内存在共用协议号的多版本
      * （如 1.20.3 / 1.20.4 同为 765），它们**不会**、也**无法**各自单列一条。
      * 因此「表里没有 1.20.4」是正常现象，不是漏配。
+     *
+     * 这张表同时作为 [ChatSessionPacketIdTable] 的兜底与首次播种来源。
      */
-    private val ID_TABLE: List<IdEntry> = listOf(
+    private val ID_TABLE: List<ChatSessionPacketIdConfig.PacketIdEntry> = listOf(
         // 1.19.3（协议号 761）
-        IdEntry(packetId = 0x20, fromProtocol = PROTOCOL_1_19_3),
+        ChatSessionPacketIdConfig.PacketIdEntry(packetId = 0x20, fromProtocol = PROTOCOL_1_19_3),
         // 1.19.4 ~ 1.20.3（协议号 762~765；注意 765 同时代表 1.20.3 与 1.20.4）
-        IdEntry(packetId = 0x06, fromProtocol = PROTOCOL_1_19_4),
+        ChatSessionPacketIdConfig.PacketIdEntry(packetId = 0x06, fromProtocol = PROTOCOL_1_19_4),
         // 1.20.5 ~ 1.21.1（协议号 766~767；766 同时代表 1.20.5/1.20.6，767 代表 1.21/1.21.1）
-        IdEntry(packetId = 0x07, fromProtocol = PROTOCOL_1_20_5),
+        ChatSessionPacketIdConfig.PacketIdEntry(packetId = 0x07, fromProtocol = PROTOCOL_1_20_5),
         // 1.21.2 ~ 1.21.5（协议号 768~770；768 同时代表 1.21.2/1.21.3）
-        IdEntry(packetId = 0x08, fromProtocol = PROTOCOL_1_21_2),
+        ChatSessionPacketIdConfig.PacketIdEntry(packetId = 0x08, fromProtocol = PROTOCOL_1_21_2),
         // 1.21.6 ~ 1.21.11（协议号 771~774；含 1.21.7 / 1.21.9）
-        IdEntry(packetId = 0x09, fromProtocol = PROTOCOL_1_21_6),
+        ChatSessionPacketIdConfig.PacketIdEntry(packetId = 0x09, fromProtocol = PROTOCOL_1_21_6),
         // 26.1 及以上（协议号 775+）：无上界，未来版本沿用 0x0A
-        IdEntry(packetId = 0x0A, fromProtocol = PROTOCOL_26_1),
+        ChatSessionPacketIdConfig.PacketIdEntry(packetId = 0x0A, fromProtocol = PROTOCOL_26_1),
     )
+
+    /** 内置默认表快照，供 [ChatSessionPacketIdTable] 播种与兜底。 */
+    fun builtinEntries(): List<ChatSessionPacketIdConfig.PacketIdEntry> = ID_TABLE
 
     /**
      * 解析 [protocolVersion] 对应的数据包 id。

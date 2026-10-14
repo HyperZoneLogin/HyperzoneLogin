@@ -19,7 +19,7 @@
  *
  */
 
-package icu.h2l.login.util.chat
+package icu.h2l.login.chatsession.packet
 
 import com.velocitypowered.api.network.ProtocolVersion
 import io.netty.buffer.ByteBuf

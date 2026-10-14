@@ -19,7 +19,7 @@
  *
  */
 
-package icu.h2l.login.util.chat
+package icu.h2l.login.chatsession.packet
 
 /**
  * `CHAT_SESSION_UPDATE`（serverbound）包体结构描述。

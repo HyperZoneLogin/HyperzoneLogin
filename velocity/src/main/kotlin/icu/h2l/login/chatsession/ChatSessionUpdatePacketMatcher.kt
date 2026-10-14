@@ -19,7 +19,8 @@
  *
  */
 
-package icu.h2l.login.util.chat
+package icu.h2l.login.chatsession
+import icu.h2l.login.chatsession.packet.ChatSessionPacketView
 
 /**
  * `CHAT_SESSION_UPDATE` 匹配器。
