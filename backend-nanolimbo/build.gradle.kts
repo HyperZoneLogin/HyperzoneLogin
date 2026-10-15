@@ -56,9 +56,6 @@ dependencies {
 tasks.named<Jar>("jar") {
     archiveClassifier.set("")
     archiveVersion.set("")
-    manifest {
-        attributes(mapOf("Main-Class" to "icu.h2l.login.nanolimbo.NanoLimboLauncher"))
-    }
 }
 
 

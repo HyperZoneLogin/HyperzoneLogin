@@ -26,7 +26,9 @@ import com.velocitypowered.api.event.proxy.ProxyShutdownEvent
 import icu.h2l.api.HyperZoneApi
 import icu.h2l.api.log.info
 import icu.h2l.api.log.warn
+import icu.h2l.api.message.HyperZoneModuleMessageResources
 import icu.h2l.api.module.HyperSubModule
+import icu.h2l.login.backend.nanolimbo.command.NanoLimboCommand
 import ua.nanit.limbo.server.HyperZoneLimboServer
 import java.nio.file.Files
 
@@ -37,6 +39,8 @@ class NanoLimboSubModule : HyperSubModule {
     override fun register(api: HyperZoneApi) {
         val dataDirectory = api.dataDirectory.resolve("backend-nanolimbo")
         Files.createDirectories(dataDirectory)
+
+        HyperZoneModuleMessageResources.copyBundledLocales(api.dataDirectory, "backend-nanolimbo", javaClass.classLoader)
 
         val server = HyperZoneLimboServer(dataDirectory)
         limboServer = server
@@ -57,9 +61,22 @@ class NanoLimboSubModule : HyperSubModule {
         startupThread.isDaemon = true
         startupThread.start()
 
+        registerCommand(api, server)
+
         info { "backend-nanolimbo 已加载，NanoLimbo 后端正在 ${dataDirectory.toAbsolutePath()} 启动" }
     }
+
+    private fun registerCommand(api: HyperZoneApi, server: HyperZoneLimboServer) {
+        val command = NanoLimboCommand(server).createCommand()
+        val meta = api.proxy.commandManager.metaBuilder(command)
+            .aliases(COMMAND_ALIAS)
+            .build()
+        api.proxy.commandManager.register(meta, command)
+        info { "backend-nanolimbo 管理命令 /$COMMAND_NAME 与 /$COMMAND_ALIAS 已注册" }
+    }
+
+    companion object {
+        private const val COMMAND_NAME = "hzl-limbo"
+        private const val COMMAND_ALIAS = "hzllimbo"
+    }
 }
-
-
-
