@@ -21,7 +21,7 @@
 
 package icu.h2l.login.profile.skin
 
-import icu.h2l.api.profile.skin.ProfileSkinTextures
+import icu.h2l.login.profile.skin.data.ProfileSkinTextures
 import icu.h2l.login.profile.skin.service.parseRestoredMineSkinTextures
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test

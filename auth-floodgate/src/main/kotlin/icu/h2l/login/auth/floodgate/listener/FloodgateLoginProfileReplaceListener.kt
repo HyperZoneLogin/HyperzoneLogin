@@ -34,7 +34,7 @@ import icu.h2l.api.log.debug
  * 对于通过 Floodgate 渠道认证的基岩版玩家（[icu.h2l.api.player.HyperZonePlayer.authChannelId] == "floodgate"），
  * 该监听器会覆写事件中的转发档案：
  * - 处于等待区时，使用临时档案；
- * - 否则使用 [icu.h2l.api.player.HyperZonePlayer.getApplyGameProfile] 解析的正式档案（含皮肤）。
+ * - 否则使用 [icu.h2l.api.player.HyperZonePlayer.getApplyGameProfile] 解析的正式档案（含完整属性）。
  *
  * 以 [PostOrder.LAST] 运行，确保在默认处理器（[PostOrder.NORMAL]）之后执行，
  * 从而对 Floodgate 玩家的档案进行最终覆写。

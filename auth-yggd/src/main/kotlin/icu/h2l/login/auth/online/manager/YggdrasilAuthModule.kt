@@ -43,7 +43,7 @@ import icu.h2l.login.auth.online.record.WaitingAreaContext
 import icu.h2l.login.auth.online.record.YggdrasilAuthRequestContext
 import icu.h2l.login.auth.online.record.YggdrasilAuthResult
 import icu.h2l.login.auth.online.service.YggdrasilCredentialService
-import icu.h2l.login.auth.online.service.YggdrasilProfileSkinDispatcher
+import icu.h2l.login.auth.online.service.YggdrasilProfileAuthenticatedDispatcher
 import icu.h2l.login.auth.online.service.YggdrasilRemoteAuthService
 import io.netty.channel.Channel
 import kotlinx.coroutines.CoroutineScope
@@ -85,7 +85,7 @@ class YggdrasilAuthModule(
         profileService = profileService,
         credentialService = credentialService
     )
-    private val profileSkinDispatcher = YggdrasilProfileSkinDispatcher(proxy)
+    private val profileAuthenticatedDispatcher = YggdrasilProfileAuthenticatedDispatcher(proxy)
 
     private val preparedAuthResults = ConcurrentHashMap<Channel, PreparedYggdrasilAuth>()
     private val waitingAreaPlayers = ConcurrentHashMap<Channel, WaitingAreaContext>()
@@ -241,7 +241,7 @@ class YggdrasilAuthModule(
 
             info { "玩家 $username 通过 Yggdrasil 验证，Entry: ${result.entryId}" }
             hyperZonePlayer.sendMessage(YggdrasilMessages.authSucceeded(hyperZonePlayer))
-            profileSkinDispatcher.fireProfileSkinPreprocessEvent(hyperZonePlayer, result)
+            profileAuthenticatedDispatcher.fireProfileAuthenticatedEvent(hyperZonePlayer, result)
             return PreparedYggdrasilAuth(
                 result = result,
                 credentialToSubmit = preparation.credentialToSubmit,

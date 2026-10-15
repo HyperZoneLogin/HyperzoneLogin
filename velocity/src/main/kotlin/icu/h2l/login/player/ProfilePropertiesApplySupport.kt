@@ -22,39 +22,52 @@
 package icu.h2l.login.player
 
 import com.velocitypowered.api.util.GameProfile
-import icu.h2l.api.event.profile.ProfileSkinApplyEvent
+import icu.h2l.api.event.profile.ProfilePropertiesApplyEvent
 import icu.h2l.api.log.HyperZoneDebugType
 import icu.h2l.api.log.debug
 import icu.h2l.api.log.error
-import icu.h2l.api.log.warn
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.login.HyperZoneLoginMain
+import java.util.concurrent.CompletableFuture
 
-object ProfileSkinApplySupport {
+/**
+ * 通用的档案属性应用支持。
+ *
+ * 触发 [ProfilePropertiesApplyEvent] 事件，让各功能模块（如皮肤模块）
+ * 根据自己的需求操作 [GameProfile.Property] 列表。
+ *
+ * 核心层不理解具体的属性内容，只负责事件触发和最终档案构造。
+ */
+object ProfilePropertiesApplySupport {
     fun apply(hyperZonePlayer: HyperZonePlayer, baseProfile: GameProfile? = null): GameProfile? {
         return applyAsync(hyperZonePlayer, baseProfile).join()
     }
 
-    fun applyAsync(hyperZonePlayer: HyperZonePlayer, baseProfile: GameProfile? = null): java.util.concurrent.CompletableFuture<GameProfile?> {
+    fun applyAsync(
+        hyperZonePlayer: HyperZonePlayer,
+        baseProfile: GameProfile? = null
+    ): CompletableFuture<GameProfile?> {
         val resolvedBaseProfile = resolveBaseProfile(hyperZonePlayer, baseProfile)
-            ?: return java.util.concurrent.CompletableFuture.completedFuture(null)
-        val event = ProfileSkinApplyEvent(hyperZonePlayer, resolvedBaseProfile)
+            ?: return CompletableFuture.completedFuture(null)
+
+        val event = ProfilePropertiesApplyEvent(
+            hyperZonePlayer = hyperZonePlayer,
+            baseProfile = resolvedBaseProfile,
+            properties = resolvedBaseProfile.properties.toMutableList()
+        )
 
         return HyperZoneLoginMain.getInstance().proxy.eventManager.fire(event)
             .handle { _, throwable ->
                 if (throwable != null) {
-                    error(throwable) { "Profile skin apply event failed: ${throwable.message}" }
+                    error(throwable) { "Profile properties apply event failed: ${throwable.message}" }
                     return@handle resolvedBaseProfile
                 }
 
-                val textures = event.textures ?: return@handle resolvedBaseProfile
-                val property = textures.toPropertyOrNull() ?: run {
-                    warn {
-                        "[ProfileSkinFlow] apply skipped incomplete textures: clientOriginal=${hyperZonePlayer.clientOriginalName}, profile=${resolvedBaseProfile.id}, valueLength=${textures.value.length}, signed=${textures.isSigned}"
-                    }
-                    return@handle resolvedBaseProfile
-                }
-                mergeTextures(resolvedBaseProfile, property)
+                GameProfile(
+                    resolvedBaseProfile.id,
+                    resolvedBaseProfile.name,
+                    event.properties
+                )
             }
     }
 
@@ -67,23 +80,9 @@ object ProfileSkinApplySupport {
             hyperZonePlayer.getAttachedGameProfile()
         }.getOrElse { throwable ->
             debug(HyperZoneDebugType.PROFILE_SKIN) {
-                "[ProfileSkinFlow] apply aborted: clientOriginal=${hyperZonePlayer.clientOriginalName}, reason=${throwable.message ?: throwable.javaClass.simpleName}, attachedProfile=${hyperZonePlayer.hasAttachedProfile()}"
+                "[ProfilePropertiesFlow] apply aborted: clientOriginal=${hyperZonePlayer.clientOriginalName}, reason=${throwable.message ?: throwable.javaClass.simpleName}, attachedProfile=${hyperZonePlayer.hasAttachedProfile()}"
             }
             null
         }
     }
-
-    internal fun mergeTextures(baseProfile: GameProfile, textureProperty: GameProfile.Property): GameProfile {
-        val mergedProperties = baseProfile.properties
-            .filterNot { it.name.equals("textures", ignoreCase = true) }
-            .toMutableList()
-            .apply { add(textureProperty) }
-
-        return GameProfile(
-            baseProfile.id,
-            baseProfile.name,
-            mergedProperties
-        )
-    }
 }
-

@@ -23,8 +23,8 @@ package icu.h2l.login.profile.skin.db
 
 import icu.h2l.api.db.HyperZoneDatabaseManager
 import icu.h2l.api.log.warn
-import icu.h2l.api.profile.skin.ProfileSkinSource
-import icu.h2l.api.profile.skin.ProfileSkinTextures
+import icu.h2l.login.profile.skin.data.ProfileSkinSource
+import icu.h2l.login.profile.skin.data.ProfileSkinTextures
 import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll

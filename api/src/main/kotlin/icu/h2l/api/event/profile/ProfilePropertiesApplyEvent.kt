@@ -24,35 +24,23 @@ package icu.h2l.api.event.profile
 import com.velocitypowered.api.event.annotation.AwaitingEvent
 import com.velocitypowered.api.util.GameProfile
 import icu.h2l.api.player.HyperZonePlayer
-import icu.h2l.api.profile.skin.ProfileSkinSource
-import icu.h2l.api.profile.skin.ProfileSkinTextures
 
 /**
- * 在认证模块完成外部鉴权后、正式档案 attach 完成前触发的皮肤预处理事件。
+ * 在最终构造要发送给后端的正式 [GameProfile] 前触发的 properties 应用事件。
  *
- * 该阶段适合根据外部认证结果提前准备皮肤来源信息，并在后续 [ProfileAttachedEvent]
- * 或 [ProfileSkinApplyEvent] 中继续消费。
+ * 监听器可基于 [baseProfile] 与当前玩家上下文自由修改 [properties]，
+ * 例如注入皮肤纹理、添加其他游戏属性等。
+ *
+ * 核心模块不关心 properties 的具体内容和数据结构，
+ * 各功能模块根据自己的需求操作 [properties] 列表。
  *
  * @property hyperZonePlayer 当前登录态玩家对象
- * @property authenticatedProfile 外部认证返回的初始档案
- * @property entryId 命中的认证入口标识
- * @property serverUrl 本次认证使用的服务端地址
+ * @property baseProfile 当前应用流程的基础档案（仅含 UUID 和用户名）
+ * @property properties 可变的属性列表，监听器可自由添加、删除或替换
  */
 @AwaitingEvent
-class ProfileSkinPreprocessEvent(
+class ProfilePropertiesApplyEvent(
     val hyperZonePlayer: HyperZonePlayer,
-    val authenticatedProfile: GameProfile,
-    val entryId: String,
-    val serverUrl: String
-) {
-    /**
-     * 监听器可写入的皮肤来源定义。
-     */
-    var source: ProfileSkinSource? = null
-
-    /**
-     * 监听器可直接写入的皮肤纹理数据。
-     */
-    var textures: ProfileSkinTextures? = null
-}
-
+    val baseProfile: GameProfile,
+    val properties: MutableList<GameProfile.Property>
+)

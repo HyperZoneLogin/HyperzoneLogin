@@ -27,8 +27,8 @@ import com.velocitypowered.api.event.Subscribe
 import com.velocitypowered.api.event.connection.DisconnectEvent
 import com.velocitypowered.api.util.GameProfile
 import icu.h2l.api.event.profile.ProfileAttachedEvent
-import icu.h2l.api.event.profile.ProfileSkinApplyEvent
-import icu.h2l.api.event.profile.ProfileSkinPreprocessEvent
+import icu.h2l.api.event.profile.ProfilePropertiesApplyEvent
+import icu.h2l.login.profile.skin.event.ProfileSkinPreprocessEvent
 import icu.h2l.api.event.profile.ServerLoginSuccessEvent
 import icu.h2l.api.log.HyperZoneDebugType
 import icu.h2l.api.log.debug
@@ -37,9 +37,9 @@ import icu.h2l.api.log.warn
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.player.HyperZonePlayerAccessor
 import icu.h2l.api.profile.HyperZoneProfileService
-import icu.h2l.api.profile.skin.ProfileSkinModel
-import icu.h2l.api.profile.skin.ProfileSkinSource
-import icu.h2l.api.profile.skin.ProfileSkinTextures
+import icu.h2l.login.profile.skin.data.ProfileSkinModel
+import icu.h2l.login.profile.skin.data.ProfileSkinSource
+import icu.h2l.login.profile.skin.data.ProfileSkinTextures
 import icu.h2l.login.profile.skin.ProfileSkinMessages
 import icu.h2l.login.profile.skin.config.MineSkinMethod
 import icu.h2l.login.profile.skin.config.ProfileSkinConfig
@@ -298,7 +298,7 @@ class ProfileSkinService(
     }
 
     @Subscribe
-    fun onApply(event: ProfileSkinApplyEvent) {
+    fun onApply(event: ProfilePropertiesApplyEvent) {
 
         val profileId = profileService.getAttachedProfile(event.hyperZonePlayer)?.id ?: run {
             debug(HyperZoneDebugType.PROFILE_SKIN) {
@@ -308,10 +308,16 @@ class ProfileSkinService(
             return
         }
         val skinId = profileRepository.findSkinIdByProfileId(profileId) ?: return
-        cacheRepository.findBySkinId(skinId)?.let { cached ->
-            event.textures = cached.textures
+        val cached = cacheRepository.findBySkinId(skinId) ?: return
+        val textureProperty = cached.textures.toPropertyOrNull() ?: run {
+            debug(HyperZoneDebugType.PROFILE_SKIN) {
+                "[ProfileSkinFlow] apply skipped incomplete textures: clientOriginal=${event.hyperZonePlayer.clientOriginalName}, skinId=$skinId, valueLength=${cached.textures.value.length}, signed=${cached.textures.isSigned}"
+            }
             return
         }
+
+        event.properties.removeAll { it.name.equals("textures", ignoreCase = true) }
+        event.properties.add(textureProperty)
     }
 
     @Subscribe

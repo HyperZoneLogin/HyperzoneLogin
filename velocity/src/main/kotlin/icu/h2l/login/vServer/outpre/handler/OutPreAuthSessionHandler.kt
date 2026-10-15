@@ -53,7 +53,7 @@ import icu.h2l.login.inject.network.NettyReflectionHelper.reflectedCleanup
 import icu.h2l.login.inject.network.NettyReflectionHelper.reflectedDelegatedConnection
 import icu.h2l.login.inject.network.NettyReflectionHelper.reflectedTeardown
 import icu.h2l.login.manager.HyperZonePlayerManager
-import icu.h2l.login.player.ProfileSkinApplySupport
+import icu.h2l.login.player.ProfilePropertiesApplySupport
 import icu.h2l.login.reflect.VelocityInternalAccess
 import icu.h2l.login.util.buildAttachedIdentityGameProfile
 import icu.h2l.login.util.describeGameProfileBrief
@@ -232,7 +232,7 @@ open class OutPreAuthSessionHandlerLogic(
                 )
             }
 
-            ProfileSkinApplySupport.applyAsync(hyperPlayer, finalCandidateProfile)
+            ProfilePropertiesApplySupport.applyAsync(hyperPlayer, finalCandidateProfile)
                 .thenComposeAsync({ skinResolvedProfile ->
                     if (mcConnection.isClosed) {
                         return@thenComposeAsync CompletableFuture.completedFuture(null)

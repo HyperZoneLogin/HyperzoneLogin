@@ -145,7 +145,7 @@ class VelocityHyperZonePlayer(
     }
 
     override fun getApplyGameProfile(): GameProfile? {
-        return ProfileSkinApplySupport.apply(this)
+        return ProfilePropertiesApplySupport.apply(this)
     }
 }
 

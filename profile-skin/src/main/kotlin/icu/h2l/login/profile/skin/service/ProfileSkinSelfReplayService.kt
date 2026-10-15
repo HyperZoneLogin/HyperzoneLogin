@@ -29,7 +29,7 @@ import com.velocitypowered.api.proxy.Player
 import com.velocitypowered.api.util.GameProfile
 import com.velocitypowered.proxy.protocol.packet.LegacyPlayerListItemPacket
 import com.velocitypowered.proxy.protocol.packet.UpsertPlayerInfoPacket
-import icu.h2l.api.event.profile.ProfileSkinPreprocessEvent
+import icu.h2l.login.profile.skin.event.ProfileSkinPreprocessEvent
 import icu.h2l.api.log.HyperZoneDebugType
 import icu.h2l.api.log.debug
 import icu.h2l.api.log.error
@@ -37,7 +37,7 @@ import icu.h2l.api.log.warn
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.player.HyperZonePlayerAccessor
 import icu.h2l.api.profile.HyperZoneProfileService
-import icu.h2l.api.profile.skin.ProfileSkinTextures
+import icu.h2l.login.profile.skin.data.ProfileSkinTextures
 import icu.h2l.api.util.RemapUtils
 import icu.h2l.login.profile.skin.config.ProfileSkinConfig
 import icu.h2l.login.profile.skin.db.ProfileSkinCacheRepository

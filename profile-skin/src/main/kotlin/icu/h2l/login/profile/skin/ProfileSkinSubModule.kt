@@ -30,6 +30,7 @@ import icu.h2l.api.module.HyperSubModule
 import icu.h2l.api.profile.HyperZoneProfileServiceProvider
 import icu.h2l.login.profile.skin.config.ProfileSkinConfigLoader
 import icu.h2l.login.profile.skin.db.*
+import icu.h2l.login.profile.skin.service.ProfileSkinAuthenticatedListener
 import icu.h2l.login.profile.skin.service.ProfileSkinSelfReplayService
 import icu.h2l.login.profile.skin.service.ProfileSkinService
 
@@ -37,6 +38,7 @@ class ProfileSkinSubModule : HyperSubModule {
     lateinit var tableManager: ProfileSkinCacheTableManager
     lateinit var cacheRepository: ProfileSkinCacheRepository
     lateinit var profileRepository: ProfileSkinProfileRepository
+    lateinit var authenticatedListener: ProfileSkinAuthenticatedListener
     lateinit var service: ProfileSkinService
     lateinit var selfReplayService: ProfileSkinSelfReplayService
 
@@ -58,6 +60,7 @@ class ProfileSkinSubModule : HyperSubModule {
         tableManager = ProfileSkinCacheTableManager(databaseManager, cacheTable, profileTable)
         cacheRepository = ProfileSkinCacheRepository(databaseManager, cacheTable)
         profileRepository = ProfileSkinProfileRepository(databaseManager, profileTable)
+        authenticatedListener = ProfileSkinAuthenticatedListener(proxy)
         service = ProfileSkinService(
             config,
             cacheRepository,
@@ -75,10 +78,11 @@ class ProfileSkinSubModule : HyperSubModule {
 
         tableManager.createTable()
         proxy.eventManager.register(api, tableManager)
+        proxy.eventManager.register(api, authenticatedListener)
         proxy.eventManager.register(api, service)
         proxy.eventManager.register(api, selfReplayService)
 
-        info { "ProfileSkinSubModule 已加载，skin_cache / skin_profile、皮肤修复与 self replay 监听器已注册" }
+        info { "ProfileSkinSubModule 已加载，skin_cache / skin_profile、认证监听、皮肤修复与 self replay 监听器已注册" }
     }
 }
 

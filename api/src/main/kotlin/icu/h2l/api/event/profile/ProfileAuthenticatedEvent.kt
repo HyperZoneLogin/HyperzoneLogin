@@ -24,24 +24,25 @@ package icu.h2l.api.event.profile
 import com.velocitypowered.api.event.annotation.AwaitingEvent
 import com.velocitypowered.api.util.GameProfile
 import icu.h2l.api.player.HyperZonePlayer
-import icu.h2l.api.profile.skin.ProfileSkinTextures
 
 /**
- * 在最终构造要发送给后端的正式 [GameProfile] 前触发的皮肤应用事件。
+ * 在认证模块完成外部鉴权后、正式档案 attach 完成前触发的认证完成事件。
  *
- * 监听器可基于 [baseProfile] 与当前玩家上下文写入最终要注入的 [textures]。
+ * 该事件适合各功能模块根据外部认证结果提前准备相关数据，
+ * 例如皮肤模块可从 [authenticatedProfile] 中提取皮肤信息并预处理。
+ *
+ * 核心层和认证模块不关心各功能模块如何处理这个事件，
+ * 只负责在认证成功后触发通知。
  *
  * @property hyperZonePlayer 当前登录态玩家对象
- * @property baseProfile 当前皮肤注入流程的基础档案
+ * @property authenticatedProfile 外部认证返回的完整档案
+ * @property entryId 命中的认证入口标识
+ * @property serverUrl 本次认证使用的服务端地址
  */
 @AwaitingEvent
-class ProfileSkinApplyEvent(
+class ProfileAuthenticatedEvent(
     val hyperZonePlayer: HyperZonePlayer,
-    val baseProfile: GameProfile
-) {
-    /**
-     * 监听器可写入的最终皮肤纹理数据。
-     */
-    var textures: ProfileSkinTextures? = null
-}
-
+    val authenticatedProfile: GameProfile,
+    val entryId: String,
+    val serverUrl: String
+)

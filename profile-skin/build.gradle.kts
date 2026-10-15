@@ -38,6 +38,12 @@ dependencies {
 
     testImplementation(platform(libs.junitBom))
     testImplementation(libs.junitJupiter)
+    testImplementation(project(":api"))
+    testImplementation(libs.velocityApi)
+    testImplementation(libs.nettyAll)
+    testImplementation(libs.configurateHocon)
+    testImplementation(libs.configurateExtraKotlin)
+    testImplementation(libs.exposedCore)
     testImplementation(libs.exposedJdbc)
     testImplementation(libs.gson)
     testRuntimeOnly(libs.junitPlatformLauncher)

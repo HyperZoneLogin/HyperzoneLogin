@@ -19,55 +19,53 @@
  *
  */
 
-package icu.h2l.login.auth.online.service
+package icu.h2l.login.profile.skin.service
 
 import com.google.gson.Gson
+import com.velocitypowered.api.event.Subscribe
 import com.velocitypowered.api.proxy.ProxyServer
 import com.velocitypowered.api.util.GameProfile
-import icu.h2l.api.event.profile.ProfileSkinPreprocessEvent
+import icu.h2l.api.event.profile.ProfileAuthenticatedEvent
 import icu.h2l.api.log.HyperZoneDebugType
 import icu.h2l.api.log.debug
-import icu.h2l.api.log.error
-import icu.h2l.api.player.HyperZonePlayer
-import icu.h2l.api.profile.skin.ProfileSkinModel
-import icu.h2l.api.profile.skin.ProfileSkinSource
-import icu.h2l.api.profile.skin.ProfileSkinTextures
-import icu.h2l.login.auth.online.record.YggdrasilAuthResult
-import icu.h2l.login.auth.online.util.VelocityGson
+import icu.h2l.login.profile.skin.data.ProfileSkinModel
+import icu.h2l.login.profile.skin.data.ProfileSkinSource
+import icu.h2l.login.profile.skin.data.ProfileSkinTextures
+import icu.h2l.login.profile.skin.event.ProfileSkinPreprocessEvent
 import java.nio.charset.StandardCharsets
 import java.util.*
 
-class YggdrasilProfileSkinDispatcher(
+/**
+ * 皮肤模块对外部认证完成事件的监听入口
+ *
+ * 监听 API 层的通用认证事件 [ProfileAuthenticatedEvent]，
+ * 从认证档案中提取皮肤信息，然后触发模块内部的 [ProfileSkinPreprocessEvent]，
+ * 供模块内其他服务处理。
+ */
+class ProfileSkinAuthenticatedListener(
     private val proxy: ProxyServer
 ) {
-    private val gson: Gson = VelocityGson.INSTANCE
+    private val gson: Gson = Gson()
 
-    fun fireProfileSkinPreprocessEvent(
-        handler: HyperZonePlayer,
-        result: YggdrasilAuthResult.Success
-    ) {
-        val event = ProfileSkinPreprocessEvent(
-            hyperZonePlayer = handler,
-            authenticatedProfile = result.profile,
-            entryId = result.entryId,
-            serverUrl = result.serverUrl
-        )
-        event.textures = extractTextures(result.profile)
-        event.source = extractSkinSource(event.textures)
+    @Subscribe
+    fun onAuthenticated(event: ProfileAuthenticatedEvent) {
+        val textures = extractTextures(event.authenticatedProfile)
+        val source = extractSkinSource(textures)
 
         debug(HyperZoneDebugType.PROFILE_SKIN) {
-            "[ProfileSkinFlow] preprocess dispatch start: clientOriginal=${handler.clientOriginalName}, entry=${result.entryId}, server=${result.serverUrl}, authenticatedProfile=${describeProfile(result.profile)}, eventTextures=${describeTextures(event.textures)}, eventSource=${describeSource(event.source)}"
+            "[ProfileSkinFlow] authenticated event received: clientOriginal=${event.hyperZonePlayer.clientOriginalName}, entry=${event.entryId}, server=${event.serverUrl}, textures=${describeTextures(textures)}, source=${describeSource(source)}"
         }
 
-        runCatching {
-            proxy.eventManager.fire(event).join()
-        }.onSuccess {
-            debug(HyperZoneDebugType.PROFILE_SKIN) {
-                "[ProfileSkinFlow] preprocess dispatch completed: clientOriginal=${handler.clientOriginalName}, entry=${result.entryId}, resultingTextures=${describeTextures(event.textures)}, resultingSource=${describeSource(event.source)}"
-            }
-        }.onFailure { throwable ->
-            error(throwable) { "Profile skin preprocess event failed: ${throwable.message}" }
-        }
+        val preprocessEvent = ProfileSkinPreprocessEvent(
+            hyperZonePlayer = event.hyperZonePlayer,
+            authenticatedProfile = event.authenticatedProfile,
+            entryId = event.entryId,
+            serverUrl = event.serverUrl
+        )
+        preprocessEvent.textures = textures
+        preprocessEvent.source = source
+
+        proxy.eventManager.fire(preprocessEvent).join()
     }
 
     private fun extractTextures(profile: GameProfile): ProfileSkinTextures? {
@@ -87,24 +85,13 @@ class YggdrasilProfileSkinDispatcher(
         return ProfileSkinSource(url, ProfileSkinModel.normalize(model))
     }
 
-    private fun describeProfile(profile: GameProfile?): String {
-        if (profile == null) {
-            return "null"
-        }
-        return "id=${profile.id}, name=${profile.name}, properties=${profile.properties.size}, textures=${describeTextures(profile.properties.firstOrNull { it.name.equals("textures", ignoreCase = true) }?.let { ProfileSkinTextures(it.value, it.signature) })}"
-    }
-
     private fun describeTextures(textures: ProfileSkinTextures?): String {
-        if (textures == null) {
-            return "none"
-        }
+        if (textures == null) return "none"
         return "present(valueLength=${textures.value.length}, signed=${textures.isSigned})"
     }
 
     private fun describeSource(source: ProfileSkinSource?): String {
-        if (source == null) {
-            return "none"
-        }
+        if (source == null) return "none"
         return "url=${source.skinUrl}, model=${source.model}"
     }
 }

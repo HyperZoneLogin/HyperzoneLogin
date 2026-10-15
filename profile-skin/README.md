@@ -15,7 +15,7 @@
 - 当上游初始 `textures` 缺失或不可用于补发时，若玩家已经绑定 `profile`，则回退到该 `profile` 的缓存皮肤继续补发 self `ADD_PLAYER`
 - 在 `PlayerFinishConfigurationEvent` 后根据最近缓存的 self `textures` 再 replay 一次 self `ADD_PLAYER`，避免 vanilla 客户端切换 configuration 生命周期后丢失自己的皮肤资料
 - 监听 `ServerLoginSuccessEvent`，把登录成功包 UUID 改写职责从核心转移到皮肤修复模块
-- 在 `ToBackendPacketReplacer` 与 `GameProfileRequestEvent` 的最终替换阶段，通过 `ProfileSkinApplyEvent` 将缓存后的 `textures` 注入最终档案
+- 在 `ToBackendPacketReplacer` 与 `GameProfileRequestEvent` 的最终替换阶段，通过 `ProfilePropertiesApplyEvent` 将缓存后的 `textures` 注入最终档案
 
 ## 配置文件
 
@@ -52,13 +52,16 @@
 - `serverUrl`
 - 可写字段：`source`、`textures`
 
-### `ProfileSkinApplyEvent`
+### `ProfilePropertiesApplyEvent`
 
 在最终构造转发给后端的 `GameProfile` 时抛出：
 
 - `hyperZonePlayer`
 - `baseProfile`
-- 可写字段：`textures`
+- `properties` - 可变的 `MutableList<GameProfile.Property>`，各功能模块可自由操作
+
+该事件不再特定于皮肤。核心模块只负责触发事件和构造最终档案，
+各功能模块（如 profile-skin）根据自己的需求操作 properties 列表。
 
 ### `ServerLoginSuccessEvent`
 
@@ -122,6 +125,6 @@
 7. 客户端完成 configuration 后，`profile-skin` 再 replay 一次 self `ADD_PLAYER`
 8. 核心在写出登录成功包前抛出 `ServerLoginSuccessEvent`
 9. `profile-skin` 请求把登录成功包 UUID 改为 `clientOriginalUUID`
-10. `ToBackendPacketReplacer` 与核心最终替换链路抛出 `ProfileSkinApplyEvent`
-11. 模块先查 `skin_profile`，再回到 `skin_cache` 取回 `textures` 并写回最终 `GameProfile`
+10. `ToBackendPacketReplacer` 与核心最终替换链路抛出 `ProfilePropertiesApplyEvent`
+11. 模块先查 `skin_profile`，再回到 `skin_cache` 取回 `textures` 并注入到 properties 列表
 

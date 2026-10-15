@@ -19,7 +19,7 @@
  *
  */
 
-package icu.h2l.api.profile.skin
+package icu.h2l.login.profile.skin.data
 
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test

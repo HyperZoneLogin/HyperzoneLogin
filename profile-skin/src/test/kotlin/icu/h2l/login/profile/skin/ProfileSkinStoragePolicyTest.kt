@@ -21,8 +21,8 @@
 
 package icu.h2l.login.profile.skin
 
-import icu.h2l.api.profile.skin.ProfileSkinSource
-import icu.h2l.api.profile.skin.ProfileSkinTextures
+import icu.h2l.login.profile.skin.data.ProfileSkinSource
+import icu.h2l.login.profile.skin.data.ProfileSkinTextures
 import icu.h2l.login.profile.skin.db.ProfileSkinCacheRecord
 import icu.h2l.login.profile.skin.db.isEligibleForSourceCache
 import icu.h2l.login.profile.skin.db.shouldSkipSave

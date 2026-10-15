@@ -139,13 +139,13 @@ interface HyperZonePlayer {
     fun getTemporaryGameProfile(): GameProfile
 
     /**
-     * 获取玩家的正式身份档案（仅含用户名与 UUID，**不含皮肤纹理**）。
+     * 获取玩家的正式身份档案（仅含用户名与 UUID，**不含 properties**）。
      *
      * 该方法只用于需要"干净"身份信息（名字 + UUID）的内部场景，
      * 例如：凭证绑定校验、日志记录、Profile 服务写库等。
      *
      * **不应在正常游戏流程中直接使用此方法向后端转发档案**，
-     * 因为返回值不包含皮肤数据；游戏流程请使用 [getApplyGameProfile]。
+     * 因为返回值不包含游戏属性（如皮肤）；游戏流程请使用 [getApplyGameProfile]。
      *
      * 调用方应确保当前玩家已 attach Profile；否则实现可以直接抛错，
      * 以暴露"未完成 profile 链路却尝试进入游戏区"的逻辑问题。
@@ -153,17 +153,18 @@ interface HyperZonePlayer {
     fun getAttachedGameProfile(): GameProfile
 
     /**
-     * 获取用于向后端转发、完整携带皮肤纹理的正式 GameProfile。
+     * 获取用于向后端转发、完整携带所有游戏属性的正式 GameProfile。
      *
      * 这是**正常游戏流程中应优先使用的档案获取入口**。
      * 实现会在 [getAttachedGameProfile] 返回的身份基础上，
-     * 触发皮肤应用事件（如 `ProfileSkinApplyEvent`）并合并最终皮肤纹理。
+     * 触发属性应用事件（`ProfilePropertiesApplyEvent`）并由各功能模块
+     * （如皮肤模块）填充具体的 properties。
      *
-     * 返回 null 表示当前玩家尚未 attach Profile 或皮肤解析失败；
+     * 返回 null 表示当前玩家尚未 attach Profile 或属性解析失败；
      * 调用方应确保在玩家已完成 Profile 链路后再调用此方法。
      *
-     * 默认实现直接返回 [getAttachedGameProfile]（无皮肤），
-     * 各运行时层（如 Velocity）应覆写以注入实际皮肤数据。
+     * 默认实现直接返回 [getAttachedGameProfile]（无额外属性），
+     * 各运行时层（如 Velocity）应覆写以触发属性填充流程。
      */
     fun getApplyGameProfile(): GameProfile? {
         return runCatching { getAttachedGameProfile() }.getOrNull()
