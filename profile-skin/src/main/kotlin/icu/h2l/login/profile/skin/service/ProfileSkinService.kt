@@ -46,6 +46,7 @@ import icu.h2l.login.profile.skin.config.ProfileSkinConfig
 import icu.h2l.login.profile.skin.db.ProfileSkinCacheRepository
 import icu.h2l.login.profile.skin.db.ProfileSkinCacheRepository.SaveResult
 import icu.h2l.login.profile.skin.db.ProfileSkinProfileRepository
+import icu.h2l.login.profile.skin.net.HttpProxySupport
 import java.awt.image.BufferedImage
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -152,10 +153,8 @@ class ProfileSkinService(
     private val pendingSkinBindings = ConcurrentHashMap<HyperZonePlayer, UUID>()
     private val playersWithSkinProcessingPrompt = ConcurrentHashMap.newKeySet<HyperZonePlayer>()
 
-    private val httpClient: HttpClient = HttpClient.newBuilder()
-        .connectTimeout(Duration.ofMillis(config.mineSkin.timeoutMillis))
-        .followRedirects(HttpClient.Redirect.NORMAL)
-        .build()
+    private val httpClient: HttpClient =
+        HttpProxySupport.buildHttpClient(config.proxy, config.mineSkin.timeoutMillis)
 
     @Subscribe
     fun onPreprocess(event: ProfileSkinPreprocessEvent) {

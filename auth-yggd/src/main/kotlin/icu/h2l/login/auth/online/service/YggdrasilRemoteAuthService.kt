@@ -26,6 +26,8 @@ import com.velocitypowered.api.proxy.ProxyServer
 import icu.h2l.api.db.HyperZoneDatabaseManager
 import icu.h2l.api.log.HyperZoneDebugType
 import icu.h2l.api.log.debug
+import icu.h2l.api.net.HttpClients
+import icu.h2l.api.net.ProxySettings
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.profile.HyperZoneProfileService
 import icu.h2l.login.auth.online.config.EntryConfig
@@ -46,6 +48,7 @@ import org.jetbrains.exposed.sql.selectAll
 import java.net.http.HttpClient
 import java.time.Duration
 import java.util.*
+import java.util.concurrent.ConcurrentHashMap
 
 class YggdrasilRemoteAuthService(
     private val proxy: ProxyServer,
@@ -55,9 +58,20 @@ class YggdrasilRemoteAuthService(
     private val profileService: HyperZoneProfileService,
     private val credentialService: YggdrasilCredentialService
 ) {
-    private val httpClient: HttpClient = HttpClient.newBuilder()
-        .connectTimeout(Duration.ofSeconds(5))
-        .build()
+    /**
+     * 各 entry 的出网客户端。
+     *
+     * 代理按 entry 配置，因此不能共用同一个 client；
+     * 这里按 entry ID 缓存，避免每次认证都重建连接池与线程池。
+     */
+    private val httpClients = ConcurrentHashMap<String, HttpClient>()
+
+    private companion object {
+        /**
+         * entry 出网客户端连接超时，保持与原先裸 client 一致的 5 秒。
+         */
+        const val ENTRY_CONNECT_TIMEOUT_MILLIS = 5_000L
+    }
     private val gson: Gson = VelocityGson.INSTANCE
 
     fun authenticate(
@@ -174,7 +188,7 @@ class YggdrasilRemoteAuthService(
             )
             val authRequest = MojangStyleAuthRequest(
                 config = authServerConfig,
-                httpClient = httpClient,
+                httpClient = resolveHttpClient(entryConfig),
                 gson = gson,
                 preventProxy = proxy.configuration.shouldPreventClientProxyConnections()
             )
@@ -182,6 +196,28 @@ class YggdrasilRemoteAuthService(
         }
 
         return requests
+    }
+
+    /**
+     * 取该 entry 对应的 HttpClient，首次使用时按 entry 的代理配置构建。
+     */
+    private fun resolveHttpClient(entryConfig: EntryConfig): HttpClient {
+        return httpClients.computeIfAbsent(entryConfig.id) {
+            val entryProxy = entryConfig.yggdrasil.proxy
+            debug(HyperZoneDebugType.YGGDRASIL_AUTH) {
+                "[YggdrasilFlow] 为 entry 准备 HTTP 客户端: entry=${entryConfig.id}, proxyType=${entryProxy.type}, proxy=${entryProxy.hostname}:${entryProxy.port}"
+            }
+            HttpClients.withProxy(
+                settings = ProxySettings(
+                    type = entryProxy.type,
+                    hostname = entryProxy.hostname,
+                    port = entryProxy.port,
+                    username = entryProxy.username,
+                    password = entryProxy.password
+                ),
+                connectTimeoutMillis = ENTRY_CONNECT_TIMEOUT_MILLIS
+            )
+        }
     }
 
     private suspend fun executeAuthRequests(

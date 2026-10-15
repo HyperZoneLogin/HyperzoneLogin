@@ -30,6 +30,23 @@
 - `restoreUnsignedTextures`：遇到未签名 `textures` 时是否尝试修复
 - `mineSkin.method`：`URL` 或 `UPLOAD`
 - `mineSkin.retryUploadOnUrlReadFailure`：URL 模式遇到 MineSkin 远端读图失败时，是否自动改走上传模式
+- `proxy.type`：`DIRECT`（直连）/ `HTTP` / `SOCKS`，字段语义与 `auth-yggd` 的 entry 级代理配置一致
+- `proxy.hostname` / `proxy.port`：代理服务器地址与端口
+- `proxy.username` / `proxy.password`：代理鉴权凭据，留空则不鉴权
+
+`proxy` 段落作用于模块的全部出网请求：MineSkin 的 URL / 上传调用，以及皮肤原图下载。
+
+```hocon
+proxy {
+    type=DIRECT
+    hostname="127.0.0.1"
+    port=1080
+    username=""
+    password=""
+}
+```
+
+说明：`DIRECT` 会显式直连，不受 JVM `http.proxyHost` 等系统属性影响；`HTTP` 代理鉴权作用域仅限本模块的 HttpClient，而 SOCKS5 鉴权在配置了用户名时会安装全局默认鉴权器并保留原有实例兜底。
 
 说明：self replay 能力仍受核心 `misc.enableReplaceGameProfile` 开关约束；只有开启档案替换时，模块才会向客户端补发 self `ADD_PLAYER`。
 

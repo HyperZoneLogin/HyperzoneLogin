@@ -42,6 +42,42 @@ class ProfileSkinConfig {
     // MineSkin 修复配置
     @Comment("config.skin.mineskin")
     var mineSkin: MineSkinConfig = MineSkinConfig()
+
+    // 出网请求代理设置
+    @Comment("config.skin.proxy")
+    var proxy: ProxyConfig = ProxyConfig()
+}
+
+/**
+ * 出网请求代理设置。
+ *
+ * 字段语义与 auth-yggd 的 entry 级代理配置保持一致，
+ * 供 MineSkin 调用与皮肤原图下载等所有出网请求共用。
+ */
+@ConfigSerializable
+class ProxyConfig {
+    // 设置代理类型
+    // DIRECT - 直接连接、或没有代理
+    // HTTP - 表示高级协议(如HTTP或FTP)的代理
+    // SOCKS - 表示一个SOCKS (V4或V5)代理
+    @Comment("config.skin.proxy.type")
+    var type: String = "DIRECT"
+
+    // 代理服务器地址
+    @Comment("config.skin.proxy.hostname")
+    var hostname: String = "127.0.0.1"
+
+    // 代理服务器端口
+    @Comment("config.skin.proxy.port")
+    var port: Int = 1080
+
+    // 代理鉴权用户名，留空则不进行鉴权
+    @Comment("config.skin.proxy.username")
+    var username: String = ""
+
+    // 代理鉴权密码
+    @Comment("config.skin.proxy.password")
+    var password: String = ""
 }
 
 @ConfigSerializable
