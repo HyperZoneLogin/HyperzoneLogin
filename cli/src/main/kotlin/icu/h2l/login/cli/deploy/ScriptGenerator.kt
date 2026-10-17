@@ -63,6 +63,7 @@ class ScriptGenerator(
 
             cd /d "%~dp0"
 
+            :loop
             set "JAR_FILE="
             for %%f in (${config.jarPattern}) do (
                 set "JAR_FILE=%%f"
@@ -80,7 +81,10 @@ class ScriptGenerator(
             echo Starting ${config.label} proxy from !JAR_FILE!...
             java -jar "!JAR_FILE!"
 
-            pause
+            echo.
+            echo ${config.label} proxy stopped. Press any key to restart, or close this window to exit.
+            pause >nul
+            goto loop
         """.trimIndent()
 
         val shContent = """
@@ -89,17 +93,22 @@ class ScriptGenerator(
 
             cd "${'$'}(dirname "${'$'}0")"
 
-            JAR_FILE=$(ls -t ${config.jarPattern} 2>/dev/null | head -n 1)
+            while true; do
+                JAR_FILE=$(ls -t ${config.jarPattern} 2>/dev/null | head -n 1)
 
-            if [ -z "${'$'}JAR_FILE" ]; then
-                echo "ERROR: No Velocity JAR found in this directory"
-                echo "Please ensure ${config.jarPattern} exists"
-                exit 1
-            fi
+                if [ -z "${'$'}JAR_FILE" ]; then
+                    echo "ERROR: No Velocity JAR found in this directory"
+                    echo "Please ensure ${config.jarPattern} exists"
+                    exit 1
+                fi
 
-            echo "Starting ${config.label} proxy from ${'$'}JAR_FILE..."
+                echo "Starting ${config.label} proxy from ${'$'}JAR_FILE..."
+                java -jar "${'$'}JAR_FILE"
 
-            java -jar "${'$'}JAR_FILE"
+                echo ""
+                echo "${config.label} proxy stopped. Press Enter to restart (Ctrl+C to exit)."
+                read -r
+            done
         """.trimIndent()
 
         serverDir.resolve("start.bat").writeText(batContent + "\n")
@@ -125,6 +134,7 @@ class ScriptGenerator(
 
             cd /d "%~dp0"
 
+            :loop
             set "JAR_FILE="
             for %%f in (${config.jarPattern}) do (
                 set "JAR_FILE=%%f"
@@ -142,7 +152,10 @@ class ScriptGenerator(
             echo Starting ${config.label} server from !JAR_FILE!...
             java -jar "!JAR_FILE!"$nogui
 
-            pause
+            echo.
+            echo ${config.label} server stopped. Press any key to restart, or close this window to exit.
+            pause >nul
+            goto loop
         """.trimIndent()
 
         val shContent = """
@@ -151,17 +164,22 @@ class ScriptGenerator(
 
             cd "${'$'}(dirname "${'$'}0")"
 
-            JAR_FILE=$(ls -t ${config.jarPattern} 2>/dev/null | head -n 1)
+            while true; do
+                JAR_FILE=$(ls -t ${config.jarPattern} 2>/dev/null | head -n 1)
 
-            if [ -z "${'$'}JAR_FILE" ]; then
-                echo "ERROR: No Paper JAR found in this directory"
-                echo "Please ensure ${config.jarPattern} exists"
-                exit 1
-            fi
+                if [ -z "${'$'}JAR_FILE" ]; then
+                    echo "ERROR: No Paper JAR found in this directory"
+                    echo "Please ensure ${config.jarPattern} exists"
+                    exit 1
+                fi
 
-            echo "Starting ${config.label} server from ${'$'}JAR_FILE..."
+                echo "Starting ${config.label} server from ${'$'}JAR_FILE..."
+                java -jar "${'$'}JAR_FILE"$nogui
 
-            java -jar "${'$'}JAR_FILE"$nogui
+                echo ""
+                echo "${config.label} server stopped. Press Enter to restart (Ctrl+C to exit)."
+                read -r
+            done
         """.trimIndent()
 
         serverDir.resolve("start.bat").writeText(batContent + "\n")
@@ -213,24 +231,30 @@ class ScriptGenerator(
     }
 
     private fun generateWindowsStopAllScript(servers: List<ServerScript>, velocityConfig: ServerScript) {
-        val allConfigs = servers + listOf(velocityConfig)
-        val dirsList = allConfigs.joinToString(", ") { "'%BASE_DIR%\\${it.dirName}'" }
-        val killCommands = allConfigs.joinToString("\n            ") { config ->
-            """taskkill /FI "WINDOWTITLE eq ${config.label}*" /T /F >nul 2>nul"""
+        // Paper/Minecraft servers shut down gracefully with the "stop" console command;
+        // Velocity shuts down with "end". We send each command to the matching server
+        // terminal window (by title) instead of force-killing the JVM.
+        val targets = buildList {
+            servers.forEach { config -> add(config.label to "stop") }
+            add(velocityConfig.label to "end")
+        }
+
+        val sendKeys = targets.joinToString(" ") { (title, command) ->
+            "if (${'$'}ws.AppActivate('$title')) { Start-Sleep -Milliseconds 600; ${'$'}ws.SendKeys('$command{ENTER}') };"
         }
 
         val script = """
             @echo off
             setlocal
+            title HZL Control
 
-            set "BASE_DIR=%~dp0"
-            set "BASE_DIR=%BASE_DIR:~0,-1%"
+            echo Sending graceful stop command to all server terminals...
 
-            powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-              "${'$'}dirs = @($dirsList);" ^
-              "Get-CimInstance Win32_Process | Where-Object { ${'$'}_.Name -match '^javaw?\\.exe${'$'}' -and ${'$'}_.CommandLine -and (${'$'}dirs | Where-Object { ${'$'}_.CommandLine -like ('*' + ${'$'}_ + '*') }).Count -gt 0 } | ForEach-Object { Stop-Process -Id ${'$'}_.ProcessId -Force -ErrorAction SilentlyContinue; Write-Host ('Stopped Java PID ' + ${'$'}_.ProcessId) }"
+            powershell -NoProfile -ExecutionPolicy Bypass -Command "${'$'}ws = New-Object -ComObject WScript.Shell; $sendKeys Start-Sleep -Milliseconds 500; ${'$'}ws.AppActivate('HZL Control') | Out-Null;"
 
-            $killCommands
+            echo.
+            echo Done. Each server window will show a restart prompt after it shuts down.
+            pause
         """.trimIndent() + "\n"
 
         val stopAll = baseDir.resolve("stop-all.bat")
