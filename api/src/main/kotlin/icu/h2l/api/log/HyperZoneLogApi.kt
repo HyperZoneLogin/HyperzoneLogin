@@ -22,47 +22,10 @@
 package icu.h2l.api.log
 
 /**
- * HyperZoneLogin 内部使用的 debug 日志类型。
- */
-enum class HyperZoneDebugType {
-    /**
-     * 未细分的通用调试日志；旧版 `debug {}` 默认归类到这里。
-     */
-    GENERAL,
-
-    /**
-     * OutPre 预登录链路追踪日志。
-     */
-    OUTPRE_TRACE,
-
-    /**
-     * 皮肤预处理、缓存、回放等日志。
-     */
-    PROFILE_SKIN,
-
-    /**
-     * 后端等待区兼容链路日志。
-     */
-    BACKEND_COMPAT,
-
-    /**
-     * Netty / GameProfile 重写链路日志。
-     */
-    NETWORK_REWRITE,
-
-    /**
-     * Yggdrasil 认证流程与配置加载日志。
-     */
-    YGGDRASIL_AUTH,
-
-    /**
-     * Floodgate预登录链路追踪日志。
-     */
-    FLOODGATE,
-}
-
-/**
  * HyperZoneLogin 对外暴露的最小日志接口。
+ *
+ * 调试日志不再携带类型标识：是否输出由调用方自行决定，
+ * 核心层只负责把 [debug] 收到的内容发出去。
  */
 interface HyperZoneLogger {
     /**
@@ -72,20 +35,10 @@ interface HyperZoneLogger {
 
     /**
      * 记录一条调试级日志。
+     *
+     * 该方法不判断开关，调用方应自行决定是否调用。
      */
-    fun debug(type: HyperZoneDebugType, message: String)
-
-    /**
-     * 当前是否启用了指定类型的调试日志。
-     */
-    fun isDebugEnabled(type: HyperZoneDebugType): Boolean = false
-
-    /**
-     * 兼容旧调用的通用调试日志。
-     */
-    fun debug(message: String) {
-        debug(HyperZoneDebugType.GENERAL, message)
-    }
+    fun debug(message: String)
 
     /**
      * 记录一条警告级日志。
@@ -122,8 +75,7 @@ object HyperZoneLogApi {
 
 private object NoopHyperZoneLogger : HyperZoneLogger {
     override fun info(message: String) = Unit
-    override fun debug(type: HyperZoneDebugType, message: String) = Unit
-    override fun isDebugEnabled(type: HyperZoneDebugType): Boolean = false
+    override fun debug(message: String) = Unit
     override fun warn(message: String) = Unit
     override fun error(message: String, throwable: Throwable?) = Unit
 }
@@ -139,27 +91,14 @@ inline fun info(block: () -> String) {
  * 惰性输出一条调试级日志。
  */
 inline fun debug(block: () -> String) {
-    debug(HyperZoneDebugType.GENERAL, block)
+    HyperZoneLogApi.getLogger().debug(block())
 }
 
 /**
- * 惰性输出一条指定类型的调试级日志。
+ * 直接输出一条调试级日志。
  */
-inline fun debug(type: HyperZoneDebugType, block: () -> String) {
-    val logger = HyperZoneLogApi.getLogger()
-    if (logger.isDebugEnabled(type)) {
-        logger.debug(type, block())
-    }
-}
-
-/**
- * 直接输出一条指定类型的调试级日志。
- */
-fun debug(type: HyperZoneDebugType, message: String) {
-    val logger = HyperZoneLogApi.getLogger()
-    if (logger.isDebugEnabled(type)) {
-        logger.debug(type, message)
-    }
+fun debug(message: String) {
+    HyperZoneLogApi.getLogger().debug(message)
 }
 
 /**

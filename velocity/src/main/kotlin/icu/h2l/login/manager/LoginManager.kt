@@ -30,8 +30,6 @@ import icu.h2l.api.event.auth.LoginHandleContext
 import icu.h2l.api.event.auth.LoginHandleRequestEvent
 import icu.h2l.api.event.auth.LoginHandleResult
 import icu.h2l.api.event.auth.LoginHandleSession
-import icu.h2l.api.log.HyperZoneDebugType
-import icu.h2l.api.log.debug
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.player.getChannel
 import icu.h2l.api.profile.HyperZoneCredentialFlow
@@ -41,6 +39,7 @@ import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.listener.PlayerAreaLifecycleListener
 import icu.h2l.login.message.MessageKeys
 import icu.h2l.login.player.VelocityHyperZonePlayer
+import icu.h2l.login.util.debugOutPreTrace
 import io.netty.channel.Channel
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
@@ -108,7 +107,7 @@ class LoginManager(
         runCatching {
             tryLeaveWaiting(velocityPlayer)
         }.onFailure { throwable ->
-            debug(HyperZoneDebugType.OUTPRE_TRACE) {
+            debugOutPreTrace {
                 "loginManager.onProfileAttached transition failed player=${velocityPlayer.clientOriginalName} reason=${throwable.message}"
             }
         }
@@ -127,7 +126,7 @@ class LoginManager(
     }
 
     private fun tryLeaveWaiting(hyperPlayer: VelocityHyperZonePlayer) {
-        debug(HyperZoneDebugType.OUTPRE_TRACE) {
+        debugOutPreTrace {
             "loginManager.tryLeaveWaiting player=${hyperPlayer.clientOriginalName} attachedProfile=${hyperPlayer.hasAttachedProfile()} proxyBound=${hyperPlayer.getProxyPlayerOrNull() != null}"
         }
 

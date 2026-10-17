@@ -24,13 +24,12 @@ package icu.h2l.login.auth.online.service
 import com.google.gson.Gson
 import com.velocitypowered.api.proxy.ProxyServer
 import icu.h2l.api.db.HyperZoneDatabaseManager
-import icu.h2l.api.log.HyperZoneDebugType
-import icu.h2l.api.log.debug
 import icu.h2l.api.net.HttpClients
 import icu.h2l.api.net.ProxySettings
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.profile.HyperZoneProfileService
 import icu.h2l.login.auth.online.config.EntryConfig
+import icu.h2l.login.auth.online.config.YggdrasilDebug
 import icu.h2l.login.auth.online.db.EntryTableManager
 import icu.h2l.login.auth.online.manager.EntryConfigManager
 import icu.h2l.login.auth.online.record.YggdrasilAuthRequestContext
@@ -78,13 +77,13 @@ class YggdrasilRemoteAuthService(
         context: YggdrasilAuthRequestContext,
         onFirstBatchFailure: (YggdrasilAuthResult) -> Unit
     ): YggdrasilAuthResult = runBlocking {
-        debug(HyperZoneDebugType.YGGDRASIL_AUTH) {
+        YggdrasilDebug.log {
             "开始对玩家 ${context.username} (UUID: ${context.uuid}) 进行Yggdrasil验证"
         }
 
         val knownEntries = findCandidateEntriesByClientIdentity(context.username, context.uuid)
         if (knownEntries.isNotEmpty()) {
-            debug(HyperZoneDebugType.YGGDRASIL_AUTH) {
+            YggdrasilDebug.log {
                 "玩家 ${context.username} 在数据库中找到 ${knownEntries.size} 个Entry记录"
             }
 
@@ -110,7 +109,7 @@ class YggdrasilRemoteAuthService(
             }
         }
 
-        debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "第一批次验证未通过，开始第二批次（所有Yggdrasil Entry）" }
+        YggdrasilDebug.log { "第一批次验证未通过，开始第二批次（所有Yggdrasil Entry）" }
         runSecondBatchAuth(context)
     }
 
@@ -126,7 +125,7 @@ class YggdrasilRemoteAuthService(
             return YggdrasilAuthResult.Failed("第一批次验证失败：无法找到玩家 Profile")
         }
 
-        debug(HyperZoneDebugType.YGGDRASIL_AUTH) {
+        YggdrasilDebug.log {
             "[YggdrasilFlow] 第一批次已确认可信 Profile: user=${context.username} requestUuid=${context.uuid} authenticatedName=${success.profile.name} authenticatedUuid=${success.profile.id} pid=$entryProfileId"
         }
         return null
@@ -161,7 +160,7 @@ class YggdrasilRemoteAuthService(
                     .count() > 0
                 if (hasRecord) {
                     foundEntries.add(entryConfig.id)
-                    debug(HyperZoneDebugType.YGGDRASIL_AUTH) {
+                    YggdrasilDebug.log {
                         "在Entry表 ${entryConfig.id} 中找到玩家 $username 的记录"
                     }
                 }
@@ -204,7 +203,7 @@ class YggdrasilRemoteAuthService(
     private fun resolveHttpClient(entryConfig: EntryConfig): HttpClient {
         return httpClients.computeIfAbsent(entryConfig.id) {
             val entryProxy = entryConfig.yggdrasil.proxy
-            debug(HyperZoneDebugType.YGGDRASIL_AUTH) {
+            YggdrasilDebug.log {
                 "[YggdrasilFlow] 为 entry 准备 HTTP 客户端: entry=${entryConfig.id}, proxyType=${entryProxy.type}, proxy=${entryProxy.hostname}:${entryProxy.port}"
             }
             HttpClients.withProxy(
@@ -227,7 +226,7 @@ class YggdrasilRemoteAuthService(
         requests: List<Pair<String, AuthenticationRequest>>,
         batchName: String
     ): YggdrasilAuthResult {
-        debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "$batchName: 开始并发验证，共 ${requests.size} 个 Entry" }
+        YggdrasilDebug.log { "$batchName: 开始并发验证，共 ${requests.size} 个 Entry" }
 
         val authManager = ConcurrentAuthenticationManager(
             authRequests = requests.map { AuthenticationRequestEntry(it.first, it.second) },

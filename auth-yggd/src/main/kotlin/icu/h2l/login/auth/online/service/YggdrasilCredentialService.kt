@@ -21,9 +21,8 @@
 
 package icu.h2l.login.auth.online.service
 
-import icu.h2l.api.log.HyperZoneDebugType
-import icu.h2l.api.log.debug
 import icu.h2l.api.player.HyperZonePlayer
+import icu.h2l.login.auth.online.config.YggdrasilDebug
 import icu.h2l.api.profile.CredentialChannelRegistryProvider
 import icu.h2l.api.profile.HyperZoneProfileService
 import icu.h2l.login.auth.online.config.EntryConfig
@@ -130,7 +129,7 @@ class YggdrasilCredentialService(
 
         // 同步外部认证改名到正式 Profile（LS / Mojang 侧改名后，Profile 表也需更新）
         if (!profileService.syncProfileName(profileId, success.profile.name)) {
-            debug(HyperZoneDebugType.YGGDRASIL_AUTH) {
+            YggdrasilDebug.log {
                 "[YggdrasilFlow] Profile $profileId 名称同步到 '${success.profile.name}' 失败（可能名称冲突），保留旧名"
             }
         }
@@ -141,7 +140,7 @@ class YggdrasilCredentialService(
     private fun resolveProfileResolveUuid(result: YggdrasilAuthResult.Success): UUID? {
         val entryConfig = entryConfigManager.getConfigById(result.entryId)
         if (entryConfig == null) {
-            debug(HyperZoneDebugType.YGGDRASIL_AUTH) {
+            YggdrasilDebug.log {
                 "[YggdrasilFlow] 未找到 Entry ${result.entryId} 的配置，Profile 解析回退为透传远端 UUID: ${result.profile.id}"
             }
             return result.profile.id

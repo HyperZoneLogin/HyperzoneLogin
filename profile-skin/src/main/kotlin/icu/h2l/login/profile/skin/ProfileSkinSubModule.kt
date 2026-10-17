@@ -29,6 +29,7 @@ import icu.h2l.api.message.HyperZoneModuleMessageResources
 import icu.h2l.api.module.HyperSubModule
 import icu.h2l.api.profile.HyperZoneProfileServiceProvider
 import icu.h2l.login.profile.skin.config.ProfileSkinConfigLoader
+import icu.h2l.login.profile.skin.config.ProfileSkinDebug
 import icu.h2l.login.profile.skin.db.*
 import icu.h2l.login.profile.skin.service.ProfileSkinAuthenticatedListener
 import icu.h2l.login.profile.skin.service.ProfileSkinSelfReplayService
@@ -48,6 +49,7 @@ class ProfileSkinSubModule : HyperSubModule {
         val databaseManager: HyperZoneDatabaseManager = api.databaseManager
         HyperZoneModuleMessageResources.copyBundledLocales(dataDirectory, "profile-skin", javaClass.classLoader)
         val config = ProfileSkinConfigLoader.load(dataDirectory)
+        ProfileSkinDebug.configure(config.debug)
         val cacheTable = ProfileSkinCacheTable(
             prefix = databaseManager.tablePrefix
         )

@@ -30,9 +30,8 @@ import com.velocitypowered.proxy.protocol.StateRegistry
 import com.velocitypowered.proxy.protocol.netty.MinecraftEncoder
 import com.velocitypowered.proxy.protocol.packet.*
 import com.velocitypowered.proxy.protocol.packet.config.FinishedUpdatePacket
-import icu.h2l.api.log.HyperZoneDebugType
-import icu.h2l.api.log.debug
 import icu.h2l.login.manager.HyperChatCommandManagerImpl
+import icu.h2l.login.util.debugOutPreTrace
 import icu.h2l.login.vServer.outpre.OutPreBackendBridge
 import io.netty.buffer.ByteBuf
 import io.netty.buffer.Unpooled
@@ -76,7 +75,7 @@ class OutPreBackendBridgeSessionHandler(
 //            debug用
             if (reason.contains("Outdated client!")) {
                 //        Outdated client 版本不兼容，安装ViaBackwards
-                debug(HyperZoneDebugType.OUTPRE_TRACE) {
+                debugOutPreTrace {
                     "Outdated client clientProtocol:${bridge.player.protocolVersion} serverProtocol: reason:$reason"
                 }
             }

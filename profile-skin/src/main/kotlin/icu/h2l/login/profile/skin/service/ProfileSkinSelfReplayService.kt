@@ -30,8 +30,7 @@ import com.velocitypowered.api.util.GameProfile
 import com.velocitypowered.proxy.protocol.packet.LegacyPlayerListItemPacket
 import com.velocitypowered.proxy.protocol.packet.UpsertPlayerInfoPacket
 import icu.h2l.login.profile.skin.event.ProfileSkinPreprocessEvent
-import icu.h2l.api.log.HyperZoneDebugType
-import icu.h2l.api.log.debug
+import icu.h2l.login.profile.skin.config.ProfileSkinDebug
 import icu.h2l.api.log.error
 import icu.h2l.api.log.warn
 import icu.h2l.api.player.HyperZonePlayer
@@ -176,7 +175,7 @@ class ProfileSkinSelfReplayService(
         val profileId = profileService.getAttachedProfile(hyperZonePlayer)?.id ?: return null
         val skinId = profileRepository.findSkinIdByProfileId(profileId) ?: return null
         val cached = cacheRepository.findBySkinId(skinId)?.textures?.takeIf(::canReplayTextures) ?: return null
-        debug(HyperZoneDebugType.PROFILE_SKIN) {
+        ProfileSkinDebug.log {
             "[ProfileSkinFlow] self replay fallback to cached profile textures: clientOriginal=${hyperZonePlayer.clientOriginalName}, profile=$profileId, skin=$skinId, valueLength=${cached.value.length}, signed=${cached.isSigned}"
         }
         return cached
@@ -248,7 +247,7 @@ private object SelfPlayerInfoSkinSender {
             protocolVersion.noLessThan(ProtocolVersion.MINECRAFT_1_8) ->
                 connection.mcWrite(createLegacyAddPlayer(profile))
 
-            else -> debug(HyperZoneDebugType.PROFILE_SKIN) {
+            else -> ProfileSkinDebug.log {
                 "[ProfileSkinFlow] self ADD_PLAYER skipped: unsupported protocol for skin properties, player=${player.username}, protocol=$protocolVersion"
             }
         }

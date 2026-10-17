@@ -27,6 +27,7 @@ import icu.h2l.api.log.info
 import icu.h2l.api.message.HyperZoneModuleMessageResources
 import icu.h2l.api.module.HyperSubModule
 import icu.h2l.login.auth.floodgate.config.FloodgateAuthConfigLoader
+import icu.h2l.login.auth.floodgate.config.FloodgateDebug
 import icu.h2l.login.auth.floodgate.db.FloodgateAuthRepository
 import icu.h2l.login.auth.floodgate.db.FloodgateAuthTableManager
 import icu.h2l.login.auth.floodgate.listener.FloodgateGameProfileListener
@@ -43,6 +44,7 @@ class FloodgateSubModule : HyperSubModule {
     override fun register(api: HyperZoneApi) {
         HyperZoneModuleMessageResources.copyBundledLocales(api.dataDirectory, "auth-floodgate", javaClass.classLoader)
         val config = FloodgateAuthConfigLoader.load(api.dataDirectory)
+        FloodgateDebug.configure(config.debug)
         val profileTable = ProfileTable(api.databaseManager.tablePrefix)
         val tableManager = FloodgateAuthTableManager(
             databaseManager = api.databaseManager,

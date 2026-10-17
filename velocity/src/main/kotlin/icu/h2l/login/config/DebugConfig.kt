@@ -21,33 +21,20 @@
 
 package icu.h2l.login.config
 
-import icu.h2l.api.log.HyperZoneDebugType
 import org.spongepowered.configurate.objectmapping.ConfigSerializable
 import org.spongepowered.configurate.objectmapping.meta.Comment
 
 @Suppress("ANNOTATION_WILL_BE_APPLIED_ALSO_TO_PROPERTY_OR_FIELD")
 @ConfigSerializable
 data class DebugConfig(
-    // 日志调试开关；建议统一放在此分支下配置
+    // 日志调试开关；仅覆盖核心自身的链路，子模块各自维护自己的开关
     @Comment("config.debug.log")
     val log: DebugLogConfig = DebugLogConfig(),
 
     // 慢测试模式相关配置
     @Comment("config.debug.slow-test")
     val slowTest: SlowTestConfig = SlowTestConfig()
-) {
-    fun isEnabled(type: HyperZoneDebugType): Boolean {
-        return when (type) {
-            HyperZoneDebugType.GENERAL -> log.general
-            HyperZoneDebugType.OUTPRE_TRACE -> log.outPreTrace
-            HyperZoneDebugType.PROFILE_SKIN -> log.profileSkin
-            HyperZoneDebugType.BACKEND_COMPAT -> log.backendCompat
-            HyperZoneDebugType.NETWORK_REWRITE -> log.networkRewrite
-            HyperZoneDebugType.YGGDRASIL_AUTH -> log.yggdrasilAuth
-            HyperZoneDebugType.FLOODGATE -> log.floodgate
-        }
-    }
-}
+)
 
 @Suppress("ANNOTATION_WILL_BE_APPLIED_ALSO_TO_PROPERTY_OR_FIELD")
 @ConfigSerializable
@@ -56,13 +43,9 @@ data class DebugLogConfig(
     @Comment("config.debug.log.general")
     val general: Boolean = false,
 
-    // Floodgate / OutPre 预登录链路追踪日志
+    // OutPre 预登录链路追踪日志
     @Comment("config.debug.log.outpre-trace")
     val outPreTrace: Boolean = false,
-
-    // ProfileSkin 相关调试日志
-    @Comment("config.debug.log.profile-skin")
-    val profileSkin: Boolean = false,
 
     // 后端等待区兼容链路调试日志
     @Comment("config.debug.log.backend-compat")
@@ -71,14 +54,6 @@ data class DebugLogConfig(
     // Netty / GameProfile 重写链路调试日志
     @Comment("config.debug.log.network-rewrite")
     val networkRewrite: Boolean = false,
-
-    // Yggdrasil 认证链路调试日志
-    @Comment("config.debug.log.yggdrasil-auth")
-    val yggdrasilAuth: Boolean = false,
-
-    // floodgate 认证链路调试日志
-    @Comment("config.debug.log.floodgate")
-    val floodgate: Boolean = false,
 )
 
 @Suppress("ANNOTATION_WILL_BE_APPLIED_ALSO_TO_PROPERTY_OR_FIELD")

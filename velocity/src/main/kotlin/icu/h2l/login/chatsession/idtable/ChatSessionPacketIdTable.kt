@@ -21,10 +21,9 @@
 
 package icu.h2l.login.chatsession.idtable
 
-import icu.h2l.api.log.debug
 import icu.h2l.api.log.warn
 import icu.h2l.api.util.ConfigLoader
-import icu.h2l.api.log.HyperZoneDebugType
+import icu.h2l.login.util.debugNetworkRewrite
 import java.nio.file.Path
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -151,7 +150,7 @@ object ChatSessionPacketIdTable {
             return false
         }
         if (packetId !in 0..MAX_PLAUSIBLE_PACKET_ID) {
-            debug(HyperZoneDebugType.NETWORK_REWRITE) {
+            debugNetworkRewrite {
                 "[ChatSessionIdTable] 忽略不可疑包 id=$packetId (protocol=$protocol)"
             }
             return false
@@ -164,7 +163,7 @@ object ChatSessionPacketIdTable {
 
         // 关键防污染判断：只有未来版本才记录。
         if (protocol <= highestKnownProtocol) {
-            debug(HyperZoneDebugType.NETWORK_REWRITE) {
+            debugNetworkRewrite {
                 "[ChatSessionIdTable] protocol=$protocol 已在已知区间内，判定为结构误判，" +
                         "不写入 id=$packetId"
             }
@@ -177,7 +176,7 @@ object ChatSessionPacketIdTable {
                 return false
             }
             // 同一未来协议号观测到不同 id：保留首次学习结果，避免抖动。
-            debug(HyperZoneDebugType.NETWORK_REWRITE) {
+            debugNetworkRewrite {
                 "[ChatSessionIdTable] protocol=$protocol 已登记 id=${existing.packetId}，" +
                         "忽略冲突观测 id=$packetId"
             }

@@ -23,8 +23,7 @@ package icu.h2l.login.auth.floodgate.listener
 
 import com.velocitypowered.api.event.Subscribe
 import icu.h2l.api.event.connection.OpenStartAuthEvent
-import icu.h2l.api.log.HyperZoneDebugType
-import icu.h2l.api.log.debug
+import icu.h2l.login.auth.floodgate.config.FloodgateDebug
 import icu.h2l.login.auth.floodgate.service.FloodgateApiHolder
 import icu.h2l.login.auth.floodgate.service.FloodgateAuthService
 
@@ -35,7 +34,7 @@ class FloodgateOpenStartAuthListener(
     @Subscribe(priority = Short.MAX_VALUE)
     fun onOpenStartAuth(event: OpenStartAuthEvent) {
         val resolvedIdentity = floodgateApiHolder.resolveLoginIdentity(event.userName, event.playerIp) ?: return
-        debug(HyperZoneDebugType.FLOODGATE) {
+        FloodgateDebug.log {
             "onOpenStartAuth resolved channel=${event.channel} loginName=${event.userName} playerIp=${event.playerIp} floodgateName=${resolvedIdentity.userName} floodgateUuid=${resolvedIdentity.userUUID} xuid=${resolvedIdentity.xuid}"
         }
 
@@ -48,19 +47,19 @@ class FloodgateOpenStartAuthListener(
             )
         ) {
             FloodgateAuthService.VerifyResult.NotFloodgate -> {
-                debug(HyperZoneDebugType.FLOODGATE) {
+                FloodgateDebug.log {
                     "onOpenStartAuth ignored channel=${event.channel} loginName=${event.userName}: resolved player is not floodgate"
                 }
             }
             is FloodgateAuthService.VerifyResult.Failed -> {
                 event.allow = false
                 event.disconnectMessage = result.userMessage
-                debug(HyperZoneDebugType.FLOODGATE) {
+                FloodgateDebug.log {
                     "onOpenStartAuth failed channel=${event.channel} loginName=${event.userName}"
                 }
             }
             FloodgateAuthService.VerifyResult.Accepted -> {
-                debug(HyperZoneDebugType.FLOODGATE) {
+                FloodgateDebug.log {
                     "onOpenStartAuth accepted channel=${event.channel} loginName=${event.userName} floodgateName=${resolvedIdentity.userName}"
                 }
             }

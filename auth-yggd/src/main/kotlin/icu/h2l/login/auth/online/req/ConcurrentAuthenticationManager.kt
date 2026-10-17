@@ -21,9 +21,8 @@
 
 package icu.h2l.login.auth.online.req
 
-import icu.h2l.api.log.HyperZoneDebugType
-import icu.h2l.api.log.debug
 import icu.h2l.api.log.info
+import icu.h2l.login.auth.online.config.YggdrasilDebug
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -57,7 +56,7 @@ class ConcurrentAuthenticationManager(
             )
         }
 
-        debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "开始并发认证，玩家: $username，条目数量: ${authRequests.size}" }
+        YggdrasilDebug.log { "开始并发认证，玩家: $username，条目数量: ${authRequests.size}" }
 
         // 用于标记是否已经有成功的结果
         val completed = AtomicBoolean(false)
@@ -73,15 +72,15 @@ class ConcurrentAuthenticationManager(
                     async(Dispatchers.IO) {
                         val entryId = authRequestEntry.entryId
                         if (completed.get()) {
-                            debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "条目 $entryId: 跳过执行 - 其他条目已先成功" }
+                            YggdrasilDebug.log { "条目 $entryId: 跳过执行 - 其他条目已先成功" }
                             return@async null
                         }
 
-                        debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "条目 $entryId: 开始认证请求" }
+                        YggdrasilDebug.log { "条目 $entryId: 开始认证请求" }
                         val result = try {
                             authRequestEntry.request.authenticate(username, serverId, playerIp)
                         } catch (e: Exception) {
-                            debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "条目 $entryId: 发生异常 - ${e.message}" }
+                            YggdrasilDebug.log { "条目 $entryId: 发生异常 - ${e.message}" }
                             AuthenticationResult.Failure(
                                 reason = "发生异常: ${e.message}",
                                 statusCode = null
@@ -99,19 +98,19 @@ class ConcurrentAuthenticationManager(
                                     info { "条目 $entryId: 玩家 $username 认证成功" }
                                     result
                                 } else {
-                                    debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "条目 $entryId: 当前请求成功，但其他条目更快返回" }
+                                    YggdrasilDebug.log { "条目 $entryId: 当前请求成功，但其他条目更快返回" }
                                     null
                                 }
                             }
                             is AuthenticationResult.Failure -> {
-                                debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "条目 $entryId: 认证失败 - ${result.reason}" }
+                                YggdrasilDebug.log { "条目 $entryId: 认证失败 - ${result.reason}" }
                                 mutex.withLock {
                                     failures.add(result)
                                 }
                                 null
                             }
                             is AuthenticationResult.Timeout -> {
-                                debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "条目 $entryId: 认证超时" }
+                                YggdrasilDebug.log { "条目 $entryId: 认证超时" }
                                 null
                             }
                         }
@@ -144,7 +143,7 @@ class ConcurrentAuthenticationManager(
 
         // 返回结果
         successResult?.let {
-            debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "返回玩家 $username 的认证成功结果" }
+            YggdrasilDebug.log { "返回玩家 $username 的认证成功结果" }
             return@coroutineScope it
         }
 

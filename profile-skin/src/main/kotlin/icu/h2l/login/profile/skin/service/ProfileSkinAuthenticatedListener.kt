@@ -26,8 +26,7 @@ import com.velocitypowered.api.event.Subscribe
 import com.velocitypowered.api.proxy.ProxyServer
 import com.velocitypowered.api.util.GameProfile
 import icu.h2l.api.event.profile.ProfileAuthenticatedEvent
-import icu.h2l.api.log.HyperZoneDebugType
-import icu.h2l.api.log.debug
+import icu.h2l.login.profile.skin.config.ProfileSkinDebug
 import icu.h2l.login.profile.skin.data.ProfileSkinModel
 import icu.h2l.login.profile.skin.data.ProfileSkinSource
 import icu.h2l.login.profile.skin.data.ProfileSkinTextures
@@ -52,7 +51,7 @@ class ProfileSkinAuthenticatedListener(
         val textures = extractTextures(event.authenticatedProfile)
         val source = extractSkinSource(textures)
 
-        debug(HyperZoneDebugType.PROFILE_SKIN) {
+        ProfileSkinDebug.log {
             "[ProfileSkinFlow] authenticated event received: clientOriginal=${event.hyperZonePlayer.clientOriginalName}, entry=${event.entryId}, server=${event.serverUrl}, textures=${describeTextures(textures)}, source=${describeSource(source)}"
         }
 

@@ -22,12 +22,11 @@
 package icu.h2l.login.auth.online.manager
 
 import com.velocitypowered.api.proxy.ProxyServer
-import icu.h2l.api.log.HyperZoneDebugType
-import icu.h2l.api.log.debug
 import icu.h2l.api.log.error
 import icu.h2l.api.log.info
 import icu.h2l.api.util.ConfigLoader
 import icu.h2l.login.auth.online.config.EntryConfig
+import icu.h2l.login.auth.online.config.YggdrasilDebug
 import icu.h2l.login.auth.online.events.EntryRegisterEvent
 import java.nio.file.Files
 import java.nio.file.Path
@@ -61,7 +60,7 @@ class EntryConfigManager(
             Files.createDirectories(entryDir)
             createDefaultConfigs(entryDir)
             createExampleConfig(entryDir)
-            debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "创建 auth-yggd 目录和默认配置文件" }
+            YggdrasilDebug.log { "创建 auth-yggd 目录和默认配置文件" }
         }
 
         // 扫描并加载所有配置文件
@@ -80,7 +79,7 @@ class EntryConfigManager(
             when {
                 // 跳过 example 文件夹
                 path.isDirectory() && path.name.equals(EXAMPLE_FOLDER, ignoreCase = true) -> {
-                        debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "跳过 example 文件夹: ${path.name}" }
+                        YggdrasilDebug.log { "跳过 example 文件夹: ${path.name}" }
                 }
                 // 递归扫描子目录
 //                path.isDirectory() -> {
@@ -127,7 +126,7 @@ class EntryConfigManager(
 
             val configName = path.fileName.toString().removeSuffix(CONFIG_EXTENSION)
             entryConfigs[configName] = config
-                debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "成功加载配置: $configName (ID: ${config.id}, Name: ${config.name}, Url: $resolvedUrl)" }
+                YggdrasilDebug.log { "成功加载配置: $configName (ID: ${config.id}, Name: ${config.name}, Url: $resolvedUrl)" }
 
             // 发布 Entry 注册事件，并等待相关注册与建表逻辑完成
             proxyServer.eventManager.fire(EntryRegisterEvent(configName, config)).join()
@@ -149,7 +148,7 @@ class EntryConfigManager(
             config = EntryConfig()
         )
 
-            debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "创建示例配置文件: ${examplePath.fileName}" }
+            YggdrasilDebug.log { "创建示例配置文件: ${examplePath.fileName}" }
     }
 
     /**
@@ -170,7 +169,7 @@ class EntryConfigManager(
             config = mojangConfig
         )
 
-            debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "创建默认配置文件: mojang.conf" }
+            YggdrasilDebug.log { "创建默认配置文件: mojang.conf" }
 
         val littleskinPath = entryDir.resolve("littleskin$CONFIG_EXTENSION")
         val littleskinConfig = EntryConfig().apply {
@@ -186,7 +185,7 @@ class EntryConfigManager(
             config = littleskinConfig
         )
 
-            debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "创建默认配置文件: littleskin.conf" }
+            YggdrasilDebug.log { "创建默认配置文件: littleskin.conf" }
 
         val elyByPath = entryDir.resolve("elyby$CONFIG_EXTENSION")
         val elyByConfig = EntryConfig().apply {
@@ -202,7 +201,7 @@ class EntryConfigManager(
             config = elyByConfig
         )
 
-            debug(HyperZoneDebugType.YGGDRASIL_AUTH) { "创建默认配置文件: elyby.conf" }
+            YggdrasilDebug.log { "创建默认配置文件: elyby.conf" }
     }
 
     private fun createConfigFile(path: Path, config: EntryConfig) {

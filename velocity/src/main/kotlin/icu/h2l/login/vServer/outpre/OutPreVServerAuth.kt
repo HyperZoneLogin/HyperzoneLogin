@@ -33,8 +33,7 @@ import com.velocitypowered.proxy.connection.client.ConnectedPlayer
 import com.velocitypowered.proxy.server.VelocityRegisteredServer
 import icu.h2l.api.event.area.PlayerAreaTransitionReason
 import icu.h2l.api.event.vServer.VServerJoinEvent
-import icu.h2l.api.log.HyperZoneDebugType
-import icu.h2l.api.log.debug
+import icu.h2l.login.util.debugOutPreTrace
 import icu.h2l.api.player.getChannel
 import icu.h2l.api.vServer.HyperZoneVServerAdapter
 import icu.h2l.login.HyperZoneLoginMain
@@ -109,7 +108,7 @@ class OutPreVServerAuth(
     }
 
     internal fun trace(message: String) {
-        debug(HyperZoneDebugType.OUTPRE_TRACE, message)
+        debugOutPreTrace(message)
     }
 
     internal fun describeState(state: OutPreState?): String {

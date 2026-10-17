@@ -23,11 +23,10 @@ package icu.h2l.login.player
 
 import com.velocitypowered.api.util.GameProfile
 import icu.h2l.api.event.profile.ProfilePropertiesApplyEvent
-import icu.h2l.api.log.HyperZoneDebugType
-import icu.h2l.api.log.debug
 import icu.h2l.api.log.error
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.login.HyperZoneLoginMain
+import icu.h2l.login.util.debugGeneral
 import java.util.concurrent.CompletableFuture
 
 /**
@@ -79,7 +78,7 @@ object ProfilePropertiesApplySupport {
         return runCatching {
             hyperZonePlayer.getAttachedGameProfile()
         }.getOrElse { throwable ->
-            debug(HyperZoneDebugType.PROFILE_SKIN) {
+            debugGeneral {
                 "[ProfilePropertiesFlow] apply aborted: clientOriginal=${hyperZonePlayer.clientOriginalName}, reason=${throwable.message ?: throwable.javaClass.simpleName}, attachedProfile=${hyperZonePlayer.hasAttachedProfile()}"
             }
             null

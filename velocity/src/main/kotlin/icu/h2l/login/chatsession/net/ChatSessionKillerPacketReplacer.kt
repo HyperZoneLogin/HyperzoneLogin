@@ -24,8 +24,6 @@ package icu.h2l.login.chatsession.net
 import com.velocitypowered.proxy.connection.MinecraftConnection
 import com.velocitypowered.proxy.connection.backend.VelocityServerConnection
 import com.velocitypowered.proxy.connection.client.ConnectedPlayer
-import icu.h2l.api.log.HyperZoneDebugType
-import icu.h2l.api.log.debug
 import icu.h2l.api.log.error
 import icu.h2l.api.log.warn
 import icu.h2l.login.HyperZoneLoginMain
@@ -33,6 +31,7 @@ import icu.h2l.login.chatsession.ChatSessionUpdatePacketMatchers
 import icu.h2l.login.chatsession.packet.ChatSessionPacketView
 import icu.h2l.login.manager.HyperZonePlayerManager
 import icu.h2l.login.player.VelocityHyperZonePlayer
+import icu.h2l.login.util.debugNetworkRewrite
 import io.netty.buffer.ByteBuf
 import io.netty.channel.Channel
 import io.netty.channel.ChannelHandlerContext
@@ -103,7 +102,7 @@ class ChatSessionKillerPacketReplacer(
             }
 
             val hits = ChatSessionUpdatePacketMatchers.hitNames(view)
-            debug(HyperZoneDebugType.NETWORK_REWRITE) {
+            debugNetworkRewrite {
                 "[ChatSessionKiller] 丢弃 CHAT_SESSION_UPDATE player=${player.username} " +
                         "protocol=${player.protocolVersion} packetId=${view.packetId} " +
                         "payloadLen=${view.payloadLength} matched=$hits"

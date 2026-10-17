@@ -44,8 +44,6 @@ import com.velocitypowered.proxy.protocol.packet.LoginAcknowledgedPacket
 import com.velocitypowered.proxy.protocol.packet.ServerLoginSuccessPacket
 import com.velocitypowered.proxy.protocol.packet.ServerboundCookieResponsePacket
 import com.velocitypowered.proxy.protocol.packet.SetCompressionPacket
-import icu.h2l.api.log.HyperZoneDebugType
-import icu.h2l.api.log.debug
 import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.compat.VelocityLoginCompatibilityProvider
 import icu.h2l.login.inject.network.NettyReflectionHelper
@@ -56,6 +54,7 @@ import icu.h2l.login.manager.HyperZonePlayerManager
 import icu.h2l.login.player.ProfilePropertiesApplySupport
 import icu.h2l.login.reflect.VelocityInternalAccess
 import icu.h2l.login.util.buildAttachedIdentityGameProfile
+import icu.h2l.login.util.debugOutPreTrace
 import icu.h2l.login.util.describeGameProfileBrief
 import icu.h2l.login.util.hasSemanticGameProfileDifference
 import icu.h2l.login.util.setConnectedPlayerGameProfile
@@ -105,7 +104,7 @@ open class OutPreAuthSessionHandlerLogic(
     }
 
     protected fun startTemporaryLoginPhase(player: ConnectedPlayer) {
-        debug(HyperZoneDebugType.OUTPRE_TRACE) {
+        debugOutPreTrace {
             "outpre.handler.startTemporaryLoginPhase channel=${mcConnection.channel.id()} player=${player.username} onlineMode=$onlineMode profile=${
                 describeGameProfileBrief(
                     player.gameProfile
@@ -175,7 +174,7 @@ open class OutPreAuthSessionHandlerLogic(
 
     fun completeAfterVerification(preferredTargetServerName: String?) {
         if (loginState != State.BRIDGING) {
-            debug(HyperZoneDebugType.OUTPRE_TRACE) {
+            debugOutPreTrace {
                 "outpre.handler.completeAfterVerification ignored channel=${mcConnection.channel.id()} state=$loginState preferredTarget=$preferredTargetServerName"
             }
             return
@@ -192,7 +191,7 @@ open class OutPreAuthSessionHandlerLogic(
             return
         }
 
-        debug(HyperZoneDebugType.OUTPRE_TRACE) {
+        debugOutPreTrace {
             "outpre.handler.completeAfterVerification start channel=${mcConnection.channel.id()} player=${connectedPlayer.username} preferredTarget=$preferredTargetServerName attachedProfile=${hyperPlayer.hasAttachedProfile()} credentials=${
                 hyperPlayer.getSubmittedCredentials().map { it.javaClass.simpleName }
             }"
@@ -284,7 +283,7 @@ open class OutPreAuthSessionHandlerLogic(
 //                                    false
 //                                )
 //                                return@thenAcceptAsync
-                                    debug(HyperZoneDebugType.OUTPRE_TRACE) {
+                                    debugOutPreTrace {
                                         "register connection failed for player {${connectedPlayer.username},maybe using Ambassador"
                                     }
                                 } else {
@@ -305,7 +304,7 @@ open class OutPreAuthSessionHandlerLogic(
 
 
     private fun continueReleasedFlow(player: ConnectedPlayer, preferredTargetServerName: String?) {
-        debug(HyperZoneDebugType.OUTPRE_TRACE) {
+        debugOutPreTrace {
             "outpre.handler.continueReleasedFlow channel=${mcConnection.channel.id()} player=${player.username} preferredTarget=$preferredTargetServerName"
         }
         outPre.getInitialSession(player)?.release(outPre, this as OutPreAuthSessionHandler, preferredTargetServerName)
@@ -332,7 +331,7 @@ open class OutPreAuthSessionHandlerLogic(
     }
 
     fun fireAndConnect(supportConfig: Boolean) {
-        debug(HyperZoneDebugType.OUTPRE_TRACE) {
+        debugOutPreTrace {
             "fireAndConnect channel=${mcConnection.channel.id()} player=${connectedPlayer.username} supportConfig=$supportConfig"
         }
 //        这里必须配置，否则会因为事件触发其他操作，导致包解析失败
@@ -358,7 +357,7 @@ open class OutPreAuthSessionHandlerLogic(
     }
 
     fun connectBackend(supportConfig: Boolean) {
-        debug(HyperZoneDebugType.OUTPRE_TRACE) {
+        debugOutPreTrace {
             "connectBackend channel=${mcConnection.channel.id()} player=${connectedPlayer.username} supportConfig=$supportConfig"
         }
         this.supportConfig = supportConfig
@@ -396,12 +395,12 @@ class OutPreAuthSessionHandler(
                 server.configuration.playerInfoForwardingMode,
             )
         } catch (e: NoSuchMethodError) {
-            debug(HyperZoneDebugType.OUTPRE_TRACE) {
+            debugOutPreTrace {
                 "profile addGameProfileTokensIfRequired failed, maybe using Velocity-CTD"
             }
             profile
         }
-        debug(HyperZoneDebugType.OUTPRE_TRACE) {
+        debugOutPreTrace {
             "outpre.handler.activated channel=${mcConnection.channel.id()} initialProfile=${
                 describeGameProfileBrief(
                     profile

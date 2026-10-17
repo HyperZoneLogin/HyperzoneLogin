@@ -110,8 +110,10 @@ class HyperZoneLoginMain(
 
     companion object {
         private lateinit var instance: HyperZoneLoginMain
-        private lateinit var coreConfig: CoreConfig
-        private lateinit var startConfig: StartConfig
+        // 用内置默认值兜底初始化：测试或其他未执行完整 onEnable 的上下文里，
+        // 访问配置不再抛 UninitializedPropertyAccessException，而是返回安全默认配置。
+        private var coreConfig: CoreConfig = CoreConfig()
+        private var startConfig: StartConfig = StartConfig()
 
         @JvmStatic
         fun getCoreConfig(): CoreConfig = coreConfig

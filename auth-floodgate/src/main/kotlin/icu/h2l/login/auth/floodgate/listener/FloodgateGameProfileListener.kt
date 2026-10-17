@@ -25,8 +25,7 @@ import com.velocitypowered.api.event.Subscribe
 import icu.h2l.api.connection.disconnectWithMessage
 import icu.h2l.api.connection.getNettyChannel
 import icu.h2l.api.event.profile.VerifyInitialGameProfileEvent
-import icu.h2l.api.log.HyperZoneDebugType
-import icu.h2l.api.log.debug
+import icu.h2l.login.auth.floodgate.config.FloodgateDebug
 import icu.h2l.login.auth.floodgate.service.FloodgateApiHolder
 import icu.h2l.login.auth.floodgate.service.FloodgateAuthService
 
@@ -37,7 +36,7 @@ class FloodgateGameProfileListener(
 
     @Subscribe
     fun onVerifyInitialGameProfile(event: VerifyInitialGameProfileEvent) {
-        debug(HyperZoneDebugType.FLOODGATE) {
+        FloodgateDebug.log {
             "onVerifyInitialGameProfile channel=${event.connection.getNettyChannel()} profileName=${event.gameProfile.name} profileId=${event.gameProfile.id}"
         }
 
@@ -53,13 +52,13 @@ class FloodgateGameProfileListener(
             )
         ) {
             FloodgateAuthService.VerifyResult.NotFloodgate -> {
-                debug(HyperZoneDebugType.FLOODGATE) {
+                FloodgateDebug.log {
                     "onVerifyInitialGameProfile ignored channel=${event.connection.getNettyChannel()} profileName=${event.gameProfile.name}: not floodgate"
                 }
                 return
             }
             is FloodgateAuthService.VerifyResult.Failed -> {
-                debug(HyperZoneDebugType.FLOODGATE) {
+                FloodgateDebug.log {
                     "onVerifyInitialGameProfile failed channel=${event.connection.getNettyChannel()} profileName=${event.gameProfile.name}"
                 }
                 event.connection.disconnectWithMessage(result.userMessage)
@@ -67,7 +66,7 @@ class FloodgateGameProfileListener(
             }
             FloodgateAuthService.VerifyResult.Accepted -> {
                 event.pass = true
-                debug(HyperZoneDebugType.FLOODGATE) {
+                FloodgateDebug.log {
                     "onVerifyInitialGameProfile accepted channel=${event.connection.getNettyChannel()} profileName=${event.gameProfile.name} pass=${event.pass}"
                 }
             }

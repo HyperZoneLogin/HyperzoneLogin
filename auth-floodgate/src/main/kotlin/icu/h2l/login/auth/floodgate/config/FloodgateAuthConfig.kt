@@ -33,4 +33,8 @@ class FloodgateAuthConfig {
     // 透传 Floodgate UUID
     @Comment("config.floodgate.pass-uuid")
     var passFloodgateUuidToProfileResolve: Boolean = true
+
+    // 模块调试日志
+    @Comment("config.floodgate.debug")
+    var debug: Boolean = false
 }

@@ -46,6 +46,10 @@ class ProfileSkinConfig {
     // 出网请求代理设置
     @Comment("config.skin.proxy")
     var proxy: ProxyConfig = ProxyConfig()
+
+    // 模块调试日志
+    @Comment("config.skin.debug")
+    var debug: Boolean = false
 }
 
 /**

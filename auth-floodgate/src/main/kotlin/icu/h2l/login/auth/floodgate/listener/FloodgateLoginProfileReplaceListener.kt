@@ -25,8 +25,7 @@ import com.velocitypowered.api.event.PostOrder
 import com.velocitypowered.api.event.Subscribe
 import com.velocitypowered.api.util.GameProfile
 import icu.h2l.api.event.profile.LoginProfileReplaceEvent
-import icu.h2l.api.log.HyperZoneDebugType
-import icu.h2l.api.log.debug
+import icu.h2l.login.auth.floodgate.config.FloodgateDebug
 
 /**
  * Floodgate 渠道专用的 [LoginProfileReplaceEvent] 处理器（[PostOrder.LAST]）。
@@ -52,12 +51,12 @@ class FloodgateLoginProfileReplaceListener {
             hyperPlayer.getTemporaryGameProfile()
         } else {
             runCatching { hyperPlayer.getApplyGameProfile() }.getOrElse { throwable ->
-                debug(HyperZoneDebugType.FLOODGATE) {
+                FloodgateDebug.log {
                     "[FloodgateProfileReplace] 获取正式档案失败，回退到初始档案: player=${hyperPlayer.clientOriginalName}, reason=${throwable.message}"
                 }
                 return
             } ?: run {
-                debug(HyperZoneDebugType.FLOODGATE) {
+                FloodgateDebug.log {
                     "[FloodgateProfileReplace] getApplyGameProfile 返回 null，跳过覆写: player=${hyperPlayer.clientOriginalName}"
                 }
                 return
@@ -75,7 +74,7 @@ class FloodgateLoginProfileReplaceListener {
             return
         }
 
-        debug(HyperZoneDebugType.FLOODGATE) {
+        FloodgateDebug.log {
             "[FloodgateProfileReplace] 覆写转发档案: player=${hyperPlayer.clientOriginalName} name=${targetProfile.name} uuid=${targetProfile.id}"
         }
         event.profile = targetProfile

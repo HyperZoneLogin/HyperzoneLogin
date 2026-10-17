@@ -23,14 +23,13 @@ package icu.h2l.login.profile
 
 import icu.h2l.api.db.Profile
 import icu.h2l.api.event.profile.ProfileAttachedEvent
-import icu.h2l.api.log.HyperZoneDebugType
-import icu.h2l.api.log.debug
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.profile.HyperZoneCredential
 import icu.h2l.api.profile.HyperZoneProfileService
 import icu.h2l.api.util.RemapUtils
 import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.database.DatabaseHelper
+import icu.h2l.login.util.debugOutPreTrace
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
@@ -182,7 +181,7 @@ class VelocityHyperZoneProfileService(
 
     override fun attachProfile(player: HyperZonePlayer, profileId: UUID): Profile? {
         val profile = databaseHelper.getProfile(profileId) ?: return null
-        debug(HyperZoneDebugType.OUTPRE_TRACE) {
+        debugOutPreTrace {
             "profileService.attachProfile player=${player.clientOriginalName} profileId=${profile.id} profileName=${profile.name} profileUuid=${profile.uuid}"
         }
         attachedProfiles[player] = profile.id
@@ -194,7 +193,7 @@ class VelocityHyperZoneProfileService(
         getAttachedProfile(player)?.let { return it }
 
         val credentials = player.getSubmittedCredentials()
-        debug(HyperZoneDebugType.OUTPRE_TRACE) {
+        debugOutPreTrace {
             "profileService.attachVerifiedCredentialProfile player=${player.clientOriginalName} credentials=${credentials.map { "${it.javaClass.simpleName}:${it.getBoundProfileId()}" }}"
         }
         if (credentials.isEmpty()) {
@@ -274,7 +273,7 @@ class VelocityHyperZoneProfileService(
         if (existing.name == authenticatedName) {
             return true
         }
-        debug(HyperZoneDebugType.OUTPRE_TRACE) {
+        debugOutPreTrace {
             "profileService.syncProfileName profileId=$profileId oldName=${existing.name} newName=$authenticatedName"
         }
         return databaseHelper.updateProfileName(profileId, authenticatedName)

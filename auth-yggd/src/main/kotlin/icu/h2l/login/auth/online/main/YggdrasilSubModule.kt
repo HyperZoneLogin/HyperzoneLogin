@@ -27,6 +27,8 @@ import icu.h2l.api.db.table.ProfileTable
 import icu.h2l.api.message.HyperZoneModuleMessageResources
 import icu.h2l.api.module.HyperSubModule
 import icu.h2l.api.profile.HyperZoneProfileServiceProvider
+import icu.h2l.login.auth.online.config.YggdrasilConfigLoader
+import icu.h2l.login.auth.online.config.YggdrasilDebug
 import icu.h2l.login.auth.online.db.EntryTableManager
 import icu.h2l.login.auth.online.listener.AuthListener
 import icu.h2l.login.auth.online.manager.EntryConfigManager
@@ -44,6 +46,9 @@ class YggdrasilSubModule : HyperSubModule {
         val dataDirectory = api.dataDirectory
         val databaseManager: HyperZoneDatabaseManager = api.databaseManager
         HyperZoneModuleMessageResources.copyBundledLocales(dataDirectory, "auth-yggd", javaClass.classLoader)
+
+        val moduleConfig = YggdrasilConfigLoader.load(dataDirectory)
+        YggdrasilDebug.configure(moduleConfig.debug)
 
         val entryConfigManager = EntryConfigManager(dataDirectory, proxy)
         val entryTableManager = EntryTableManager(

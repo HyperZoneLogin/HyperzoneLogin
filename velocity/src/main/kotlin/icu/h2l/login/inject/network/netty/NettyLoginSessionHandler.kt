@@ -39,14 +39,13 @@ import com.velocitypowered.proxy.protocol.packet.EncryptionResponsePacket
 import com.velocitypowered.proxy.protocol.packet.ServerLoginPacket
 import icu.h2l.api.event.connection.OpenPreLoginEvent
 import icu.h2l.api.event.connection.OpenStartAuthEvent
-import icu.h2l.api.log.HyperZoneDebugType
-import icu.h2l.api.log.debug
 import icu.h2l.api.util.RemapUtils
 import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.inject.network.NettyReflectionHelper
 import icu.h2l.login.inject.network.NettyReflectionHelper.fireLogin
 import icu.h2l.login.inject.network.VelocityNetworkInjectorImpl
 import icu.h2l.login.reflect.VelocityInternalAccess
+import icu.h2l.login.util.debugOutPreTrace
 import icu.h2l.login.vServer.outpre.handler.OutPreAuthSessionHandler
 import icu.h2l.login.vServer.outpre.OutPreVServerAuth
 import io.netty.channel.Channel
@@ -143,7 +142,7 @@ class NettyLoginSessionHandler(
     private fun handleServerLogin(ctx: ChannelHandlerContext, packet: ServerLoginPacket) {
         aState(0)
         cState = 1
-        debug(HyperZoneDebugType.OUTPRE_TRACE) {
+        debugOutPreTrace {
             "netty.handleServerLogin channel=${mcConnection.channel} username=${packet.username} holderUuid=${packet.holderUuid} protocol=${mcConnection.protocolVersion} sessionHandler=${mcConnection.activeSessionHandler?.javaClass?.name ?: "null"}"
         }
         val playerKey: IdentifiedKey? = packet.playerKey
@@ -205,7 +204,7 @@ class NettyLoginSessionHandler(
                     injector.proxy.eventManager.fire(openPreLoginEvent).thenRunAsync({
                         val resolvedOnlineMode = openPreLoginEvent.isOnline
                             && !result.isForceOfflineMode
-                        debug(HyperZoneDebugType.OUTPRE_TRACE) {
+                        debugOutPreTrace {
                             "netty.handleServerLogin after-OpenPreLogin channel=${mcConnection.channel} username=$userName allow=${openPreLoginEvent.allow} requestedOnline=${openPreLoginEvent.isOnline} resolvedOnline=$resolvedOnlineMode forceOffline=${result.isForceOfflineMode} onlineAllowed=${result.isOnlineModeAllowed} host=$host playerIp=$playerIp"
                         }
                         if (!openPreLoginEvent.allow) {
@@ -270,7 +269,7 @@ class NettyLoginSessionHandler(
 
         injector.proxy.eventManager.fire(openStartAuthEvent).thenRunAsync(
             {
-                debug(HyperZoneDebugType.OUTPRE_TRACE) {
+                debugOutPreTrace {
                     "netty.doLogin after-OpenStartAuth channel=${mcConnection.channel} username=${login.username} allow=${openStartAuthEvent.allow} onlineMode=$onlineMode gameProfile=${openStartAuthEvent.gameProfile} encrypt=$encrypt"
                 }
                 if (mcConnection.isClosed) {
@@ -307,7 +306,7 @@ class NettyLoginSessionHandler(
                         UUID.randomUUID().toString() // For LoginEvent, not important
                     )
 
-                debug(HyperZoneDebugType.OUTPRE_TRACE) {
+                debugOutPreTrace {
                     "netty.doLogin selected-handler channel=${mcConnection.channel} username=${login.username} handler=${authSessionHandler.javaClass.name} gameProfile=$getProfile"
                 }
 

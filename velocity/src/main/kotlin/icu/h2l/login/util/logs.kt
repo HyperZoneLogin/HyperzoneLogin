@@ -21,7 +21,6 @@
 
 package icu.h2l.login.util
 
-import icu.h2l.api.log.HyperZoneDebugType
 import icu.h2l.api.log.HyperZoneLogApi
 import icu.h2l.api.log.HyperZoneLogger
 import icu.h2l.login.HyperZoneLoginMain
@@ -36,16 +35,9 @@ private object VelocityLoggerBridge : HyperZoneLogger {
         }
     }
 
-    override fun debug(type: HyperZoneDebugType, message: String) {
-        val logger = HyperZoneLoginMain.getInstance().logger
-        if (isDebugEnabled(type)) {
-//            不要改成debug，不需要logger开启debug
-            logger.info("[DEBUG][{}] {}", type.name, message)
-        }
-    }
-
-    override fun isDebugEnabled(type: HyperZoneDebugType): Boolean {
-        return HyperZoneLoginMain.getCoreConfig().debug.isEnabled(type)
+    override fun debug(message: String) {
+        // 不要改成 debug，不需要 logger 开启 debug
+        HyperZoneLoginMain.getInstance().logger.info("[DEBUG] {}", message)
     }
 
     override fun warn(message: String) {
@@ -73,6 +65,35 @@ internal inline fun debug(block: () -> String) {
     apiDebug(block)
 }
 
-internal inline fun debug(type: HyperZoneDebugType, block: () -> String) {
-    apiDebug(type, block)
+// ── 核心自身的调试开关 ────────────────────────────────────────────────────────
+// 核心只负责按自己的类别判断是否输出；子模块的开关各自维护，不再由核心枚举承载。
+
+internal inline fun debugGeneral(block: () -> String) {
+    if (HyperZoneLoginMain.getCoreConfig().debug.log.general) {
+        apiDebug(block)
+    }
+}
+
+internal inline fun debugOutPreTrace(block: () -> String) {
+    if (HyperZoneLoginMain.getCoreConfig().debug.log.outPreTrace) {
+        apiDebug(block)
+    }
+}
+
+internal fun debugOutPreTrace(message: String) {
+    if (HyperZoneLoginMain.getCoreConfig().debug.log.outPreTrace) {
+        apiDebug(message)
+    }
+}
+
+internal inline fun debugNetworkRewrite(block: () -> String) {
+    if (HyperZoneLoginMain.getCoreConfig().debug.log.networkRewrite) {
+        apiDebug(block)
+    }
+}
+
+internal inline fun debugBackendCompat(block: () -> String) {
+    if (HyperZoneLoginMain.getCoreConfig().debug.log.backendCompat) {
+        apiDebug(block)
+    }
 }

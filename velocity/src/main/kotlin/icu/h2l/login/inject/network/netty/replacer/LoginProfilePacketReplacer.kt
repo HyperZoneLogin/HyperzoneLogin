@@ -31,13 +31,12 @@ import com.velocitypowered.proxy.protocol.ProtocolUtils
 import com.velocitypowered.proxy.protocol.packet.LoginPluginResponsePacket
 import com.velocitypowered.proxy.protocol.packet.ServerLoginPacket
 import icu.h2l.api.event.profile.LoginProfileReplaceEvent
-import icu.h2l.api.log.HyperZoneDebugType
-import icu.h2l.api.log.debug
 import icu.h2l.api.log.error
 import icu.h2l.api.log.info
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.manager.HyperZonePlayerManager
+import icu.h2l.login.util.debugNetworkRewrite
 import icu.h2l.login.util.hasSemanticGameProfileDifference
 import io.netty.buffer.ByteBuf
 import io.netty.channel.Channel
@@ -108,7 +107,7 @@ class LoginProfilePacketReplacer(
 
     private fun resolveRequestedForwardingVersion(content: ByteBuf?): Int {
         if (content == null) {
-            debug(HyperZoneDebugType.NETWORK_REWRITE) {
+            debugNetworkRewrite {
                 "[ProfileSkinFlow] modern forwarding version missing content, fallback=${PlayerDataForwarding.MODERN_DEFAULT}, target=$targetServerName"
             }
             return PlayerDataForwarding.MODERN_DEFAULT
@@ -116,7 +115,7 @@ class LoginProfilePacketReplacer(
 
         val readableBytes = content.readableBytes()
         if (readableBytes <= MODERN_FORWARDING_SIGNATURE_LENGTH) {
-            debug(HyperZoneDebugType.NETWORK_REWRITE) {
+            debugNetworkRewrite {
                 "[ProfileSkinFlow] modern forwarding version payload too short, fallback=${PlayerDataForwarding.MODERN_DEFAULT}, readableBytes=$readableBytes, target=$targetServerName"
             }
             return PlayerDataForwarding.MODERN_DEFAULT
@@ -127,7 +126,7 @@ class LoginProfilePacketReplacer(
         return runCatching {
             ProtocolUtils.readVarInt(duplicate)
         }.onFailure { throwable ->
-            debug(HyperZoneDebugType.NETWORK_REWRITE) {
+            debugNetworkRewrite {
                 "[ProfileSkinFlow] modern forwarding version decode failed, fallback=${PlayerDataForwarding.MODERN_DEFAULT}, readableBytes=$readableBytes, target=$targetServerName, reason=${throwable.message}"
             }
         }.getOrDefault(PlayerDataForwarding.MODERN_DEFAULT)

@@ -26,9 +26,8 @@ import com.velocitypowered.api.event.player.GameProfileRequestEvent
 import icu.h2l.api.connection.disconnectWithMessage
 import icu.h2l.api.connection.getNettyChannel
 import icu.h2l.api.event.profile.VerifyInitialGameProfileEvent
-import icu.h2l.api.log.HyperZoneDebugType
-import icu.h2l.api.log.debug
 import icu.h2l.login.HyperZoneLoginMain
+import icu.h2l.login.util.debugOutPreTrace
 import icu.h2l.login.vServer.backend.compat.BackendProfileLayerCompatListener.Companion.PLUGIN_CONFLICT_MESSAGE
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
@@ -40,7 +39,7 @@ class LoginVerifyListener {
         val incomingProfile = event.gameProfile
         val incomingName = incomingProfile.name
         val verifyEvent = VerifyInitialGameProfileEvent(event.connection, incomingProfile)
-        debug(HyperZoneDebugType.OUTPRE_TRACE) {
+        debugOutPreTrace {
             "loginVerify.onGameProfileRequest channel=${event.connection.getNettyChannel()} incomingName=${incomingProfile.name} incomingUuid=${incomingProfile.id}"
         }
 
@@ -55,7 +54,7 @@ class LoginVerifyListener {
             HyperZoneLoginMain.getInstance().logger.error("初始 GameProfile 扩展校验事件执行失败: ${t.message}", t)
         }
 
-        debug(HyperZoneDebugType.OUTPRE_TRACE) {
+        debugOutPreTrace {
             "loginVerify.afterVerifyEvent channel=${event.connection.getNettyChannel()} incomingName=${incomingProfile.name} pass=${verifyEvent.pass}"
         }
 

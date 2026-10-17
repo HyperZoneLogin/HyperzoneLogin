@@ -23,10 +23,9 @@ package icu.h2l.login.auth.online.service
 
 import com.velocitypowered.api.proxy.ProxyServer
 import icu.h2l.api.event.profile.ProfileAuthenticatedEvent
-import icu.h2l.api.log.HyperZoneDebugType
-import icu.h2l.api.log.debug
 import icu.h2l.api.log.error
 import icu.h2l.api.player.HyperZonePlayer
+import icu.h2l.login.auth.online.config.YggdrasilDebug
 import icu.h2l.login.auth.online.record.YggdrasilAuthResult
 
 /**
@@ -52,14 +51,14 @@ class YggdrasilProfileAuthenticatedDispatcher(
             serverUrl = result.serverUrl
         )
 
-        debug(HyperZoneDebugType.PROFILE_SKIN) {
+        YggdrasilDebug.log {
             "[ProfileAuthenticatedFlow] dispatch start: clientOriginal=${handler.clientOriginalName}, entry=${result.entryId}, server=${result.serverUrl}, profile=${describeProfile(result.profile)}"
         }
 
         runCatching {
             proxy.eventManager.fire(event).join()
         }.onSuccess {
-            debug(HyperZoneDebugType.PROFILE_SKIN) {
+            YggdrasilDebug.log {
                 "[ProfileAuthenticatedFlow] dispatch completed: clientOriginal=${handler.clientOriginalName}, entry=${result.entryId}"
             }
         }.onFailure { throwable ->

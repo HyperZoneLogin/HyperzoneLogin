@@ -30,8 +30,7 @@ import icu.h2l.api.event.profile.ProfileAttachedEvent
 import icu.h2l.api.event.profile.ProfilePropertiesApplyEvent
 import icu.h2l.login.profile.skin.event.ProfileSkinPreprocessEvent
 import icu.h2l.api.event.profile.ServerLoginSuccessEvent
-import icu.h2l.api.log.HyperZoneDebugType
-import icu.h2l.api.log.debug
+import icu.h2l.login.profile.skin.config.ProfileSkinDebug
 import icu.h2l.api.log.error
 import icu.h2l.api.log.warn
 import icu.h2l.api.player.HyperZonePlayer
@@ -192,7 +191,7 @@ class ProfileSkinService(
         }
 
         if (upstreamTextures?.isSigned == true && !trustedSignedEntry) {
-            debug(HyperZoneDebugType.PROFILE_SKIN) {
+            ProfileSkinDebug.log {
                 "[ProfileSkinFlow] preprocess signed upstream not trusted: clientOriginal=${event.hyperZonePlayer.clientOriginalName}, entry=${event.entryId}, source=${describeSource(source)}"
             }
         }
@@ -201,7 +200,7 @@ class ProfileSkinService(
             if (shouldUseSourceCache(shouldForceRestoreSignedTextures) && sourceHash != null) {
                 cacheRepository.findBySourceHash(sourceHash)?.let { cached ->
                     rememberPendingSkin(event.hyperZonePlayer, cached.skinId, "source cache hit")
-                    debug(HyperZoneDebugType.PROFILE_SKIN) {
+                    ProfileSkinDebug.log {
                         "[ProfileSkinFlow] source cache hit: skin=${cached.skinId}, clientOriginal=${event.hyperZonePlayer.clientOriginalName}, sourceHash=${shortHash(sourceHash)}, source=${describeSource(source)}"
                     }
                     event.textures = cached.textures
@@ -234,7 +233,7 @@ class ProfileSkinService(
                 }
             }
         } else {
-            debug(HyperZoneDebugType.PROFILE_SKIN) {
+            ProfileSkinDebug.log {
                 "[ProfileSkinFlow] preprocess restore skipped: clientOriginal=${event.hyperZonePlayer.clientOriginalName}, entry=${event.entryId}, source=${describeSource(source)}, reason=${describeRestoreSkipReason(source, shouldForceRestoreSignedTextures)}"
             }
         }
@@ -262,7 +261,7 @@ class ProfileSkinService(
             event.textures = fallbackTextures
             notifyProcessingReadyWithFallback(event.hyperZonePlayer)
         } else {
-            debug(HyperZoneDebugType.PROFILE_SKIN) {
+            ProfileSkinDebug.log {
                 "[ProfileSkinFlow] preprocess finished without textures: clientOriginal=${event.hyperZonePlayer.clientOriginalName}, entry=${event.entryId}, source=${describeSource(source)}"
             }
             notifyNoSkin(event.hyperZonePlayer)
@@ -274,7 +273,7 @@ class ProfileSkinService(
 
         val skinId = pendingSkinBindings.remove(event.hyperZonePlayer) ?: return
         if (profileRepository.bindProfile(event.profile.id, skinId)) {
-            debug(HyperZoneDebugType.PROFILE_SKIN) {
+            ProfileSkinDebug.log {
                 "[ProfileSkinFlow] skin_profile linked: profile=${event.profile.id}, skin=$skinId, clientOriginal=${event.hyperZonePlayer.clientOriginalName}"
             }
             return
@@ -300,7 +299,7 @@ class ProfileSkinService(
     fun onApply(event: ProfilePropertiesApplyEvent) {
 
         val profileId = profileService.getAttachedProfile(event.hyperZonePlayer)?.id ?: run {
-            debug(HyperZoneDebugType.PROFILE_SKIN) {
+            ProfileSkinDebug.log {
                 "[ProfileSkinFlow] apply listener failed: no attached DB profile, clientOriginal=${event.hyperZonePlayer.clientOriginalName}, base=${describeProfile(event.baseProfile)}"
             }
             event.hyperZonePlayer.sendMessage(ProfileSkinMessages.repairFailed(event.hyperZonePlayer))
@@ -309,7 +308,7 @@ class ProfileSkinService(
         val skinId = profileRepository.findSkinIdByProfileId(profileId) ?: return
         val cached = cacheRepository.findBySkinId(skinId) ?: return
         val textureProperty = cached.textures.toPropertyOrNull() ?: run {
-            debug(HyperZoneDebugType.PROFILE_SKIN) {
+            ProfileSkinDebug.log {
                 "[ProfileSkinFlow] apply skipped incomplete textures: clientOriginal=${event.hyperZonePlayer.clientOriginalName}, skinId=$skinId, valueLength=${cached.textures.value.length}, signed=${cached.textures.isSigned}"
             }
             return
@@ -554,7 +553,7 @@ class ProfileSkinService(
         val profileId = profileService.getAttachedProfile(hyperZonePlayer)?.id ?: return
         if (profileRepository.bindProfile(profileId, skinId)) {
             pendingSkinBindings.remove(hyperZonePlayer, skinId)
-            debug(HyperZoneDebugType.PROFILE_SKIN) {
+            ProfileSkinDebug.log {
                 "[ProfileSkinFlow] immediate skin_profile link: profile=$profileId, skin=$skinId, clientOriginal=${hyperZonePlayer.clientOriginalName}, reason=$reason"
             }
         } else {
@@ -570,7 +569,7 @@ class ProfileSkinService(
         sourceHash: String?,
         reason: String
     ) {
-        debug(HyperZoneDebugType.PROFILE_SKIN) {
+        ProfileSkinDebug.log {
             "[ProfileSkinFlow] skin cache ${result.action.name.lowercase()}: skin=${result.record.skinId}, reason=$reason, sourceHash=${shortHash(sourceHash)}, reusable=${result.record.sourceCacheEligible}, source=${describeSource(source)}"
         }
     }
