@@ -30,11 +30,14 @@ import java.io.File
  * Generated files (relative to [dir])
  * ────────────────────────────────────
  *   server.properties                — standard Minecraft server properties
- *   eula.txt                         — EULA accepted (required to start Paper)
  *   config/paper-global.yml          — Paper 1.19+ global config (Velocity support)
  *   paper.yml                        — Paper ≤ 1.18 legacy config (Velocity support)
  *   spigot.yml                       — Spigot overrides (disable bungeecord mode)
  *   bukkit.yml                       — Bukkit baseline settings
+ *
+ * The Minecraft EULA (`eula.txt`) is intentionally NOT generated. Accepting the
+ * EULA is the server operator's responsibility and must be done manually before
+ * the Paper server can start.
  */
 abstract class PaperServerDeployer(
     protected val dir: File,
@@ -52,7 +55,6 @@ abstract class PaperServerDeployer(
         dir.mkdirs()
 
         writeFile(dir.resolve("server.properties"), serverProperties())
-        writeFile(dir.resolve("eula.txt"), eulaTxt())
         if (usesModernPaperConfig()) {
             writeFile(dir.resolve("config/paper-global.yml"), paperGlobalYml())
             removeLegacyConfig(dir.resolve("paper.yml"))
@@ -130,13 +132,6 @@ abstract class PaperServerDeployer(
         white-list=false
         enforce-whitelist=false
         sync-chunk-writes=true
-        """.trimIndent() + "\n"
-
-    private fun eulaTxt(): String =
-        """
-        # By setting eula=true you indicate your agreement to the Minecraft EULA.
-        # https://account.mojang.com/documents/minecraft_eula
-        eula=true
         """.trimIndent() + "\n"
 
     /**

@@ -27,9 +27,9 @@ import java.io.File
  * Represents a server that needs startup scripts generated.
  */
 data class ServerScript(
-    /** Relative directory name (e.g., "auth", "play", "velocity") */
+    /** Relative directory name (e.g., "play", "velocity") */
     val dirName: String,
-    /** Human-readable label for window titles and messages (e.g., "HZL Auth") */
+    /** Human-readable label for window titles and messages (e.g., "HZL Game") */
     val label: String,
     /** JAR file pattern to search for (e.g., "paper-*.jar", "velocity-*.jar") */
     val jarPattern: String,

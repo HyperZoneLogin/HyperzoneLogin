@@ -24,11 +24,13 @@ package icu.h2l.login.cli.deploy
 import java.io.File
 
 /**
- * Deploys the `play/` (play) backend Minecraft server.
+ * Deploys the `play/` game backend Minecraft server.
  *
- * The play server is where authenticated players are sent after a successful
+ * The game server is where authenticated players are sent after a successful
  * login. It is listed as the `play` backend in velocity.toml and is the
- * primary game-play destination.
+ * primary game-play destination. The waiting-area (auth) is handled by the
+ * built-in virtual lobby server (backend-nanolimbo), so no separate lobby
+ * backend is deployed.
  *
  * Reference: https://docs.h2l.icu/manual/zh/服务器基础配置/
  */
@@ -45,7 +47,7 @@ class GameDeployer(
     paperVersion = paperVersion,
     paperConfigMode = paperConfigMode,
     forwardingSecret = forwardingSecret,
-    label = "play",
+    label = "Game",
     overwrite = overwrite,
 )
 

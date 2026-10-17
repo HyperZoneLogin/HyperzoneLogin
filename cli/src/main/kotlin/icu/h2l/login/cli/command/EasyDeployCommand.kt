@@ -24,7 +24,6 @@ package icu.h2l.login.cli.command
 import icu.h2l.api.dependency.HyperDependencyManager
 import icu.h2l.api.dependency.HyperDependencyManifest
 import icu.h2l.login.cli.deploy.GameDeployer
-import icu.h2l.login.cli.deploy.LobbyDeployer
 import icu.h2l.login.cli.deploy.PaperServerDeployer
 import icu.h2l.login.cli.deploy.ScriptGenerator
 import icu.h2l.login.cli.deploy.ServerScript
@@ -41,16 +40,15 @@ import java.util.Base64
     name = "easydeploy",
     mixinStandardHelpOptions = true,
     description = [
-        "Automatically deploy a full HyperZoneLogin server stack in the current directory.",
+        "Automatically deploy a HyperZoneLogin server stack in the current directory.",
         "",
-        "Creates three sub-directories:",
+        "Creates two sub-directories:",
         "  velocity/  \u2014 Velocity proxy (public entry point)",
-        "  auth/      \u2014 Auth / pre-auth Paper server (auth backend)",
-        "  play/      \u2014 Play Paper server (play backend)",
+        "  play/      \u2014 Game Paper server (main backend)",
         "",
-        "Config files are generated for all three servers and server JARs are",
+        "Config files are generated for both servers and server JARs are",
         "automatically downloaded from the PaperMC downloads service unless disabled.",
-        "Velocity uses modern forwarding; the generated secret is shared to both backends.",
+        "Velocity uses modern forwarding; the generated secret is shared to the game backend.",
     ],
 )
 class EasyDeployCommand : Runnable {
@@ -67,15 +65,8 @@ class EasyDeployCommand : Runnable {
     var velocityPort: Int = 25577
 
     @Option(
-        names = ["--lobby-port"],
-        description = ["Port of the auth (pre-auth) backend server (default: \${DEFAULT-VALUE})"],
-        defaultValue = "30066",
-    )
-    var lobbyPort: Int = 30066
-
-    @Option(
         names = ["--game-port"],
-        description = ["Port of the play (main game) backend server (default: \${DEFAULT-VALUE})"],
+        description = ["Port of the game backend server (default: \${DEFAULT-VALUE})"],
         defaultValue = "30067",
     )
     var gamePort: Int = 30067
@@ -127,7 +118,7 @@ class EasyDeployCommand : Runnable {
     @Option(
         names = ["--paper-version"],
         description = [
-            "Minecraft version of the Paper server to download for lobby and game.",
+            "Minecraft version of the Paper server to download for game.",
             "Accepts an exact version (e.g. '1.21.4') or 'latest' (default).",
             "Run with '--list-paper-versions' to see all available versions.",
         ],
@@ -147,7 +138,7 @@ class EasyDeployCommand : Runnable {
 
     @Option(
         names = ["--no-paper-download"],
-        description = ["Skip downloading Paper JARs — place them in auth/ and play/ manually."],
+        description = ["Skip downloading the Paper JAR \u2014 place it in play/ manually."],
         defaultValue = "false",
     )
     var noPaperDownload: Boolean = false
@@ -209,8 +200,7 @@ class EasyDeployCommand : Runnable {
         println("=== HyperZoneLogin EasyDeploy ===")
         println("Deploy directory   : $baseDir")
         println("Velocity port      : $velocityPort  (bind $bindHost)")
-        println("Auth port          : $lobbyPort")
-        println("Play port          : $gamePort")
+        println("Game port          : $gamePort")
         println("Overwrite          : $overwrite")
         if (!noVelocityDownload) println("Velocity version   : ${selectedVelocityVersion ?: velocityVersion}")
         println("Paper config for   : ${selectedPaperVersion ?: paperVersion}")
@@ -223,19 +213,9 @@ class EasyDeployCommand : Runnable {
             baseDir = baseDir,
             bindHost = bindHost,
             velocityPort = velocityPort,
-            lobbyPort = lobbyPort,
             gamePort = gamePort,
             forwardingSecret = secret,
             pluginJar = pluginJar,
-            overwrite = overwrite,
-        ).deploy()
-
-        LobbyDeployer(
-            baseDir = baseDir,
-            lobbyPort = lobbyPort,
-            paperVersion = selectedPaperVersion ?: paperVersion,
-            paperConfigMode = selectedPaperConfigMode,
-            forwardingSecret = secret,
             overwrite = overwrite,
         ).deploy()
 
@@ -248,27 +228,26 @@ class EasyDeployCommand : Runnable {
             overwrite = overwrite,
         ).deploy()
 
-        // ---- 4. Generate startup scripts ---------------------------------
+        // ---- 2. Generate startup scripts ---------------------------------
         println("[Scripts] Generating startup scripts")
         val serverConfigs = listOf(
-            ServerScript("auth", "HZL Auth", "paper-*.jar", isPaperServer = true),
-            ServerScript("play", "HZL Play", "paper-*.jar", isPaperServer = true),
+            ServerScript("play", "HZL Game", "paper-*.jar", isPaperServer = true),
         )
         val velocityConfig = ServerScript("velocity", "HZL Velocity", "velocity-*.jar", isPaperServer = false)
         ScriptGenerator(baseDir).generateAllScripts(serverConfigs, velocityConfig)
 
-        // ---- 5. Summary -----------------------------------------------------
+        // ---- 3. Download Velocity ----------------------------------------
         val velocityJar: File? =
             if (noVelocityDownload) null else downloadVelocity(baseDir.resolve("velocity"), selectedVelocityVersion ?: velocityVersion)
 
-        // ---- 3. Download Paper (once) and distribute -----------------------
+        // ---- 4. Download Paper --------------------------------------------
         val paperJar: File? =
             if (noPaperDownload) null else downloadPaper(baseDir, selectedPaperVersion ?: paperVersion, serverConfigs)
 
         prewarmPaperBootstrap(baseDir, selectedPaperVersion ?: paperVersion, serverConfigs)
         prefetchPluginRuntimeLibraries(baseDir)
 
-        // ---- 6. Summary -----------------------------------------------------
+        // ---- 5. Summary -----------------------------------------------------
         println()
         println("=== Deployment Complete ===")
         println()
@@ -307,7 +286,11 @@ class EasyDeployCommand : Runnable {
         println("     $velocityLetter) cd ${velocityConfig.dirName} && start.bat")
         println()
         println("  Forwarding secret: $secret")
-        println("  (Already written to velocity/forwarding.secret and both backend configs.)")
+        println("  (Already written to velocity/forwarding.secret and the game backend config.)")
+        println()
+        println("  Before first start, you must manually:")
+        println("  - Accept the Minecraft EULA: set eula=true in play/eula.txt")
+        println("  - Confirm the plugin startup config: create velocity/plugins/hyperzonelogin/start.conf with ready=true")
     }
 
     // ------------------------------------------------------------ helpers -----
@@ -343,7 +326,7 @@ class EasyDeployCommand : Runnable {
      * Downloads Paper once into the first server directory then copies the same file
      * into subsequent server directories to avoid fetching the same binary twice.
      */
-    private fun downloadPaper(baseDir: File, resolvedVersion: String, serverConfigs: List<ServerScript> = listOf(ServerScript("auth", "Auth", "paper-*.jar", true), ServerScript("play", "Play", "paper-*.jar", true))): File? {
+    private fun downloadPaper(baseDir: File, resolvedVersion: String, serverConfigs: List<ServerScript> = listOf(ServerScript("play", "Game", "paper-*.jar", true))): File? {
         if (serverConfigs.isEmpty()) return null
 
         println("[Paper] Querying PaperMC API for version list …")
@@ -453,7 +436,7 @@ class EasyDeployCommand : Runnable {
         println()
     }
 
-    private fun prewarmPaperBootstrap(baseDir: File, resolvedVersion: String, serverConfigs: List<ServerScript> = listOf(ServerScript("auth", "Auth", "paper-*.jar", true), ServerScript("play", "Play", "paper-*.jar", true))) {
+    private fun prewarmPaperBootstrap(baseDir: File, resolvedVersion: String, serverConfigs: List<ServerScript> = listOf(ServerScript("play", "Game", "paper-*.jar", true))) {
         if (!usesModernPaperBootstrap(resolvedVersion)) {
             return
         }

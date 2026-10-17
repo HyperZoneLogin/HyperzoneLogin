@@ -33,7 +33,6 @@ import java.util.jar.JarFile
  *   velocity/velocity.toml              — main proxy config
  *   velocity/forwarding.secret          — modern forwarding shared secret
  *   velocity/plugins/bStats/config.txt  — bStats (disabled)
- *   velocity/plugins/hyperzonelogin/start.conf
  *   velocity/plugins/hyperzonelogin/libs/  (empty, created for the plugin)
  *   velocity/plugins/<plugin>.jar       — copied if --plugin-jar is specified
  */
@@ -41,7 +40,6 @@ class VelocityDeployer(
     baseDir: File,
     private val bindHost: String,
     private val velocityPort: Int,
-    private val lobbyPort: Int,
     private val gamePort: Int,
     private val forwardingSecret: String,
     pluginJar: File?,
@@ -58,7 +56,6 @@ class VelocityDeployer(
 
         writeFile(dir.resolve("velocity.toml"), velocityToml())
         writeFile(dir.resolve("forwarding.secret"), "$forwardingSecret\n")
-        writeFile(dir.resolve("plugins/hyperzonelogin/start.conf"), startConf())
 
         // Ensure libs directory exists for the runtime dependency loader
         pluginLibsDir.mkdirs()
@@ -100,7 +97,6 @@ class VelocityDeployer(
         decompressed-bytes-per-second = 5242880
 
         [servers]
-        outpre-auth = "127.0.0.1:$lobbyPort"
         play = "127.0.0.1:$gamePort"
         try = [
             "play"
@@ -135,13 +131,6 @@ class VelocityDeployer(
         port = 25565
         map = "Velocity"
         show-plugins = false
-        """.trimIndent() + "\n"
-
-    private fun startConf(): String =
-        """
-        language="zh_cn"
-        format=hocon
-        ready=true
         """.trimIndent() + "\n"
 
     private fun detectHyperZoneLoginJar(): File? {
