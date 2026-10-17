@@ -22,12 +22,7 @@
 package icu.h2l.login.config
 
 import org.spongepowered.configurate.objectmapping.ConfigSerializable
-import org.spongepowered.configurate.objectmapping.meta.Comment
 
 @Suppress("ANNOTATION_WILL_BE_APPLIED_ALSO_TO_PROPERTY_OR_FIELD")
 @ConfigSerializable
-data class MiscConfig(
-    // 不给服务器发送 CHAT_SESSION_UPDATE包
-    @Comment("config.misc.kill-chat-session")
-    val killChatSession: Boolean = true
-)
+class MiscConfig()

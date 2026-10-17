@@ -25,13 +25,21 @@ import org.spongepowered.configurate.objectmapping.ConfigSerializable
 import org.spongepowered.configurate.objectmapping.meta.Comment
 
 /**
- * `CHAT_SESSION_UPDATE` 数据包 id 表的落盘配置。
+ * `CHAT_SESSION_UPDATE` 拦截助手（helper）的落盘配置。
  *
- * 文件位于插件数据目录，首次运行时会用内置默认表播种，之后可手工编辑，
- * 结构匹配学到的新条目也会自动追写进来（相当于运行时缓存）。
+ * 文件位于插件数据目录（`helper-chatsession.conf`），首次运行时会用内置默认表播种，
+ * 之后可手工编辑；结构匹配学到的新条目也会自动追写进来（相当于运行时缓存）。
  */
 @ConfigSerializable
 data class ChatSessionPacketIdConfig(
+    // 不给服务器发送 CHAT_SESSION_UPDATE 包
+    @Comment("config.chat-session.kill-chat-session")
+    val killChatSession: Boolean = true,
+
+    // 本拦截助手的 debug 日志开关（独立于核心的 network-rewrite 日志）
+    @Comment("config.chat-session.debug")
+    val debug: Boolean = false,
+
     // 结构匹配命中但 id 匹配落空时，是否自动学习并写入本文件
     @Comment("config.chat-session.auto-learn")
     val autoLearn: Boolean = true,

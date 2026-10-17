@@ -26,12 +26,12 @@ import com.velocitypowered.proxy.connection.backend.VelocityServerConnection
 import com.velocitypowered.proxy.connection.client.ConnectedPlayer
 import icu.h2l.api.log.error
 import icu.h2l.api.log.warn
-import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.chatsession.ChatSessionUpdatePacketMatchers
+import icu.h2l.login.chatsession.idtable.ChatSessionPacketIdTable
 import icu.h2l.login.chatsession.packet.ChatSessionPacketView
 import icu.h2l.login.manager.HyperZonePlayerManager
 import icu.h2l.login.player.VelocityHyperZonePlayer
-import icu.h2l.login.util.debugNetworkRewrite
+import icu.h2l.login.util.debugChatSession
 import io.netty.buffer.ByteBuf
 import io.netty.channel.Channel
 import io.netty.channel.ChannelHandlerContext
@@ -102,7 +102,7 @@ class ChatSessionKillerPacketReplacer(
             }
 
             val hits = ChatSessionUpdatePacketMatchers.hitNames(view)
-            debugNetworkRewrite {
+            debugChatSession {
                 "[ChatSessionKiller] 丢弃 CHAT_SESSION_UPDATE player=${player.username} " +
                         "protocol=${player.protocolVersion} packetId=${view.packetId} " +
                         "payloadLen=${view.payloadLength} matched=$hits"
@@ -163,7 +163,7 @@ class ChatSessionKillerPacketReplacer(
         player = resolvedPlayer
         val resolvedHyperPlayer = HyperZonePlayerManager.getByPlayerOrNull(player)
         hyperPlayer = resolvedHyperPlayer
-        shouldKill = HyperZoneLoginMain.getCoreConfig().misc.killChatSession
+        shouldKill = ChatSessionPacketIdTable.isKillEnabled()
                 && resolvedHyperPlayer?.isOnlinePlayer == true
         return Unit
     }

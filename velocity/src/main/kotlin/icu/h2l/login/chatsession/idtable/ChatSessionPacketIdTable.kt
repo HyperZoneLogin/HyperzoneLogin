@@ -23,7 +23,7 @@ package icu.h2l.login.chatsession.idtable
 
 import icu.h2l.api.log.warn
 import icu.h2l.api.util.ConfigLoader
-import icu.h2l.login.util.debugNetworkRewrite
+import icu.h2l.login.util.debugChatSession
 import java.nio.file.Path
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * ── 三层来源，优先级从低到高 ─────────────────────────────────────────────
  * 1. **内置默认**：代码里的 [ChatSessionUpdatePacketIdResolver]，保证开箱即用、
  *    配置文件丢失也不影响功能；
- * 2. **配置文件**：数据目录下的 `chat-session-packet-ids.conf`，服主可手工编辑或
+ * 2. **配置文件**：数据目录下的 `helper-chatsession.conf`，服主可手工编辑或
  *    提前登记未发布版本；
  * 3. **自学习缓存**：结构匹配命中、但 id 匹配落空时，把观测到的 (协议号, id)
  *    追加进配置文件。
@@ -56,7 +56,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 object ChatSessionPacketIdTable {
 
     /** 配置文件相对数据目录的路径。 */
-    private const val CONFIG_FILE_NAME = "chat-session-packet-ids.conf"
+    private const val CONFIG_FILE_NAME = "helper-chatsession.conf"
 
     /** 写盘去抖延迟（毫秒）。 */
     private const val FLUSH_DEBOUNCE_MILLIS = 5_000L
@@ -121,6 +121,20 @@ object ChatSessionPacketIdTable {
     }
 
     /**
+     * 是否启用 `CHAT_SESSION_UPDATE` 拦截（由 `helper-chatsession.conf` 的
+     * `kill-chat-session` 控制）。
+     *
+     * 开关判断放在这里（注入后的实现里）而非注入时，从而 `/hzl reload` 后
+     * 新建的后端连接能拿到最新取值。
+     */
+    fun isKillEnabled(): Boolean = config.killChatSession
+
+    /**
+     * 本拦截助手的 debug 日志开关（由 `helper-chatsession.conf` 的 `debug` 控制）。
+     */
+    fun isDebugEnabled(): Boolean = config.debug
+
+    /**
      * 解析 [protocolVersion] 对应的数据包 id。
      *
      * 纯内存操作，可安全地在 event loop 上调用。
@@ -150,7 +164,7 @@ object ChatSessionPacketIdTable {
             return false
         }
         if (packetId !in 0..MAX_PLAUSIBLE_PACKET_ID) {
-            debugNetworkRewrite {
+            debugChatSession {
                 "[ChatSessionIdTable] 忽略不可疑包 id=$packetId (protocol=$protocol)"
             }
             return false
@@ -163,7 +177,7 @@ object ChatSessionPacketIdTable {
 
         // 关键防污染判断：只有未来版本才记录。
         if (protocol <= highestKnownProtocol) {
-            debugNetworkRewrite {
+            debugChatSession {
                 "[ChatSessionIdTable] protocol=$protocol 已在已知区间内，判定为结构误判，" +
                         "不写入 id=$packetId"
             }
@@ -176,7 +190,7 @@ object ChatSessionPacketIdTable {
                 return false
             }
             // 同一未来协议号观测到不同 id：保留首次学习结果，避免抖动。
-            debugNetworkRewrite {
+            debugChatSession {
                 "[ChatSessionIdTable] protocol=$protocol 已登记 id=${existing.packetId}，" +
                         "忽略冲突观测 id=$packetId"
             }

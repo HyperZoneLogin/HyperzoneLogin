@@ -196,7 +196,7 @@ class ChatSessionPacketIdTableTest {
     @TempDir
     lateinit var tempDir: Path
 
-    private val configFileName = "chat-session-packet-ids.conf"
+    private val configFileName = "helper-chatsession.conf"
 
     @Test
     fun `seeds the config file on first load using builtin entries`() {
@@ -269,6 +269,46 @@ class ChatSessionPacketIdTableTest {
         ChatSessionPacketIdTable.resetForTest()
         ChatSessionPacketIdTable.load(tempDir)
         assertEquals(0x0A, ChatSessionPacketIdTable.resolve(futureVersion))
+    }
+
+    @Test
+    fun `kill switch is enabled by default and honours the config file`() {
+        // 未加载任何配置时，内置默认值为开启。
+        assertTrue(ChatSessionPacketIdTable.isKillEnabled())
+
+        Files.writeString(
+            tempDir.resolve(configFileName),
+            """
+            kill-chat-session=false
+            packet-ids=[
+                { from-protocol=761, packet-id=32 }
+            ]
+            """.trimIndent(),
+            StandardCharsets.UTF_8,
+        )
+        ChatSessionPacketIdTable.load(tempDir)
+
+        assertFalse(ChatSessionPacketIdTable.isKillEnabled())
+    }
+
+    @Test
+    fun `debug switch is disabled by default and honours the config file`() {
+        // 未加载任何配置时，debug 默认关闭。
+        assertFalse(ChatSessionPacketIdTable.isDebugEnabled())
+
+        Files.writeString(
+            tempDir.resolve(configFileName),
+            """
+            debug=true
+            packet-ids=[
+                { from-protocol=761, packet-id=32 }
+            ]
+            """.trimIndent(),
+            StandardCharsets.UTF_8,
+        )
+        ChatSessionPacketIdTable.load(tempDir)
+
+        assertTrue(ChatSessionPacketIdTable.isDebugEnabled())
     }
 
     private fun writeVarIntCompat(out: io.netty.buffer.ByteBuf, value: Int) {

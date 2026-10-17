@@ -138,9 +138,7 @@ class VelocityNetworkInjectorImpl(
         val old = getMethod.invoke(initializerHolder) as ChannelInitializer<Channel>
         setMethod.invoke(initializerHolder, object : ViaChannelInitializer(old) {
             override fun injectChannel(channel: Channel) {
-                if (HyperZoneLoginMain.getCoreConfig().misc.killChatSession) {
-                    channel.pipeline().addLast("h2l_chat_session_killer", ChatSessionKillerPacketReplacer(channel))
-                }
+                channel.pipeline().addLast("h2l_chat_session_killer", ChatSessionKillerPacketReplacer(channel))
                 channel.pipeline().addLast("sl_r_rpl", LoginProfilePacketReplacer(channel))
                 if (HyperZoneLoginMain.getInstance().serverAdapter?.needsBackendPlayerInfoCompat() == true) {
                     channel.pipeline().addLast("h2l_waiting_upsert_filter", BackendWaitingAreaPlayerInfoFilter())

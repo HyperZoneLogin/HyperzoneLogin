@@ -24,6 +24,7 @@ package icu.h2l.login.util
 import icu.h2l.api.log.HyperZoneLogApi
 import icu.h2l.api.log.HyperZoneLogger
 import icu.h2l.login.HyperZoneLoginMain
+import icu.h2l.login.chatsession.idtable.ChatSessionPacketIdTable
 import icu.h2l.api.log.debug as apiDebug
 import icu.h2l.api.log.info as apiInfo
 
@@ -94,6 +95,12 @@ internal inline fun debugNetworkRewrite(block: () -> String) {
 
 internal inline fun debugBackendCompat(block: () -> String) {
     if (HyperZoneLoginMain.getCoreConfig().debug.log.backendCompat) {
+        apiDebug(block)
+    }
+}
+
+internal inline fun debugChatSession(block: () -> String) {
+    if (ChatSessionPacketIdTable.isDebugEnabled()) {
         apiDebug(block)
     }
 }
