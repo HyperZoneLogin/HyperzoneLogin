@@ -23,20 +23,20 @@ package icu.h2l.login.backend.hzlimbo.world
 
 import icu.h2l.login.backend.hzlimbo.protocol.ProtocolVersions
 import net.kyori.adventure.nbt.BinaryTag
-import net.kyori.adventure.nbt.BinaryTagIO
 import net.kyori.adventure.nbt.CompoundBinaryTag
 import net.kyori.adventure.nbt.IntBinaryTag
 import net.kyori.adventure.nbt.ListBinaryTag
+import net.kyori.adventure.nbt.TagStringIO
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * 加载并缓存每个协议版本对应的 registry codec（`codec_*.nbt`）与 registry tags（`tags_*.nbt`）。
+ * 加载并缓存每个协议版本对应的 registry codec（`codec_*.snbt`）与 registry tags（`tags_*.snbt`）。
  *
- * 这些 `.nbt` 文件是「维度的注册表快照数据」（dimension_type、worldgen/biome 等 + tags），
+ * 这些 `.snbt` 文件是「维度的注册表快照数据」（dimension_type、worldgen/biome 等 + tags），
  * 由真实的 Minecraft 服务端数据生成器产出；limbo 没有后端服务，因此必须自带这些版本相关数据，
  * 在 configuration 阶段下发给客户端。
  *
- * 资源文件以 gzip 压缩、无根名的 NBT compound 形式存放，读取后即得到 [CompoundBinaryTag]。
+ * 资源文件以 SNBT（stringified NBT）文本存放，方便 git 比对；读取时解析为 [CompoundBinaryTag]。
  */
 object RegistryCodec {
 
@@ -48,20 +48,20 @@ object RegistryCodec {
     /** 依据协议号返回 registry codec。 */
     fun codec(protocol: Int): CompoundBinaryTag =
         codecs.computeIfAbsent(ProtocolVersions.codecKey(protocol)) { key ->
-            readCompound("${RESOURCE_PREFIX}codec_$key.nbt")
+            readCompound("${RESOURCE_PREFIX}codec_$key.snbt")
         }
 
     /** 依据协议号返回 registry tags（仅 1.20.5+ 使用）。 */
     fun tags(protocol: Int): Map<String, Map<String, IntArray>> =
         tags.computeIfAbsent(ProtocolVersions.tagsKey(protocol)) { key ->
-            parseTags(readCompound("${RESOURCE_PREFIX}tags_$key.nbt"))
+            parseTags(readCompound("${RESOURCE_PREFIX}tags_$key.snbt"))
         }
 
     private fun readCompound(path: String): CompoundBinaryTag {
         val input = RegistryCodec::class.java.getResourceAsStream(path)
             ?: error("Missing bundled registry resource: $path")
-        return input.use {
-            BinaryTagIO.unlimitedReader().read(it, BinaryTagIO.Compression.GZIP)
+        return input.bufferedReader(Charsets.UTF_8).use { reader ->
+            TagStringIO.tagStringIO().asCompound(reader.readText())
         }
     }
 

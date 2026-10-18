@@ -205,7 +205,7 @@ spotless {
             "subplugin/helper-chatsession/src/**/*.kt",
             "subplugin/profile-skin/src/**/*.kt",
             "subplugin/safe/src/**/*.kt",
-            "tools/codecgen/src/**/*.kt",
+            "paper/src/**/*.kt",
         )
         licenseHeader(kotlinLicenseHeader, kotlinSourceHeaderDelimiter)
     }
@@ -226,7 +226,7 @@ spotless {
             "subplugin/helper-chatsession/build.gradle.kts",
             "subplugin/profile-skin/build.gradle.kts",
             "subplugin/safe/build.gradle.kts",
-            "tools/codecgen/build.gradle.kts",
+            "paper/build.gradle.kts",
         )
         licenseHeader(kotlinLicenseHeader, kotlinGradleHeaderDelimiter)
     }

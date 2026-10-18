@@ -1,0 +1,2 @@
+# SNBT 数据文件统一使用 LF，避免不同平台生成的换行符污染 diff。
+*.snbt text eol=lf

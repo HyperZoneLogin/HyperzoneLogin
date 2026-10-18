@@ -1,0 +1,14 @@
+name: hzl-codecgen
+version: "1.0.0"
+main: icu.h2l.login.paper.CodecDumpPlugin
+api-version: "1.20"
+description: Dumps the vanilla registry codec (dimension codec + tags) for backend-hzlimbo.
+commands:
+  codecgen:
+    description: Dump the registry codec and tags for backend-hzlimbo.
+    permission: hzl.codecgen
+    permission-message: "§cYou do not have permission to use this command."
+permissions:
+  hzl.codecgen:
+    description: Allows dumping the registry codec.
+    default: op
