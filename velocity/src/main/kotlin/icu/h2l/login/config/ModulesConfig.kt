@@ -54,8 +54,8 @@ class ModulesConfig {
     @Comment("config.modules.helper-chat-session")
     val helperChatSession: Boolean = true
 
-    // 内置 NanoLimbo 后端；作为 outpre 的本地后端服务使用
+    // 内置 HzLimbo 后端；复用 Velocity 网络栈的轻量 limbo（outpre 本地后端）
     @Suppress("unused")
-    @Comment("config.modules.backend-nanolimbo")
-    val backendNanolimbo: Boolean = true
+    @Comment("config.modules.backend-hzlimbo")
+    val backendHzlimbo: Boolean = true
 }

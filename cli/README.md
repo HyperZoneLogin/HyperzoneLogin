@@ -40,7 +40,7 @@ This will:
 5. Pre-download and cache Paper bootstrap files
 
 The login waiting-area is handled by HyperZoneLogin's built-in virtual lobby
-server (backend-nanolimbo), so no separate lobby backend is needed.
+server (backend-hzlimbo), so no separate lobby backend is needed.
 
 ### Command Options
 
@@ -165,7 +165,7 @@ Players → [Velocity Proxy (0.0.0.0:25577)]
 ```
 
 The login waiting-area is provided by the plugin's built-in virtual lobby
-server (backend-nanolimbo), which runs inside Velocity itself.
+server (backend-hzlimbo), which runs inside Velocity itself.
 
 ### Velocity Configuration
 

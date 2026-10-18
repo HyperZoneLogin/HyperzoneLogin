@@ -83,11 +83,11 @@ object EmbeddedModuleRegistry {
     )
 
     @Suppress("unused")
-    val backendNanolimbo = EmbeddedModuleSpec(
-        configKey = "backendNanolimbo",
-        displayName = "Backend NanoLimbo",
-        externalPluginId = "hzl-backend-nanolimbo",
-        implementationClassName = "icu.h2l.login.backend.nanolimbo.NanoLimboSubModule",
+    val backendHzlimbo = EmbeddedModuleSpec(
+        configKey = "backendHzlimbo",
+        displayName = "Backend HzLimbo",
+        externalPluginId = "hzl-backend-hzlimbo",
+        implementationClassName = "icu.h2l.login.backend.hzlimbo.HzLimboSubModule",
     )
 
     fun instantiate(spec: EmbeddedModuleSpec, classLoader: ClassLoader): HyperSubModule? {

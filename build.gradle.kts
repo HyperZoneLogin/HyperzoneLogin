@@ -201,10 +201,11 @@ spotless {
             "subplugin/auth-offline/src/**/*.kt",
             "subplugin/auth-yggd/src/**/*.kt",
             "subplugin/data-merge/src/**/*.kt",
-            "subplugin/backend-nanolimbo/src/**/*.kt",
+            "subplugin/backend-hzlimbo/src/**/*.kt",
             "subplugin/helper-chatsession/src/**/*.kt",
             "subplugin/profile-skin/src/**/*.kt",
             "subplugin/safe/src/**/*.kt",
+            "tools/codecgen/src/**/*.kt",
         )
         licenseHeader(kotlinLicenseHeader, kotlinSourceHeaderDelimiter)
     }
@@ -221,10 +222,11 @@ spotless {
             "subplugin/auth-offline/build.gradle.kts",
             "subplugin/auth-yggd/build.gradle.kts",
             "subplugin/data-merge/build.gradle.kts",
-            "subplugin/backend-nanolimbo/build.gradle.kts",
+            "subplugin/backend-hzlimbo/build.gradle.kts",
             "subplugin/helper-chatsession/build.gradle.kts",
             "subplugin/profile-skin/build.gradle.kts",
             "subplugin/safe/build.gradle.kts",
+            "tools/codecgen/build.gradle.kts",
         )
         licenseHeader(kotlinLicenseHeader, kotlinGradleHeaderDelimiter)
     }

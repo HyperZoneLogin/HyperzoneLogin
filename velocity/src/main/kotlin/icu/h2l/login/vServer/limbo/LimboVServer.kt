@@ -38,7 +38,7 @@ object LimboVServer {
      * 判断指定后端 [ServerInfo] 是否属于「limbo 登录服」。
      *
      * - 名称优先：与当前模式下登录服的逻辑名比对（outpre 用 auth 逻辑名，backend 用 fallbackAuthServer）；
-     * - 地址兜底：与 backend-nanolimbo 模块动态回填的 limbo 实际监听地址比对。
+     * - 地址兜底：与 backend-hzlimbo 模块动态回填的 limbo 实际监听地址比对。
      */
     fun isLimboLoginServer(serverInfo: ServerInfo?): Boolean {
         if (serverInfo == null) return false

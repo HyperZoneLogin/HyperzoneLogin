@@ -29,7 +29,7 @@ import java.io.File
  * The game server is where authenticated players are sent after a successful
  * login. It is listed as the `play` backend in velocity.toml and is the
  * primary game-play destination. The waiting-area (auth) is handled by the
- * built-in virtual lobby server (backend-nanolimbo), so no separate lobby
+ * built-in virtual lobby server (backend-hzlimbo), so no separate lobby
  * backend is deployed.
  *
  * Reference: https://docs.h2l.icu/manual/zh/服务器基础配置/

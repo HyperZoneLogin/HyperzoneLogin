@@ -48,15 +48,15 @@ data class VServerConfig(
     @Suppress("ANNOTATION_WILL_BE_APPLIED_ALSO_TO_PROPERTY_OR_FIELD")
     @ConfigSerializable
     data class LimboConfig(
-        // 下层认证等待服是否为 limbo 虚拟服（如内置 NanoLimbo）
+        // 下层认证等待服是否为 limbo 虚拟服（如内置 HzLimbo）
         @Comment("config.vserver.limbo.enabled")
         val enabled: Boolean = true,
 
-        // limbo 实际监听 Host；由 backend-nanolimbo 模块启动后动态回填，不落盘
+        // limbo 实际监听 Host；由 backend-hzlimbo 模块启动后动态回填，不落盘
         @Comment("config.vserver.limbo.host")
         var host: String = "",
 
-        // limbo 实际监听 Port；由 backend-nanolimbo 模块启动后动态回填，不落盘
+        // limbo 实际监听 Port；由 backend-hzlimbo 模块启动后动态回填，不落盘
         @Comment("config.vserver.limbo.port")
         var port: Int = -1,
     )

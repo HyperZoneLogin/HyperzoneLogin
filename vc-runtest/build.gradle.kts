@@ -57,8 +57,9 @@ dependencies {
     runtimeOnly(project(":subplugin:data-merge"))
     runtimeOnly(project(":subplugin:profile-skin"))
     runtimeOnly(project(":subplugin:safe"))
-    runtimeOnly(project(":subplugin:backend-nanolimbo"))
     runtimeOnly(project(":subplugin:helper-chatsession"))
+//    backend-hzlimbo
+    runtimeOnly(project(":subplugin:backend-hzlimbo"))
 
     // Runtime libraries that are normally downloaded by the main plugin bootstrap.
     // In the dev environment we provide them directly on the classpath so no network
