@@ -25,6 +25,7 @@ import com.velocitypowered.api.proxy.ProxyServer
 import icu.h2l.api.command.HyperChatCommandManagerProvider
 import icu.h2l.api.db.HyperZoneDatabaseManager
 import icu.h2l.api.module.HyperSubModule
+import icu.h2l.api.net.HyperZoneNetProvider
 import icu.h2l.api.player.HyperZonePlayerAccessorProvider
 import icu.h2l.api.profile.CredentialChannelRegistry
 import icu.h2l.api.vServer.HyperZoneVServerProvider
@@ -39,7 +40,8 @@ import java.nio.file.Path
 interface HyperZoneApi :
     HyperChatCommandManagerProvider,
     HyperZonePlayerAccessorProvider,
-    HyperZoneVServerProvider {
+    HyperZoneVServerProvider,
+    HyperZoneNetProvider {
     /**
      * 当前运行中的 Velocity 代理实例。
      */

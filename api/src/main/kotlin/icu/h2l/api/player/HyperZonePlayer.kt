@@ -78,6 +78,21 @@ interface HyperZonePlayer {
     val isOnlinePlayer: Boolean
 
     /**
+     * 标记客户端已收到 login success（进入 PLAY 阶段）。
+     *
+     * 由核心在观察到 `ServerLoginSuccessPacket` 时调用；供需要感知「客户端是否已离开登录阶段」
+     * 的子模块读取（例如 chat session 拦截）。默认无操作，由运行时实现覆写。
+     */
+    fun markLoginSuccessSent() {
+        // 默认无操作；真实运行时（Velocity）会记录该标志。
+    }
+
+    /**
+     * 客户端是否已收到 login success（进入 PLAY 阶段）。
+     */
+    fun hasLoginSuccessBeenSent(): Boolean = false
+
+    /**
      * 当前玩家是否已经 attach 到一个正式游戏档案。
      *
      * 该状态由核心层 Profile 服务统一维护；认证子模块不应直接改写。

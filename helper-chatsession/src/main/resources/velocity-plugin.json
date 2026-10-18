@@ -1,0 +1,8 @@
+{
+  "id": "hzl-helper-chatsession",
+  "name": "HyperZoneLogin - Helper Chat Session",
+  "version": "${pluginVersion}",
+  "authors": ["ksqeib"],
+  "dependencies": [{"id":"hyperzonelogin","optional":false}],
+  "main": "icu.h2l.login.chatsession.HelperChatSessionBootstrap"
+}

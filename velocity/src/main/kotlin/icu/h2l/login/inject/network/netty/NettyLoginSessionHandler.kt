@@ -43,7 +43,6 @@ import icu.h2l.api.util.RemapUtils
 import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.inject.network.NettyReflectionHelper
 import icu.h2l.login.inject.network.NettyReflectionHelper.fireLogin
-import icu.h2l.login.inject.network.VelocityNetworkInjectorImpl
 import icu.h2l.login.reflect.VelocityInternalAccess
 import icu.h2l.login.util.debugOutPreTrace
 import icu.h2l.login.vServer.outpre.handler.OutPreAuthSessionHandler
@@ -63,7 +62,7 @@ import java.util.*
 import java.util.concurrent.ThreadLocalRandom
 
 class NettyLoginSessionHandler(
-    private val injector: VelocityNetworkInjectorImpl,
+    private val proxy: VelocityServer,
     private val mcConnection: MinecraftConnection,
     private val channel: Channel,
 ) : ChannelInboundHandlerAdapter() {
@@ -101,7 +100,7 @@ class NettyLoginSessionHandler(
 
         forceKeyAuthentication = VelocityInternalAccess.velocityPropertiesReadBoolean(
             "auth.forceSecureProfiles",
-            injector.proxy.configuration.isForceKeyAuthentication
+            proxy.configuration.isForceKeyAuthentication
         )
     }
 
@@ -114,7 +113,7 @@ class NettyLoginSessionHandler(
         ThreadLocalRandom.current().nextBytes(verify)
 
         val request = EncryptionRequestPacket()
-        request.publicKey = injector.proxy.serverKeyPair.public.encoded
+        request.publicKey = proxy.serverKeyPair.public.encoded
         request.verifyToken = verify
         VelocityInternalAccess.setEncryptionRequestShouldAuthenticate(request, shouldAuthenticate)
         return request
@@ -137,7 +136,7 @@ class NettyLoginSessionHandler(
         }
     }
 
-    private val server get() = injector.proxy
+    private val server get() = proxy
 
     private fun handleServerLogin(ctx: ChannelHandlerContext, packet: ServerLoginPacket) {
         aState(0)
@@ -173,7 +172,7 @@ class NettyLoginSessionHandler(
         this.login = packet
 
         val event = PreLoginEvent(inbound, login.getUsername(), login.holderUuid)
-        injector.proxy.eventManager.fire(event).thenRunAsync({
+        proxy.eventManager.fire(event).thenRunAsync({
             if (mcConnection.isClosed) {
                 // The player was disconnected
                 return@thenRunAsync
@@ -201,7 +200,7 @@ class NettyLoginSessionHandler(
 
                     val openPreLoginEvent =
                         OpenPreLoginEvent(holderUuid, userName, host, playerIp, mcConnection.channel)
-                    injector.proxy.eventManager.fire(openPreLoginEvent).thenRunAsync({
+                    proxy.eventManager.fire(openPreLoginEvent).thenRunAsync({
                         val resolvedOnlineMode = openPreLoginEvent.isOnline
                             && !result.isForceOfflineMode
                         debugOutPreTrace {
@@ -267,7 +266,7 @@ class NettyLoginSessionHandler(
 
         openStartAuthEvent.gameProfile = preProfile
 
-        injector.proxy.eventManager.fire(openStartAuthEvent).thenRunAsync(
+        proxy.eventManager.fire(openStartAuthEvent).thenRunAsync(
             {
                 debugOutPreTrace {
                     "netty.doLogin after-OpenStartAuth channel=${mcConnection.channel} username=${login.username} allow=${openStartAuthEvent.allow} onlineMode=$onlineMode gameProfile=${openStartAuthEvent.gameProfile} encrypt=$encrypt"
@@ -302,7 +301,7 @@ class NettyLoginSessionHandler(
 
                 val authSessionHandler =
                     createHandler(
-                        injector.proxy, inbound, getProfile, onlineMode = onlineMode,
+                        proxy, inbound, getProfile, onlineMode = onlineMode,
                         UUID.randomUUID().toString() // For LoginEvent, not important
                     )
 

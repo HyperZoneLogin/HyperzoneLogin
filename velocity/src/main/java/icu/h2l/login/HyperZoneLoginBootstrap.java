@@ -33,6 +33,7 @@ import icu.h2l.api.command.HyperChatCommandManager;
 import icu.h2l.api.db.HyperZoneDatabaseManager;
 import icu.h2l.api.dependency.*;
 import icu.h2l.api.module.HyperSubModule;
+import icu.h2l.api.net.HyperZoneNet;
 import icu.h2l.api.player.HyperZonePlayerAccessor;
 import icu.h2l.api.profile.CredentialChannelRegistry;
 import icu.h2l.api.vServer.HyperZoneVServerAdapter;
@@ -130,6 +131,11 @@ public final class HyperZoneLoginBootstrap implements HyperZoneApi {
     @Override
     public CredentialChannelRegistry getCredentialChannelRegistry() {
         return this.runtime.getCredentialChannelRegistry();
+    }
+
+    @Override
+    public HyperZoneNet getNet() {
+        return this.runtime.getNet();
     }
 
     @Override

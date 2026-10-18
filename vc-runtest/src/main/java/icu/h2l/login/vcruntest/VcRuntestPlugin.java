@@ -31,6 +31,7 @@ import icu.h2l.api.HyperZoneApiProvider;
 import icu.h2l.api.command.HyperChatCommandManager;
 import icu.h2l.api.db.HyperZoneDatabaseManager;
 import icu.h2l.api.module.HyperSubModule;
+import icu.h2l.api.net.HyperZoneNet;
 import icu.h2l.api.player.HyperZonePlayerAccessor;
 import icu.h2l.api.profile.CredentialChannelRegistry;
 import icu.h2l.api.vServer.HyperZoneVServerAdapter;
@@ -71,6 +72,7 @@ public final class VcRuntestPlugin implements HyperZoneApi {
     private volatile Method runtimeGetChatCommandManager;
     private volatile Method runtimeGetServerAdapter;
     private volatile Method runtimeGetCredentialChannelRegistry;
+    private volatile Method runtimeGetNet;
     private volatile Method runtimeRegisterModule;
 
     @Inject
@@ -118,6 +120,7 @@ public final class VcRuntestPlugin implements HyperZoneApi {
         this.runtimeGetChatCommandManager = runtimeClass.getMethod("getChatCommandManager");
         this.runtimeGetServerAdapter = runtimeClass.getMethod("getServerAdapter");
         this.runtimeGetCredentialChannelRegistry = runtimeClass.getMethod("getCredentialChannelRegistry");
+        this.runtimeGetNet = runtimeClass.getMethod("getNet");
         this.runtimeRegisterModule = runtimeClass.getMethod("registerModule", HyperSubModule.class, HyperZoneApi.class);
 
         this.runtimeOnEnable.invoke(runtimeInstance, event);
@@ -157,6 +160,11 @@ public final class VcRuntestPlugin implements HyperZoneApi {
     @Override
     public CredentialChannelRegistry getCredentialChannelRegistry() {
         return invokeRuntime(CredentialChannelRegistry.class, this.runtimeGetCredentialChannelRegistry);
+    }
+
+    @Override
+    public HyperZoneNet getNet() {
+        return invokeRuntime(HyperZoneNet.class, this.runtimeGetNet);
     }
 
     @Override

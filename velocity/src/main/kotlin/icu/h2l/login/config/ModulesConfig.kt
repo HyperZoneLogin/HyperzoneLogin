@@ -50,6 +50,10 @@ class ModulesConfig {
     @Comment("config.modules.data-merge")
     val dataMerge: Boolean = false
 
+    // CHAT_SESSION_UPDATE 拦截助手
+    @Comment("config.modules.helper-chat-session")
+    val helperChatSession: Boolean = true
+
     // 内置 NanoLimbo 后端；作为 outpre 的本地后端服务使用
     @Suppress("unused")
     @Comment("config.modules.backend-nanolimbo")

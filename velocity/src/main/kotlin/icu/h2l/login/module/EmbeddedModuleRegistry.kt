@@ -75,6 +75,13 @@ object EmbeddedModuleRegistry {
         implementationClassName = "icu.h2l.login.merge.MergeSubModule",
     )
 
+    val helperChatSession = EmbeddedModuleSpec(
+        configKey = "helperChatSession",
+        displayName = "Helper Chat Session",
+        externalPluginId = "hzl-helper-chatsession",
+        implementationClassName = "icu.h2l.login.chatsession.HelperChatSessionSubModule",
+    )
+
     @Suppress("unused")
     val backendNanolimbo = EmbeddedModuleSpec(
         configKey = "backendNanolimbo",

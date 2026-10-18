@@ -49,6 +49,11 @@ interface HyperZonePlayerAccessor {
     fun getByPlayer(player: Player): HyperZonePlayer
 
     /**
+     * 根据代理层 `Player` 获取当前登录期 `HyperZonePlayer`，不存在时返回 null。
+     */
+    fun getByPlayerOrNull(player: Player): HyperZonePlayer? = null
+
+    /**
      * 根据底层连接 channel 获取当前登录期 `HyperZonePlayer`。
      */
     fun getByChannel(channel: Channel): HyperZonePlayer

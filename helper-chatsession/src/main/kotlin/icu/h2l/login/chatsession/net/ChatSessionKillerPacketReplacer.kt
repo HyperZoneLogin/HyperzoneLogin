@@ -26,13 +26,12 @@ import com.velocitypowered.proxy.connection.backend.VelocityServerConnection
 import com.velocitypowered.proxy.connection.client.ConnectedPlayer
 import icu.h2l.api.log.error
 import icu.h2l.api.log.warn
+import icu.h2l.api.player.HyperZonePlayer
+import icu.h2l.api.player.HyperZonePlayerAccessor
+import icu.h2l.login.chatsession.ChatSessionDebug
 import icu.h2l.login.chatsession.ChatSessionUpdatePacketMatchers
 import icu.h2l.login.chatsession.idtable.ChatSessionPacketIdTable
 import icu.h2l.login.chatsession.packet.ChatSessionPacketView
-import icu.h2l.login.manager.HyperZonePlayerManager
-import icu.h2l.login.player.VelocityHyperZonePlayer
-import icu.h2l.login.util.debugChatSession
-import icu.h2l.login.vServer.limbo.LimboVServer
 import io.netty.buffer.ByteBuf
 import io.netty.channel.Channel
 import io.netty.channel.ChannelHandlerContext
@@ -68,9 +67,10 @@ import io.netty.util.ReferenceCountUtil
  */
 class ChatSessionKillerPacketReplacer(
     private val channel: Channel,
+    private val playerAccessor: HyperZonePlayerAccessor,
 ) : ChannelOutboundHandlerAdapter() {
     private lateinit var player: ConnectedPlayer
-    private var hyperPlayer: VelocityHyperZonePlayer? = null
+    private var hyperPlayer: HyperZonePlayer? = null
     private var shouldKill = true
 
     /** 兜底退役预算；见 [ChatSessionKillerLifetime]。 */
@@ -103,7 +103,7 @@ class ChatSessionKillerPacketReplacer(
             }
 
             val hits = ChatSessionUpdatePacketMatchers.hitNames(view)
-            debugChatSession {
+            ChatSessionDebug.log {
                 "[ChatSessionKiller] 丢弃 CHAT_SESSION_UPDATE player=${player.username} " +
                         "protocol=${player.protocolVersion} packetId=${view.packetId} " +
                         "payloadLen=${view.payloadLength} matched=$hits"
@@ -157,16 +157,9 @@ class ChatSessionKillerPacketReplacer(
 
         val connection = ctx.channel().pipeline().get(MinecraftConnection::class.java) ?: return null
         val association = connection.association as? VelocityServerConnection ?: return null
-        val serverInfo = association.server.serverInfo
-
-        // limbo 登录服无需拦截 CHAT_SESSION_UPDATE：直接退役，免去逐包结构解析。
-        if (LimboVServer.isLimboLoginServer(serverInfo)) {
-            retire()
-            return null
-        }
 
         player = association.player
-        val resolvedHyperPlayer = HyperZonePlayerManager.getByPlayerOrNull(player)
+        val resolvedHyperPlayer = playerAccessor.getByPlayerOrNull(player)
         hyperPlayer = resolvedHyperPlayer
         shouldKill = ChatSessionPacketIdTable.isKillEnabled()
                 && resolvedHyperPlayer?.isOnlinePlayer == true

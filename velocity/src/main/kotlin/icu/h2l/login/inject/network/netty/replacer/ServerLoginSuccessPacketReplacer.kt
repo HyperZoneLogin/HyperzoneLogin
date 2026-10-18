@@ -70,7 +70,7 @@ class ServerLoginSuccessPacketReplacer(
             }
 
             // 联动：客户端已进入 PLAY，chat session 窗口打开。
-            // 后端侧的 ChatSessionKillerPacketReplacer 据此收紧兜底退役预算。
+            // 需要感知该窗口的子模块（如 helper-chatsession）据此收紧兜底退役预算。
             hyperPlayer.markLoginSuccessSent()
 
             ctx.pipeline().remove(this)

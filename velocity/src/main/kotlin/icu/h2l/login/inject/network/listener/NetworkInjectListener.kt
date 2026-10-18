@@ -24,16 +24,16 @@ package icu.h2l.login.inject.network.listener
 import com.velocitypowered.api.event.Subscribe
 import com.velocitypowered.api.event.proxy.ListenerBoundEvent
 import com.velocitypowered.api.network.ListenerType
-import icu.h2l.login.inject.network.VelocityNetworkInjectorImpl
+import icu.h2l.login.inject.network.netty.HZLServerChannelInitializer
 
 class NetworkInjectListener(
-    private val injector: VelocityNetworkInjectorImpl,
+    private val clientInitializer: HZLServerChannelInitializer,
 ) {
 
     @Subscribe
     fun onAddressBound(event: ListenerBoundEvent) {
         if (event.listenerType != ListenerType.MINECRAFT) return
 
-        injector.injectToServerPipeline()
+        clientInitializer.retrofitExistingEndpoints()
     }
 }

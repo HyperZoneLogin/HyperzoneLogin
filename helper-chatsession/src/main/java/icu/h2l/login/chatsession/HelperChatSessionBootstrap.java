@@ -19,30 +19,23 @@
  *
  */
 
-package icu.h2l.login.inject.network.netty
+package icu.h2l.login.chatsession;
 
-import io.netty.channel.Channel
-import io.netty.channel.ChannelInitializer
-import java.lang.reflect.Method
+import com.google.inject.Inject;
+import com.velocitypowered.api.event.Subscribe;
+import com.velocitypowered.api.event.proxy.ProxyInitializeEvent;
+import com.velocitypowered.api.proxy.ProxyServer;
 
+public final class HelperChatSessionBootstrap {
+    private final HelperChatSessionPlugin delegate;
 
-//https://github.com/ViaVersion/ViaVersion/blob/master/common/src/main/java/com/viaversion/viaversion/platform/ViaChannelInitializer.java
-abstract class ViaChannelInitializer(
-    private val original: ChannelInitializer<Channel>,
-) : ChannelInitializer<Channel>() {
-
-    private companion object {
-        private val INIT_CHANNEL_METHOD: Method =
-            ChannelInitializer::class.java.getDeclaredMethod("initChannel", Channel::class.java)
-                .also { it.isAccessible = true }
-
+    @Inject
+    public HelperChatSessionBootstrap(ProxyServer server) {
+        this.delegate = new HelperChatSessionPlugin(server);
     }
 
-    override fun initChannel(ch: Channel) {
-        INIT_CHANNEL_METHOD.invoke(original, ch)
-
-        injectChannel(ch)
+    @Subscribe
+    public void onEnable(ProxyInitializeEvent event) {
+        this.delegate.onEnable(event);
     }
-
-    protected abstract fun injectChannel(channel: Channel)
 }

@@ -62,7 +62,7 @@ object HyperZonePlayerManager : HyperZonePlayerAccessor {
        return getByChannel(player.getChannel())
     }
 
-    fun getByPlayerOrNull(player: Player): VelocityHyperZonePlayer? {
+    override fun getByPlayerOrNull(player: Player): VelocityHyperZonePlayer? {
         return getByChannelOrNull(player.getChannel())
     }
 
