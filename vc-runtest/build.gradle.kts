@@ -57,6 +57,7 @@ dependencies {
     runtimeOnly(project(":data-merge"))
     runtimeOnly(project(":profile-skin"))
     runtimeOnly(project(":safe"))
+    runtimeOnly(project(":backend-nanolimbo"))
 
     // Runtime libraries that are normally downloaded by the main plugin bootstrap.
     // In the dev environment we provide them directly on the classpath so no network

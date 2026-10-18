@@ -60,6 +60,7 @@ class OutPreBackendBridge(
     internal fun bindSession(callback: Callback) {
         sessionCallback = callback
     }
+
     enum class Phase {
         IDLE,
         CONNECTING,
@@ -109,7 +110,8 @@ class OutPreBackendBridge(
                     return@ChannelFutureListener
                 }
 
-                val backendConnection = MinecraftConnection(channelFuture.channel(), proxyServer)
+                val backendConnection =
+                    MinecraftConnection(channelFuture.channel(), proxyServer, player.connection.sessionId)
                 this@OutPreBackendBridge.backendConnection = backendConnection
                 VelocityInternalAccess.setServerConnectionConnection(serverConnection, backendConnection)
                 updatePhase(Phase.LOGIN)

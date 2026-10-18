@@ -32,6 +32,7 @@ import icu.h2l.login.chatsession.packet.ChatSessionPacketView
 import icu.h2l.login.manager.HyperZonePlayerManager
 import icu.h2l.login.player.VelocityHyperZonePlayer
 import icu.h2l.login.util.debugChatSession
+import icu.h2l.login.vServer.limbo.LimboVServer
 import io.netty.buffer.ByteBuf
 import io.netty.channel.Channel
 import io.netty.channel.ChannelHandlerContext
@@ -155,12 +156,16 @@ class ChatSessionKillerPacketReplacer(
         }
 
         val connection = ctx.channel().pipeline().get(MinecraftConnection::class.java) ?: return null
-        val resolvedPlayer = when (val association = connection.association) {
-            is VelocityServerConnection -> association.player
-            else -> return null
+        val association = connection.association as? VelocityServerConnection ?: return null
+        val serverInfo = association.server.serverInfo
+
+        // limbo 登录服无需拦截 CHAT_SESSION_UPDATE：直接退役，免去逐包结构解析。
+        if (LimboVServer.isLimboLoginServer(serverInfo)) {
+            retire()
+            return null
         }
 
-        player = resolvedPlayer
+        player = association.player
         val resolvedHyperPlayer = HyperZonePlayerManager.getByPlayerOrNull(player)
         hyperPlayer = resolvedHyperPlayer
         shouldKill = ChatSessionPacketIdTable.isKillEnabled()

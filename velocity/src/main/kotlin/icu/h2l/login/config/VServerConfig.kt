@@ -37,10 +37,31 @@ data class VServerConfig(
     @Comment("config.vserver.remember-requested-server")
     val rememberRequestedServerDuringAuth: Boolean = true,
 
+    // limbo 虚拟等待服识别配置
+    @Comment("config.vserver.limbo")
+    val limbo: LimboConfig = LimboConfig(),
+
     val backend: BackendConfig = BackendConfig(),
 
     val outpre: OutpreConfig = OutpreConfig()
 ) {
+    @Suppress("ANNOTATION_WILL_BE_APPLIED_ALSO_TO_PROPERTY_OR_FIELD")
+    @ConfigSerializable
+    data class LimboConfig(
+        // 下层认证等待服是否为 limbo 虚拟服（如内置 NanoLimbo）
+        @Comment("config.vserver.limbo.enabled")
+        val enabled: Boolean = true,
+
+        // limbo 实际监听 Host；由 backend-nanolimbo 模块启动后动态回填，不落盘
+        @Comment("config.vserver.limbo.host")
+        var host: String = "",
+
+        // limbo 实际监听 Port；由 backend-nanolimbo 模块启动后动态回填，不落盘
+        @Comment("config.vserver.limbo.port")
+        var port: Int = -1,
+    )
+
+
     @Suppress("ANNOTATION_WILL_BE_APPLIED_ALSO_TO_PROPERTY_OR_FIELD")
     @ConfigSerializable
     data class BackendConfig(

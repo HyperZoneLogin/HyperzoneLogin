@@ -28,8 +28,10 @@ import icu.h2l.api.log.info
 import icu.h2l.api.log.warn
 import icu.h2l.api.message.HyperZoneModuleMessageResources
 import icu.h2l.api.module.HyperSubModule
+import icu.h2l.api.vServer.HyperZoneVServerLimboReporter
 import icu.h2l.login.backend.nanolimbo.command.NanoLimboCommand
 import ua.nanit.limbo.server.HyperZoneLimboServer
+import java.net.InetSocketAddress
 import java.nio.file.Files
 
 class NanoLimboSubModule : HyperSubModule {
@@ -55,6 +57,7 @@ class NanoLimboSubModule : HyperSubModule {
 
         val startupThread = Thread {
             runCatching { server.start() }
+                .onSuccess { reportLimboBoundAddress(server) }
                 .onFailure { throwable -> warn { "backend-nanolimbo 启动失败: ${throwable.message}" } }
         }
         startupThread.name = "backend-nanolimbo-startup"
@@ -73,6 +76,12 @@ class NanoLimboSubModule : HyperSubModule {
             .build()
         api.proxy.commandManager.register(meta, command)
         info { "backend-nanolimbo 管理命令 /$COMMAND_NAME 与 /$COMMAND_ALIAS 已注册" }
+    }
+
+    private fun reportLimboBoundAddress(server: HyperZoneLimboServer) {
+        val address = server.boundAddress() as? InetSocketAddress ?: return
+        HyperZoneVServerLimboReporter.report(address.hostString, address.port)
+        info { "backend-nanolimbo 已把实际监听地址 ${address.hostString}:${address.port} 回填给核心层" }
     }
 
     companion object {

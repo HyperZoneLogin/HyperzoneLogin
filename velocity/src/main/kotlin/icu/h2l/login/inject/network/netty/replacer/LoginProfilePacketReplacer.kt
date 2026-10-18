@@ -38,6 +38,7 @@ import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.manager.HyperZonePlayerManager
 import icu.h2l.login.util.debugNetworkRewrite
 import icu.h2l.login.util.hasSemanticGameProfileDifference
+import icu.h2l.login.vServer.limbo.LimboVServer
 import io.netty.buffer.ByteBuf
 import io.netty.channel.Channel
 import io.netty.channel.ChannelHandlerContext
@@ -192,9 +193,16 @@ class LoginProfilePacketReplacer(
 
         val connection = ctx.channel().pipeline().get(MinecraftConnection::class.java) ?: return null
         val association = connection.association as? ServerConnection ?: return null
+        val serverInfo = association.server.serverInfo
+
+        // limbo 登录服无需档案替换：直接退役，避免多余的事件触发与重写计算。
+        if (LimboVServer.isLimboLoginServer(serverInfo)) {
+            retire()
+            return null
+        }
 
         player = association.player
-        targetServerName = association.server.serverInfo.name
+        targetServerName = serverInfo.name
         hyperPlayer = HyperZonePlayerManager.getByPlayer(player)
         config = HyperZoneLoginMain.getInstance().proxy.configuration as VelocityConfiguration
 
