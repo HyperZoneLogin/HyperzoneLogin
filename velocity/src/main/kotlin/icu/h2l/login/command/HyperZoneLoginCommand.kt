@@ -26,6 +26,7 @@ import com.mojang.brigadier.arguments.StringArgumentType
 import com.velocitypowered.api.command.BrigadierCommand
 import com.velocitypowered.api.command.CommandSource
 import com.velocitypowered.api.proxy.Player
+import icu.h2l.api.config.HZLConfigRegistry
 import icu.h2l.api.message.HyperZoneMessagePlaceholder
 import icu.h2l.api.profile.HyperZoneProfileServiceProvider
 import icu.h2l.login.HyperZoneLoginMain
@@ -49,6 +50,16 @@ class HyperZoneLoginCommand(
                         .executes { context ->
                             executeReload(context.source)
                         }
+                )
+                .then(
+                    BrigadierCommand.literalArgumentBuilder("config")
+                        .requires { source -> source.hasPermission(ADMIN_PERMISSION) }
+                        .then(
+                            BrigadierCommand.literalArgumentBuilder("regenerate")
+                                .executes { context ->
+                                    executeConfigRegenerate(context.source)
+                                }
+                        )
                 )
                 .then(
                     BrigadierCommand.literalArgumentBuilder("re")
@@ -107,6 +118,13 @@ class HyperZoneLoginCommand(
         val main = HyperZoneLoginMain.getInstance()
         main.reloadRuntimeConfigs()
         main.messageService.send(sender, MessageKeys.HzlCommand.RELOADED)
+        return Command.SINGLE_SUCCESS
+    }
+
+    private fun executeConfigRegenerate(sender: CommandSource): Int {
+        val messages = HyperZoneLoginMain.getInstance().messageService
+        val count = HZLConfigRegistry.regenerateAll()
+        messages.send(sender, MessageKeys.HzlCommand.CONFIG_REGENERATED, HyperZoneMessagePlaceholder.text("count", count))
         return Command.SINGLE_SUCCESS
     }
 

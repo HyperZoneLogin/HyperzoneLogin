@@ -28,6 +28,8 @@ import com.velocitypowered.api.proxy.ProxyServer
 import icu.h2l.api.HyperZoneApi
 import icu.h2l.api.command.HyperChatCommandManager
 import icu.h2l.api.command.HyperChatCommandRegistration
+import icu.h2l.api.config.HZLConfig
+import icu.h2l.api.config.HZLConfigRegistry
 import icu.h2l.api.message.HyperZoneMessageServiceProvider
 import icu.h2l.api.module.HyperSubModule
 import icu.h2l.api.net.BackendChannelHandlerRegistry
@@ -37,8 +39,6 @@ import icu.h2l.api.profile.HyperZoneCredentialFlowProvider
 import icu.h2l.api.profile.CredentialChannelRegistryProvider
 import icu.h2l.api.profile.HyperZoneProfileServiceProvider
 import icu.h2l.api.util.ConfigCommentTranslatorProvider
-import icu.h2l.api.util.ConfigFormat
-import icu.h2l.api.util.ConfigFormatProvider
 import icu.h2l.api.util.ConfigLoader
 import icu.h2l.login.config.i18n.ConfigCommentI18nService
 import icu.h2l.api.vServer.HyperZoneVServerAdapter
@@ -100,6 +100,12 @@ class HyperZoneLoginMain(
     lateinit var bindingCodeService: ProfileBindingCodeService
     lateinit var messageService: MessageService
     lateinit var loginManager: LoginManager
+
+    /** 核心配置（`core.conf`）的跨模块访问器。 */
+    private val coreConfigAccess: HZLConfig<CoreConfig> by lazy {
+        object : HZLConfig<CoreConfig>(dataDirectory, "core.conf", { CoreConfig() }) {}
+    }
+
     val serverAdapter: HyperZoneVServerAdapter?
         get() = activeVServerAdapter
     val hyperZonePlayers: HyperZonePlayerAccessor
@@ -157,9 +163,7 @@ class HyperZoneLoginMain(
             logger.error("================================================================")
             return
         }
-        // ── 第二步：根据 start.conf 中的 format 绑定全局配置格式 ──────────────────────
-        ConfigFormatProvider.bind(ConfigFormat.fromKey(startConfig.format))
-        // ── 第三步：根据 start.conf 中的 language 初始化配置注释 i18n 服务 ──────────
+        // ── 第二步：根据 start.conf 中的 language 初始化配置注释 i18n 服务 ──────────
         ConfigCommentTranslatorProvider.bind(ConfigCommentI18nService(dataDirectory, logger, startConfig.language))
         loadCoreConfig()
         // limbo 模块启动成功后，会通过该入口把实际监听地址回填到 vServer 配置（仅内存，不落盘），
@@ -426,6 +430,9 @@ class HyperZoneLoginMain(
         coreConfig = config
         // 配置加载完成后，用 defaultLocale 覆盖 i18n 服务，使后续模块配置首次生成时使用正确语言
         ConfigCommentTranslatorProvider.bind(ConfigCommentI18nService(dataDirectory, logger, config.messages.defaultLocale))
+        // 注册跨模块配置访问（Comment id → 配置项），并刷新缓存
+        HZLConfigRegistry.register("core", coreConfigAccess)
+        coreConfigAccess.reload()
     }
 
     private fun connectDatabase() {

@@ -105,8 +105,6 @@ dependencies {
 
     needPackageCompileOnly(libs.configurateExtraKotlin)
     needPackageCompileOnly(libs.configurateHocon)
-    needPackageCompileOnly(libs.configurateGson)
-    needPackageCompileOnly(libs.configurateYaml)
 //    for subModule
     needPackageCompileOnly(libs.angusMail)
     needPackageCompileOnly(libs.googleAuth)
@@ -139,8 +137,6 @@ dependencies {
     testImplementation(libs.adventureTextMinimessage)
     testImplementation(libs.configurateExtraKotlin)
     testImplementation(libs.configurateHocon)
-    testImplementation(libs.configurateGson)
-    testImplementation(libs.configurateYaml)
     testImplementation("io.mockk:mockk:1.13.17")
     testRuntimeOnly(libs.junitPlatformLauncher)
     testImplementation(kotlin("test"))

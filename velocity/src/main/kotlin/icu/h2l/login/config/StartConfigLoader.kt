@@ -33,8 +33,6 @@ import java.nio.file.Path
  *  1. 不受 i18n 影响（注释为硬编码中英双语）
  *  2. 不依赖任何尚未初始化的服务
  *  3. 始终是第一个被读取的配置文件
- *
- * format 字段当前版本仅作预留，后续将据此选择不同的序列化后端（gson / yaml）。
  */
 object StartConfigLoader {
 
@@ -53,11 +51,6 @@ object StartConfigLoader {
         |
         |  language : 配置注释语言，影响其他配置文件首次生成时的注释语言。
         |             Locale key for config comment translation (e.g. zh_cn, en_us).
-        |
-        |  format   : 配置文件格式，影响其他配置文件的序列化方式。
-        |             Config serialization format: hocon | gson | yaml
-        |             （当前版本仅完整支持 hocon，gson/yaml 为预留选项）
-        |             (Current version fully supports hocon only; gson/yaml are reserved for future use)
         |
         |  ready    : 就绪标志，必须为 true 插件才会正常启动。
         |             Must be true for the plugin to start normally.
@@ -102,19 +95,15 @@ object StartConfigLoader {
         val language = node.node("language").let {
             if (it.virtual()) "zh_cn" else it.string ?: "zh_cn"
         }
-        val format = node.node("format").let {
-            if (it.virtual()) "hocon" else it.string ?: "hocon"
-        }
         val ready = node.node("ready").let {
             if (it.virtual()) false else it.getBoolean(false)
         }
 
-        val config = StartConfig(language = language, format = format, ready = ready)
+        val config = StartConfig(language = language, ready = ready)
 
         // 首次创建时（或字段缺失时）写回文件
         if (fileNotExists) {
             node.node("language").set(config.language)
-            node.node("format").set(config.format)
             node.node("ready").set(config.ready)
             loader.save(node)
         }

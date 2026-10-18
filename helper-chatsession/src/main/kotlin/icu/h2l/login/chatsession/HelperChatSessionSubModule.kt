@@ -24,9 +24,12 @@ package icu.h2l.login.chatsession
 import com.velocitypowered.api.event.Subscribe
 import com.velocitypowered.api.event.proxy.ProxyShutdownEvent
 import icu.h2l.api.HyperZoneApi
+import icu.h2l.api.config.HZLConfig
+import icu.h2l.api.config.HZLConfigRegistry
 import icu.h2l.api.log.info
 import icu.h2l.api.message.HyperZoneModuleMessageResources
 import icu.h2l.api.module.HyperSubModule
+import icu.h2l.login.chatsession.idtable.ChatSessionPacketIdConfig
 import icu.h2l.login.chatsession.idtable.ChatSessionPacketIdTable
 import icu.h2l.login.chatsession.net.ChatSessionKillerPacketReplacer
 
@@ -44,6 +47,13 @@ class HelperChatSessionSubModule : HyperSubModule {
 
         HyperZoneModuleMessageResources.copyBundledLocales(dataDirectory, "helper-chatsession", javaClass.classLoader)
         ChatSessionPacketIdTable.load(dataDirectory)
+
+        // 注册跨模块配置访问，供其他模块通过 Comment id 读取本模块开关。
+        val configAccess = object : HZLConfig<ChatSessionPacketIdConfig>(
+            dataDirectory, "helper-chatsession.conf", { ChatSessionPacketIdConfig() }
+        ) {}
+        HZLConfigRegistry.register("helper-chatsession", configAccess)
+        configAccess.reload()
 
         api.net.backendChannelHandlers.register("h2l_chat_session_killer") { channel ->
             ChatSessionKillerPacketReplacer(channel, api.hyperZonePlayers)

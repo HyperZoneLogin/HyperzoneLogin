@@ -65,8 +65,6 @@ dependencies {
     // access is required and class loading works without the bootstrap download step.
     runtimeOnly(libs.configurateExtraKotlin)
     runtimeOnly(libs.configurateHocon)
-    runtimeOnly(libs.configurateGson)
-    runtimeOnly(libs.configurateYaml)
     runtimeOnly(libs.exposedCore)
     runtimeOnly(libs.exposedJdbc)
     runtimeOnly(libs.sqliteJdbc)

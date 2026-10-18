@@ -86,6 +86,7 @@ object MessageKeys {
         const val USAGE_BINDCODE_USE = "hzl.usage.bindcode-use"
         const val USAGE_UUID = "hzl.usage.uuid"
         const val RELOADED = "hzl.reloaded"
+        const val CONFIG_REGENERATED = "hzl.config-regenerated"
         const val REAUTH_START = "hzl.reauth-start"
         const val AUTH_FLOW_UNAVAILABLE = "hzl.auth-flow-unavailable"
         const val UUID_PROXY_PLAYER = "hzl.uuid.proxy-player"

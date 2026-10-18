@@ -65,7 +65,6 @@ bstatsVelocity = { group = "org.bstats", name = "bstats-velocity", version.ref =
 jarRelocator = { group = "me.lucko", name = "jar-relocator", version.ref = "jarRelocator" }
 
 configurateHocon = { group = "org.spongepowered", name = "configurate-hocon", version.ref = "configurate" }
-configurateGson = { group = "org.spongepowered", name = "configurate-gson", version.ref = "configurate" }
 configurateYaml = { group = "org.spongepowered", name = "configurate-yaml", version.ref = "configurate" }
 configurateExtraKotlin = { group = "org.spongepowered", name = "configurate-extra-kotlin", version.ref = "configurate" }
 angusMail = { group = "org.eclipse.angus", name = "angus-mail", version.ref = "angusMail" }

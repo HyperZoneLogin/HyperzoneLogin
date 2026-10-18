@@ -21,9 +21,11 @@
 
 package icu.h2l.login.chatsession.net
 
+import com.velocitypowered.api.proxy.server.ServerInfo
 import com.velocitypowered.proxy.connection.MinecraftConnection
 import com.velocitypowered.proxy.connection.backend.VelocityServerConnection
 import com.velocitypowered.proxy.connection.client.ConnectedPlayer
+import icu.h2l.api.config.HZLConfigRegistry
 import icu.h2l.api.log.error
 import icu.h2l.api.log.warn
 import icu.h2l.api.player.HyperZonePlayer
@@ -158,11 +160,44 @@ class ChatSessionKillerPacketReplacer(
         val connection = ctx.channel().pipeline().get(MinecraftConnection::class.java) ?: return null
         val association = connection.association as? VelocityServerConnection ?: return null
 
+        // limbo 登录服无需拦截 CHAT_SESSION_UPDATE：直接退役，免去逐包结构解析。
+        if (isLimboLoginServer(association.server.serverInfo)) {
+            retire()
+            return null
+        }
+
         player = association.player
         val resolvedHyperPlayer = playerAccessor.getByPlayerOrNull(player)
         hyperPlayer = resolvedHyperPlayer
         shouldKill = ChatSessionPacketIdTable.isKillEnabled()
                 && resolvedHyperPlayer?.isOnlinePlayer == true
         return Unit
+    }
+
+    /**
+     * 判断指定后端 [ServerInfo] 是否属于「limbo 登录服」。
+     *
+     * 通过 [HZLConfigRegistry] 读取核心 `core.conf` 的 limbo 配置（避免依赖核心类）：
+     * - limbo 未启用（`config.vserver.limbo.enabled` 非 true）→ false；
+     * - 否则比对登录服逻辑名（outpre 用 auth-label，backend 用 fallback-auth-server）。
+     */
+    private fun isLimboLoginServer(serverInfo: ServerInfo?): Boolean {
+        if (serverInfo == null) return false
+        val core = HZLConfigRegistry.get("core") ?: return false
+
+        val limboEnabled = core.get("config.vserver.limbo.enabled") as? Boolean ?: return false
+        if (!limboEnabled) return false
+
+        val mode = (core.get("config.vserver.mode") as? String).orEmpty().trim().lowercase()
+        val loginName = if (mode == "outpre") {
+            val authLabel = (core.get("config.vserver.outpre.auth-label") as? String).orEmpty().trim()
+            val authHost = (core.get("config.vserver.outpre.auth-host") as? String).orEmpty().trim()
+            val authPort = (core.get("config.vserver.outpre.auth-port") as? Number)?.toInt() ?: -1
+            authLabel.ifBlank { "$authHost:$authPort" }
+        } else {
+            (core.get("config.vserver.backend.fallback-auth-server") as? String).orEmpty().trim()
+        }
+
+        return loginName.isNotBlank() && loginName.equals(serverInfo.name, ignoreCase = true)
     }
 }

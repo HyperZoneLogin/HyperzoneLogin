@@ -73,4 +73,4 @@ publishing {
         mavenLocal()
     }
 }
-dependencies { compileOnly(libs.configurateHocon); compileOnly(libs.configurateGson); compileOnly(libs.configurateYaml); compileOnly(libs.configurateExtraKotlin) }
+dependencies { compileOnly(libs.configurateHocon); compileOnly(libs.configurateExtraKotlin); testImplementation(libs.configurateHocon); testImplementation(libs.configurateExtraKotlin) }
