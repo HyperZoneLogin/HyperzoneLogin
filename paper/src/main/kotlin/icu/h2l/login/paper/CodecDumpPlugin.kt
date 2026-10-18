@@ -22,7 +22,6 @@
 package icu.h2l.login.paper
 
 import net.minecraft.SharedConstants
-import net.minecraft.core.Holder
 import net.minecraft.core.Registry
 import net.minecraft.core.RegistryAccess
 import net.minecraft.core.RegistrySynchronization
@@ -33,6 +32,7 @@ import net.minecraft.nbt.NbtOps
 import net.minecraft.resources.RegistryOps
 import net.minecraft.resources.ResourceKey
 import net.minecraft.server.MinecraftServer
+import net.minecraft.tags.TagNetworkSerialization
 import net.kyori.adventure.nbt.TagStringIO
 import org.bukkit.command.CommandSender
 import org.bukkit.plugin.java.JavaPlugin
@@ -67,7 +67,7 @@ class CodecDumpPlugin : JavaPlugin() {
         val tagsOut = outputDir.resolve("tags_$key.snbt")
 
         Files.writeString(codecOut, toSnbt(buildCodec(frozen)))
-        Files.writeString(tagsOut, toSnbt(buildTags(frozen)))
+        Files.writeString(tagsOut, toSnbt(buildTags()))
 
         sender.sendMessage("§a[codecgen] 已导出 registry codec + tags:")
         sender.sendMessage("§7  $codecOut")
@@ -141,12 +141,27 @@ class CodecDumpPlugin : JavaPlugin() {
         return codec
     }
 
-    private fun buildTags(frozen: RegistryAccess.Frozen): CompoundTag {
+    private fun buildTags(): CompoundTag {
         val tags = CompoundTag()
-        for (entry in frozen.registries()) {
-            val registryName = entry.key().identifier().toString()
+        // 用服务端构建 ClientboundUpdateTagsPacket 的同一函数，避免把 villager_trade
+        // 这类服务端专属 registry 也发出去（客户端 RegistryAccess 里没有它，会直接崩）。
+        val payloads = TagNetworkSerialization.serializeTagsToNetwork(MinecraftServer.getServer().registries())
+        for ((key, payload) in payloads) {
+            val registryName = key.identifier().toString()
             if (!isAllowedTagRegistry(registryName)) continue
-            collectTags(entry.value(), registryName, tags)
+            val registryTags = CompoundTag()
+            for ((tagId, ids) in payload.tags()) {
+                val tagName = tagId.toString()
+                if (tagName.startsWith("paper:")) continue
+                val list = ListTag()
+                for (id in ids.toIntArray()) {
+                    list.add(IntTag.valueOf(id))
+                }
+                registryTags.put(tagName, list)
+            }
+            if (!registryTags.isEmpty) {
+                tags.put(registryName, registryTags)
+            }
         }
         return tags
     }
@@ -159,21 +174,5 @@ class CodecDumpPlugin : JavaPlugin() {
     private fun isAllowedTagRegistry(name: String): Boolean {
         if (name.startsWith("paper:")) return false
         return !name.startsWith("minecraft:worldgen/") || name == "minecraft:worldgen/biome"
-    }
-
-    private fun <T : Any> collectTags(registry: Registry<T>, name: String, out: CompoundTag) {
-        val registryTags = CompoundTag()
-        for (named in registry.getTags()) {
-            val tagName = named.key().location().toString()
-            if (tagName.startsWith("paper:")) continue
-            val ids = ListTag()
-            for (holder: Holder<T> in named) {
-                ids.add(IntTag.valueOf(registry.getId(holder.value())))
-            }
-            registryTags.put(tagName, ids)
-        }
-        if (!registryTags.isEmpty) {
-            out.put(name, registryTags)
-        }
     }
 }
