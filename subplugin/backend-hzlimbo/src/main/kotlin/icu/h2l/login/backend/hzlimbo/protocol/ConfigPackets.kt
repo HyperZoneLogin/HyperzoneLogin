@@ -83,8 +83,4 @@ object ConfigPackets {
         }
         return RegistrySyncPacket().also { it.replace(buf) }
     }
-
-    /** 依据协议号取整份 codec 并下发（1.20.2 ~ 1.20.4）。 */
-    fun wholeCodecRegistrySync(version: ProtocolVersion): RegistrySyncPacket =
-        wholeCodecRegistrySync(version, RegistryCodec.codec(version.protocol))
 }

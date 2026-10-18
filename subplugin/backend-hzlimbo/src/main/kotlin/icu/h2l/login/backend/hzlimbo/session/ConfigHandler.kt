@@ -43,25 +43,25 @@ class ConfigHandler(
 
     override fun activated() {
         val version = connection.protocolVersion
-        val protocol = version.protocol
 
-        if (protocol >= ProtocolVersions.P_1_20_5) {
+        if (version.protocol >= ProtocolVersions.P_1_20_5) {
             // 1.20.5+：先发 KnownPacks，等客户端回应后再发 registry + tags。
             connection.write(ConfigPackets.knownPacks(version))
         } else {
-            // 1.20.2 ~ 1.20.4：整份 codec + finish configuration。
-            connection.write(ConfigPackets.wholeCodecRegistrySync(version))
+            // 1.20.2 ~ 1.20.4：整份（精简后的）codec + finish configuration。
+            val codec = RegistryCodec.filtered(version.protocol).codec
+            connection.write(ConfigPackets.wholeCodecRegistrySync(version, codec))
             connection.write(FinishedUpdatePacket.INSTANCE)
         }
     }
 
     override fun handle(knownPacks: KnownPacksPacket): Boolean {
         val version = connection.protocolVersion
-        val codec = RegistryCodec.codec(version.protocol)
-        for ((registryType, entries) in RegistryCodec.registries(codec)) {
+        val filtered = RegistryCodec.filtered(version.protocol)
+        for ((registryType, entries) in filtered.registries) {
             connection.write(ConfigPackets.registryData(version, registryType, entries))
         }
-        connection.write(TagsUpdatePacket(RegistryCodec.tags(version.protocol)))
+        connection.write(TagsUpdatePacket(filtered.tags))
         connection.write(FinishedUpdatePacket.INSTANCE)
         return true
     }

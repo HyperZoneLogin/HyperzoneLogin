@@ -30,32 +30,127 @@ import net.kyori.adventure.nbt.TagStringIO
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * 加载并缓存每个协议版本对应的 registry codec（`codec_*.snbt`）与 registry tags（`tags_*.snbt`）。
+ * 加载并缓存每个协议版本对应的精简 registry codec / tags。
  *
- * 这些 `.snbt` 文件是「维度的注册表快照数据」（dimension_type、worldgen/biome 等 + tags），
- * 由真实的 Minecraft 服务端数据生成器产出；limbo 没有后端服务，因此必须自带这些版本相关数据，
- * 在 configuration 阶段下发给客户端。
+ * 裁剪规则见 [MinimalRegistryTable]。资源文件本身可以已是裁剪后的版本（发布体积更小），
+ * 这里的裁剪是幂等的：对已裁剪数据再跑一次规则不会继续丢条目。
  *
- * 资源文件以 SNBT（stringified NBT）文本存放，方便 git 比对；读取时解析为 [CompoundBinaryTag]。
+ * 资源文件使用 SNBT（stringified NBT）文本，方便 git 比对；读取时解析为 [CompoundBinaryTag]。
  */
 object RegistryCodec {
 
     private const val RESOURCE_PREFIX = "/dimension/"
 
-    private val codecs = ConcurrentHashMap<String, CompoundBinaryTag>()
-    private val tags = ConcurrentHashMap<String, Map<String, Map<String, IntArray>>>()
+    private val fullCodecs = ConcurrentHashMap<String, CompoundBinaryTag>()
+    private val rawTags = ConcurrentHashMap<String, Map<String, Map<String, IntArray>>>()
+    private val filtered = ConcurrentHashMap<String, Filtered>()
 
-    /** 依据协议号返回 registry codec。 */
-    fun codec(protocol: Int): CompoundBinaryTag =
-        codecs.computeIfAbsent(ProtocolVersions.codecKey(protocol)) { key ->
+    /**
+     * 精简后的 registry 数据。
+     *
+     * - [codec]：1.20.2 ~ 1.20.4 的整份 codec（单包下发）；
+     * - [registries]：1.20.5+ 的逐 registry 条目；
+     * - [tags]：需要下发的 tags（id 已按裁剪后的条目重映射）。
+     */
+    data class Filtered(
+        val codec: CompoundBinaryTag,
+        val registries: List<Pair<String, List<Pair<String, BinaryTag?>>>>,
+        val tags: Map<String, Map<String, IntArray>>,
+    )
+
+    /** 依据协议号返回裁剪后的 codec / registries / tags。 */
+    fun filtered(protocol: Int): Filtered =
+        filtered.computeIfAbsent(ProtocolVersions.codecKey(protocol)) {
+            buildFiltered(protocol)
+        }
+
+    private fun buildFiltered(protocol: Int): Filtered {
+        val full = fullCodecs.computeIfAbsent(ProtocolVersions.codecKey(protocol)) { key ->
             readCompound("${RESOURCE_PREFIX}codec_$key.snbt")
         }
-
-    /** 依据协议号返回 registry tags（仅 1.20.5+ 使用）。 */
-    fun tags(protocol: Int): Map<String, Map<String, IntArray>> =
-        tags.computeIfAbsent(ProtocolVersions.tagsKey(protocol)) { key ->
-            parseTags(readCompound("${RESOURCE_PREFIX}tags_$key.snbt"))
+        // 1.20.2 ~ 1.20.4 不发 tags，Tagged 规则退化为 All。
+        val allTags = if (protocol >= ProtocolVersions.P_1_20_5) {
+            rawTags.computeIfAbsent(ProtocolVersions.tagsKey(protocol)) { key ->
+                parseTags(readCompound("${RESOURCE_PREFIX}tags_$key.snbt"))
+            }
+        } else {
+            emptyMap()
         }
+
+        val registries = ArrayList<Pair<String, List<Pair<String, BinaryTag?>>>>()
+        val tags = LinkedHashMap<String, Map<String, IntArray>>()
+        val codecBuilder = CompoundBinaryTag.builder()
+
+        for ((registryType, rule) in MinimalRegistryTable.CODEC) {
+            if (registryType !in full.keySet()) continue
+
+            val entries = full.getCompound(registryType).getList("value").map { raw ->
+                val entry = raw as CompoundBinaryTag
+                RawEntry(
+                    originalId = entry.getInt("id"),
+                    name = entry.getString("name"),
+                    element = entry.get("element"),
+                )
+            }
+            val registryTags = allTags[registryType]
+            val kept = applyRule(rule, entries, registryTags)
+            if (kept.isEmpty()) continue
+
+            // 客户端按列表顺序重新分配 id；记录旧 id -> 新 id 供 tags 重映射。
+            val idMap = kept.withIndex().associate { (index, entry) -> entry.originalId to index }
+
+            registries += registryType to kept.map { it.name to it.element }
+
+            val valueList = ListBinaryTag.builder()
+            kept.forEachIndexed { index, entry ->
+                val entryTag = CompoundBinaryTag.builder()
+                entryTag.putString("name", entry.name)
+                entryTag.putInt("id", index)
+                if (entry.element != null) {
+                    entryTag.put("element", entry.element)
+                }
+                valueList.add(entryTag.build())
+            }
+            val registryTag = CompoundBinaryTag.builder()
+            registryTag.putString("type", registryType)
+            registryTag.put("value", valueList.build())
+            codecBuilder.put(registryType, registryTag.build())
+
+            val tagNames = MinimalRegistryTable.TAGS[registryType]
+            if (tagNames != null && registryTags != null) {
+                val out = LinkedHashMap<String, IntArray>()
+                for (tagName in tagNames) {
+                    val ids = registryTags[tagName] ?: continue
+                    out[tagName] = ids.toList().mapNotNull { idMap[it] }.toIntArray()
+                }
+                if (out.isNotEmpty()) {
+                    tags[registryType] = out
+                }
+            }
+        }
+
+        return Filtered(codecBuilder.build(), registries, tags)
+    }
+
+    private data class RawEntry(val originalId: Int, val name: String, val element: BinaryTag?)
+
+    private fun applyRule(
+        rule: MinimalRegistryTable.Rule,
+        entries: List<RawEntry>,
+        tags: Map<String, IntArray>?,
+    ): List<RawEntry> = when (rule) {
+        is MinimalRegistryTable.Rule.All -> entries
+        is MinimalRegistryTable.Rule.Named -> entries.filter { it.name in rule.names }
+        is MinimalRegistryTable.Rule.First -> entries.take(rule.count)
+        is MinimalRegistryTable.Rule.Tagged ->
+            if (tags == null) {
+                // 老版本不发送 tags，保守保留全部。
+                entries
+            } else {
+                val ids = rule.tags.flatMap { tag -> tags[tag]?.toList() ?: emptyList() }.toSet()
+                entries.filter { it.originalId in ids || it.name in rule.names }
+            }
+    }
 
     private fun readCompound(path: String): CompoundBinaryTag {
         val input = RegistryCodec::class.java.getResourceAsStream(path)
@@ -67,8 +162,6 @@ object RegistryCodec {
 
     /**
      * 把 tags NBT 解析为 `registry -> (tag -> entry ids)`。
-     *
-     * 结构与 NanoLimbo `DimensionRegistry.parseUpdateTags` 一致。
      */
     private fun parseTags(root: CompoundBinaryTag): Map<String, Map<String, IntArray>> {
         val result = HashMap<String, Map<String, IntArray>>()
@@ -83,20 +176,4 @@ object RegistryCodec {
         }
         return result
     }
-
-    /**
-     * 返回 codec 顶层每个 registry 的条目，形如 `(registryType, [(name, element)])`。
-     *
-     * 仅用于 1.20.5+ 的 per-registry registry data 下发。
-     */
-    fun registries(codec: CompoundBinaryTag): List<Pair<String, List<Pair<String, BinaryTag?>>>> =
-        codec.map { (registryType, raw) ->
-            val compound = raw as CompoundBinaryTag
-            val values = compound.getList("value")
-            val entries = values.map { entry ->
-                val tag = entry as CompoundBinaryTag
-                tag.getString("name") to tag.get("element")
-            }
-            registryType to entries
-        }
 }
