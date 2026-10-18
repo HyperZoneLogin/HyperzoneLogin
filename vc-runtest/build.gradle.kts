@@ -51,14 +51,14 @@ dependencies {
     runtimeOnly(libs.velocityApi)
     runtimeOnly(project(":api"))
     runtimeOnly(project(":velocity"))
-    runtimeOnly(project(":auth-floodgate"))
-    runtimeOnly(project(":auth-offline"))
-    runtimeOnly(project(":auth-yggd"))
-    runtimeOnly(project(":data-merge"))
-    runtimeOnly(project(":profile-skin"))
-    runtimeOnly(project(":safe"))
-    runtimeOnly(project(":backend-nanolimbo"))
-    runtimeOnly(project(":helper-chatsession"))
+    runtimeOnly(project(":subplugin:auth-floodgate"))
+    runtimeOnly(project(":subplugin:auth-offline"))
+    runtimeOnly(project(":subplugin:auth-yggd"))
+    runtimeOnly(project(":subplugin:data-merge"))
+    runtimeOnly(project(":subplugin:profile-skin"))
+    runtimeOnly(project(":subplugin:safe"))
+    runtimeOnly(project(":subplugin:backend-nanolimbo"))
+    runtimeOnly(project(":subplugin:helper-chatsession"))
 
     // Runtime libraries that are normally downloaded by the main plugin bootstrap.
     // In the dev environment we provide them directly on the classpath so no network

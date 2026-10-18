@@ -30,9 +30,9 @@ dependencies {
     // Build as a standalone Velocity plugin; reference API at compile time only
     compileOnly(project(":api"))
     // The auth modules are separate plugins; keep compileOnly if you reference them
-    compileOnly(project(":auth-yggd"))
-    compileOnly(project(":auth-offline"))
-    compileOnly(project(":auth-floodgate"))
+    compileOnly(project(":subplugin:auth-yggd"))
+    compileOnly(project(":subplugin:auth-offline"))
+    compileOnly(project(":subplugin:auth-floodgate"))
 
     compileOnly(libs.velocityApi)
     compileOnly(libs.brigadier)

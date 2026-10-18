@@ -57,12 +57,12 @@ If you are new to the project, start here:
 For module-specific details, see the READMEs inside:
 
 - [`velocity`](./velocity/README.md)
-- [`auth-offline`](./auth-offline/README.md)
-- [`auth-yggd`](./auth-yggd/README.md)
-- [`auth-floodgate`](./auth-floodgate/README.md)
-- [`safe`](./safe/README.md)
-- [`data-merge`](./data-merge/README.md)
-- [`profile-skin`](./profile-skin/README.md)
+- [`auth-offline`](./subplugin/auth-offline/README.md)
+- [`auth-yggd`](./subplugin/auth-yggd/README.md)
+- [`auth-floodgate`](./subplugin/auth-floodgate/README.md)
+- [`safe`](./subplugin/safe/README.md)
+- [`data-merge`](./subplugin/data-merge/README.md)
+- [`profile-skin`](./subplugin/profile-skin/README.md)
 
 ## Community
 

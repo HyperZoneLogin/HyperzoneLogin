@@ -49,12 +49,12 @@ HyperZoneLogin 适合需要统一认证入口的代理服网络，例如：
 如果你想查看子模块说明，也可以直接阅读：
 
 - [`velocity/README.md`](./velocity/README.md)
-- [`auth-offline/README.md`](./auth-offline/README.md)
-- [`auth-yggd/README.md`](./auth-yggd/README.md)
-- [`auth-floodgate/README.md`](./auth-floodgate/README.md)
-- [`safe/README.md`](./safe/README.md)
-- [`data-merge/README.md`](./data-merge/README.md)
-- [`profile-skin/README.md`](./profile-skin/README.md)
+- [`auth-offline/README.md`](./subplugin/auth-offline/README.md)
+- [`auth-yggd/README.md`](./subplugin/auth-yggd/README.md)
+- [`auth-floodgate/README.md`](./subplugin/auth-floodgate/README.md)
+- [`safe/README.md`](./subplugin/safe/README.md)
+- [`data-merge/README.md`](./subplugin/data-merge/README.md)
+- [`profile-skin/README.md`](./subplugin/profile-skin/README.md)
 
 ## 社区
 

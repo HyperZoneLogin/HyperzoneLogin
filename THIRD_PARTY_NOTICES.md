@@ -42,8 +42,8 @@ HyperZoneLogin 在 `profile-skin` 模块中的 MineSkin 成功响应签名校验
 
 本仓库中下列文件包含基于 SkinsRestorer 思路改编的实现或说明：
 
-- `profile-skin/src/main/kotlin/icu/h2l/login/profile/skin/service/ProfileSkinService.kt`
-- `profile-skin/README.md`
+- `subplugin/profile-skin/src/main/kotlin/icu/h2l/login/profile/skin/service/ProfileSkinService.kt`
+- `subplugin/profile-skin/README.md`
 
 这些改编内容用于在 `profile-skin` 模块中：
 

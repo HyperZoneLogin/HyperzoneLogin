@@ -79,7 +79,7 @@ body:
     attributes:
       label: 你已经看过哪些文档
       description: 请列出你已经阅读过的手册章节或 README，避免重复回答
-      placeholder: 例如 1服务器基础配置、2模块介绍、auth-yggd/README.md
+      placeholder: 例如 1服务器基础配置、2模块介绍、subplugin/auth-yggd/README.md
     validations:
       required: true
 

@@ -52,14 +52,14 @@ kotlin {
 }
 
 val embeddedModuleProjects = listOf(
-    project(":backend-nanolimbo"),
-    project(":auth-floodgate"),
-    project(":auth-offline"),
-    project(":auth-yggd"),
-    project(":data-merge"),
-    project(":safe"),
-    project(":profile-skin"),
-    project(":helper-chatsession"),
+    project(":subplugin:backend-nanolimbo"),
+    project(":subplugin:auth-floodgate"),
+    project(":subplugin:auth-offline"),
+    project(":subplugin:auth-yggd"),
+    project(":subplugin:data-merge"),
+    project(":subplugin:safe"),
+    project(":subplugin:profile-skin"),
+    project(":subplugin:helper-chatsession"),
 )
 
 val relocateBstatsCompileOnlyJar = tasks.register<ShadowJar>("relocateBstatsCompileOnlyJar") {
@@ -185,7 +185,7 @@ tasks {
 
         embeddedModuleProjects.forEach { embeddedProject ->
             dependsOn(embeddedProject.tasks.named("classes"))
-            if (embeddedProject.path == ":backend-nanolimbo") {
+            if (embeddedProject.path == ":subplugin:backend-nanolimbo") {
                 val backendNanolimboJar = embeddedProject.tasks.named("jar", Jar::class)
                 dependsOn(backendNanolimboJar)
                 from(backendNanolimboJar.flatMap { it.archiveFile }.map { archive -> zipTree(archive.asFile) }) {

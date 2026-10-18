@@ -194,17 +194,17 @@ spotless {
     kotlin {
         target(
             "api/src/**/*.kt",
-            "auth-floodgate/src/**/*.kt",
-            "auth-offline/src/**/*.kt",
-            "auth-yggd/src/**/*.kt",
             "cli/src/**/*.kt",
-            "data-merge/src/**/*.kt",
-            "backend-nanolimbo/src/**/*.kt",
-            "helper-chatsession/src/**/*.kt",
-            "profile-skin/src/**/*.kt",
-            "safe/src/**/*.kt",
             "vc-runtest/src/**/*.kt",
             "velocity/src/**/*.kt",
+            "subplugin/auth-floodgate/src/**/*.kt",
+            "subplugin/auth-offline/src/**/*.kt",
+            "subplugin/auth-yggd/src/**/*.kt",
+            "subplugin/data-merge/src/**/*.kt",
+            "subplugin/backend-nanolimbo/src/**/*.kt",
+            "subplugin/helper-chatsession/src/**/*.kt",
+            "subplugin/profile-skin/src/**/*.kt",
+            "subplugin/safe/src/**/*.kt",
         )
         licenseHeader(kotlinLicenseHeader, kotlinSourceHeaderDelimiter)
     }
@@ -214,17 +214,17 @@ spotless {
             "build.gradle.kts",
             "settings.gradle.kts",
             "api/build.gradle.kts",
-            "auth-floodgate/build.gradle.kts",
-            "auth-offline/build.gradle.kts",
-            "auth-yggd/build.gradle.kts",
             "cli/build.gradle.kts",
-            "data-merge/build.gradle.kts",
-            "backend-nanolimbo/build.gradle.kts",
-            "helper-chatsession/build.gradle.kts",
-            "profile-skin/build.gradle.kts",
-            "safe/build.gradle.kts",
             "vc-runtest/build.gradle.kts",
             "velocity/build.gradle.kts",
+            "subplugin/auth-floodgate/build.gradle.kts",
+            "subplugin/auth-offline/build.gradle.kts",
+            "subplugin/auth-yggd/build.gradle.kts",
+            "subplugin/data-merge/build.gradle.kts",
+            "subplugin/backend-nanolimbo/build.gradle.kts",
+            "subplugin/helper-chatsession/build.gradle.kts",
+            "subplugin/profile-skin/build.gradle.kts",
+            "subplugin/safe/build.gradle.kts",
         )
         licenseHeader(kotlinLicenseHeader, kotlinGradleHeaderDelimiter)
     }
@@ -324,7 +324,7 @@ val collectSplitPluginJars = tasks.register<Sync>("collectSplitPluginJars") {
     from(velocityProject.tasks.named("jar", Jar::class).flatMap { it.archiveFile })
 
     subprojects
-        .filter { it.path != ":api" && it.path != ":velocity" && it.path != ":vc-runtest" && it.path != ":cli" }
+        .filter { it.path.startsWith(":subplugin:") }
         .forEach { subproject ->
             val archiveTaskName = "jar"
             dependsOn(subproject.tasks.named(archiveTaskName))
