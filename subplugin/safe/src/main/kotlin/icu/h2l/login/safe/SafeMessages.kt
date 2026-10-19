@@ -28,79 +28,60 @@ import net.kyori.adventure.text.Component
 object SafeMessages {
     private const val NAMESPACE = "safe"
 
-    fun usernameLengthInvalid(): Component = render("username.length-invalid", "用户名长度不符合要求")
-    fun usernameWhitespaceInvalid(): Component = render("username.whitespace-invalid", "用户名不能包含首尾空白")
-    fun usernamePatternInvalid(): Component = render("username.pattern-invalid", "用户名包含不允许的字符")
+    fun usernameLengthInvalid(): Component = render("username.length-invalid")
+    fun usernameWhitespaceInvalid(): Component = render("username.whitespace-invalid")
+    fun usernamePatternInvalid(): Component = render("username.pattern-invalid")
 
     fun entryRejected(reason: Component): Component {
-        val service = HyperZoneMessageServiceProvider.getOrNull()
-        return service?.render(
+        return HyperZoneMessageServiceProvider.get().render(
             "$NAMESPACE.entry-rejected",
             HyperZoneMessagePlaceholder.component("reason", reason)
-        ) ?: Component.text("连接已被入口防护拒绝：${reason}")
+        )
     }
 
     fun authFailureCooldown(seconds: Long): Component {
-        return render(
-            "auth-failure-cooldown",
-            "该 IP 因认证失败过多已被临时限制，请在 <seconds> 秒后再试",
+        return render("auth-failure-cooldown",
             HyperZoneMessagePlaceholder.text("seconds", seconds)
         )
     }
 
     fun ipCooldown(seconds: Long): Component {
-        return render(
-            "ip-cooldown",
-            "你的 IP 已被临时限制，请在 <seconds> 秒后再试",
+        return render("ip-cooldown",
             HyperZoneMessagePlaceholder.text("seconds", seconds)
         )
     }
 
     fun globalRateLimited(strictMode: Boolean): Component {
         return render(
-            if (strictMode) "global-rate-limited.strict" else "global-rate-limited.normal",
-            if (strictMode) "当前连接请求过于频繁，请稍后再试（当前为高峰防护模式）" else "当前连接请求过于频繁，请稍后再试"
+            if (strictMode) "global-rate-limited.strict" else "global-rate-limited.normal"
         )
     }
 
     fun ipRateLimited(seconds: Long?): Component {
         return if (seconds != null) {
-            render(
-                "ip-rate-limited.cooldown",
-                "你的 IP 请求过于频繁，已被临时限制 <seconds> 秒",
+            render("ip-rate-limited.cooldown",
                 HyperZoneMessagePlaceholder.text("seconds", seconds)
             )
         } else {
-            render("ip-rate-limited.normal", "你的 IP 请求过于频繁，请稍后再试")
+            render("ip-rate-limited.normal")
         }
     }
 
     fun ipRateLimitedStrict(): Component {
-        return render("ip-rate-limited.strict", "你的 IP 请求过于频繁，请稍后再试（当前为高峰防护模式）")
+        return render("ip-rate-limited.strict")
     }
 
     fun ipConcurrentLimitReached(max: Int): Component {
-        return render(
-            "ip-concurrent-limit",
-            "同一 IP 同时在线人数已达上限（<max>），请联系管理员或等待其他会话结束",
+        return render("ip-concurrent-limit",
             HyperZoneMessagePlaceholder.text("max", max)
         )
     }
 
     private fun render(
         key: String,
-        fallback: String,
         vararg placeholders: HyperZoneMessagePlaceholder
     ): Component {
-        val service = HyperZoneMessageServiceProvider.getOrNull()
-        return service?.render("$NAMESPACE.$key", *placeholders)
-            ?: Component.text(placeholders.fold(fallback) { acc, placeholder ->
-                val replacement = when (placeholder) {
-                    is HyperZoneMessagePlaceholder.Text -> placeholder.value
-                    is HyperZoneMessagePlaceholder.ComponentValue -> placeholder.value.toString()
-                }
-                acc.replace("<${placeholder.name}>", replacement)
-            })
+        return HyperZoneMessageServiceProvider.get().render("$NAMESPACE.$key", *placeholders)
     }
 }
 

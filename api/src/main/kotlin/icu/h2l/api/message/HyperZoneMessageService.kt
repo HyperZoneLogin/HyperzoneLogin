@@ -70,10 +70,5 @@ object HyperZoneMessageServiceProvider {
      * 获取已绑定的消息服务，若尚未初始化则抛错。
      */
     fun get(): HyperZoneMessageService = service ?: error("HyperZone message service is not available yet")
-
-    /**
-     * 获取已绑定的消息服务，若当前不可用则返回 `null`。
-     */
-    fun getOrNull(): HyperZoneMessageService? = service
 }
 

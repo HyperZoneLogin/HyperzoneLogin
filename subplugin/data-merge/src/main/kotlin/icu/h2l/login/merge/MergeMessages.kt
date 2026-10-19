@@ -29,25 +29,22 @@ import net.kyori.adventure.text.Component
 object MergeMessages {
     private const val NAMESPACE = "data-merge"
 
-    fun usageMl(source: CommandSource): Component = render(source, "usage.ml", "/hzl-merge ml")
-    fun usageAm(source: CommandSource): Component = render(source, "usage.am", "/hzl-merge am")
-    fun alreadyRunning(source: CommandSource): Component = render(source, "already-running", "迁移正在执行中，请稍后再试")
-    fun startMl(source: CommandSource): Component = render(source, "start.ml", "开始执行 ML 迁移，请稍候...")
-    fun startAm(source: CommandSource): Component = render(source, "start.am", "开始执行 AUTHME 迁移，请稍候...")
+    fun usageMl(source: CommandSource): Component = render(source, "usage.ml")
+    fun usageAm(source: CommandSource): Component = render(source, "usage.am")
+    fun alreadyRunning(source: CommandSource): Component = render(source, "already-running")
+    fun startMl(source: CommandSource): Component = render(source, "start.ml")
+    fun startAm(source: CommandSource): Component = render(source, "start.am")
 
     fun completed(source: CommandSource, summary: String): Component {
-        return render(source, "completed", "迁移完成: <summary>", HyperZoneMessagePlaceholder.text("summary", summary))
+        return render(source, "completed", HyperZoneMessagePlaceholder.text("summary", summary))
     }
 
     fun detailLog(source: CommandSource, fileName: String): Component {
-        return render(source, "detail-log", "详细日志已输出到 <file_name>", HyperZoneMessagePlaceholder.text("file_name", fileName))
+        return render(source, "detail-log", HyperZoneMessagePlaceholder.text("file_name", fileName))
     }
 
     fun failed(source: CommandSource, reason: String?): Component {
-        return render(
-            source,
-            "failed",
-            "迁移失败: <reason>",
+        return render(source, "failed",
             HyperZoneMessagePlaceholder.text("reason", reason ?: "未知错误")
         )
     }
@@ -55,18 +52,9 @@ object MergeMessages {
     private fun render(
         source: CommandSource,
         key: String,
-        fallback: String,
         vararg placeholders: HyperZoneMessagePlaceholder
     ): Component {
-        val service = HyperZoneMessageServiceProvider.getOrNull()
-        return service?.render(source, "$NAMESPACE.$key", *placeholders)
-            ?: Component.text(placeholders.fold(fallback) { acc, placeholder ->
-                val replacement = when (placeholder) {
-                    is HyperZoneMessagePlaceholder.Text -> placeholder.value
-                    is HyperZoneMessagePlaceholder.ComponentValue -> placeholder.value.toString()
-                }
-                acc.replace("<${placeholder.name}>", replacement)
-            })
+        return HyperZoneMessageServiceProvider.get().render(source, "$NAMESPACE.$key", *placeholders)
     }
 }
 

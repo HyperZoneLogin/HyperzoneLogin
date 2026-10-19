@@ -33,75 +33,52 @@ object YggdrasilMessages {
      * 返回"注册已被禁用"的原因文本，用于作为 [profileResolveFailed] 的 reason 参数。
      */
     fun registrationDisabledReason(player: HyperZonePlayer): String {
-        val service = HyperZoneMessageServiceProvider.getOrNull()
-        return service?.render(player, "$NAMESPACE.registration-disabled-reason")
-            ?.let { net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(it) }
-            ?: "当前渠道已被管理员禁止新玩家注册；若你已有档案，请使用 /bindcode use [绑定码]"
+        val component = HyperZoneMessageServiceProvider.get().render(player, "$NAMESPACE.registration-disabled-reason")
+        return net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(component)
     }
 
     fun authInProgress(player: HyperZonePlayer): Component {
-        return render(player, "auth-in-progress", "正在进行 Yggdrasil 验证，请稍候…")
+        return render(player, "auth-in-progress")
     }
 
     fun authSucceeded(player: HyperZonePlayer): Component {
-        return render(player, "auth-succeeded", "Yggdrasil 验证通过，正在准备档案与皮肤信息…")
+        return render(player, "auth-succeeded")
     }
 
     fun profileResolveFailed(player: HyperZonePlayer, reason: String): Component {
-        return render(
-            player,
-            "profile-resolve-failed",
-            "$reason。若当前是建档名称冲突，请使用 /rename [新注册名]；若要绑定已有档案，请使用 /bindcode use [绑定码]。",
+        return render(player, "profile-resolve-failed",
             HyperZoneMessagePlaceholder.text("reason", reason)
         )
     }
 
     fun verifyCompleteFailed(player: HyperZonePlayer, reason: String): Component {
-        return render(
-            player,
-            "verify-complete-failed",
-            "认证成功，但 Profile 绑定失败：$reason。若当前是建档名称冲突，请使用 /rename [新注册名]；若要绑定已有档案，请使用 /bindcode use [绑定码]。",
+        return render(player, "verify-complete-failed",
             HyperZoneMessagePlaceholder.text("reason", reason)
         )
     }
 
     fun authFailed(player: HyperZonePlayer, reason: String): Component {
-        return render(player, "auth-failed", "Yggdrasil 验证失败：<reason>", HyperZoneMessagePlaceholder.text("reason", reason))
+        return render(player, "auth-failed", HyperZoneMessagePlaceholder.text("reason", reason))
     }
 
     fun firstBatchFailed(player: HyperZonePlayer, reason: String, statusCode: Int?): Component {
-        val fallback = if (statusCode != null) {
-            "第一批次验证失败: $reason (HTTP $statusCode)"
-        } else {
-            "第一批次验证失败: $reason"
-        }
         return render(
             player,
             if (statusCode != null) "first-batch-failed-with-status" else "first-batch-failed",
-            fallback,
             HyperZoneMessagePlaceholder.text("reason", reason),
             HyperZoneMessagePlaceholder.text("status", statusCode ?: "")
         )
     }
 
     fun firstBatchTimeout(player: HyperZonePlayer): Component {
-        return render(player, "first-batch-timeout", "第一批次验证超时")
+        return render(player, "first-batch-timeout")
     }
 
     private fun render(
         player: HyperZonePlayer,
         key: String,
-        fallback: String,
         vararg placeholders: HyperZoneMessagePlaceholder
     ): Component {
-        val service = HyperZoneMessageServiceProvider.getOrNull()
-        return service?.render(player, "$NAMESPACE.$key", *placeholders)
-            ?: Component.text(placeholders.fold(fallback) { acc, placeholder ->
-                val replacement = when (placeholder) {
-                    is HyperZoneMessagePlaceholder.Text -> placeholder.value
-                    is HyperZoneMessagePlaceholder.ComponentValue -> placeholder.value.toString()
-                }
-                acc.replace("<${placeholder.name}>", replacement)
-            })
+        return HyperZoneMessageServiceProvider.get().render(player, "$NAMESPACE.$key", *placeholders)
     }
 }

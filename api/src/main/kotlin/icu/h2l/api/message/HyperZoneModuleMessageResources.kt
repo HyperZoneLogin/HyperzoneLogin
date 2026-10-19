@@ -51,7 +51,7 @@ object HyperZoneModuleMessageResources {
             copyFile(commentDirectory, namespace, classLoader, "config-comments", localeKey)
         }
 
-        HyperZoneMessageServiceProvider.getOrNull()?.reload()
+        HyperZoneMessageServiceProvider.get().reload()
         ConfigCommentTranslatorProvider.getOrNull()?.reload()
     }
 

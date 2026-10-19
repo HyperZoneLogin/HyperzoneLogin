@@ -30,83 +30,57 @@ object FloodgateMessages {
     private const val NAMESPACE = "auth-floodgate"
 
     fun initPlayerFailed(): Component {
-        return render("init-player-failed", "Floodgate 登录失败：登录对象初始化失败。")
+        return render("init-player-failed")
     }
 
 
     fun registrationDisabled(player: HyperZonePlayer): Component {
-        return render(
-            player,
-            "registration-disabled",
-            "Floodgate 已完成可信认证，但当前渠道已被管理员禁止新玩家注册。若你已有档案，请使用 /bindcode use [绑定码]。"
-        )
+        return render(player, "registration-disabled")
     }
 
     fun registrationDisabledByName(playerName: String): Component {
-        return render(
-            "registration-disabled",
-            "Floodgate 已完成可信认证，但当前渠道已被管理员禁止新玩家注册。若你已有档案，请使用 /bindcode use [绑定码]。",
+        return render("registration-disabled",
             HyperZoneMessagePlaceholder.text("player", playerName)
         )
     }
 
     fun createBlocked(player: HyperZonePlayer): Component {
-        return render(
-            player,
-            "create-blocked",
-            "Floodgate 已完成可信认证，但当前注册名无法创建 Profile。请使用 /rename [新注册名] 或 /bindcode use [绑定码]。"
-        )
+        return render(player, "create-blocked")
     }
 
     fun createBlockedByName(playerName: String): Component {
-        return render(
-            "create-blocked",
-            "Floodgate 已完成可信认证，但当前注册名无法创建 Profile。请使用 /rename [新注册名] 或 /bindcode use [绑定码]。",
+        return render("create-blocked",
             HyperZoneMessagePlaceholder.text("player", playerName)
         )
     }
 
     fun completeFailed(player: HyperZonePlayer): Component {
-        return render(player, "complete-failed", "Floodgate 登录失败：认证完成阶段出错。")
+        return render(player, "complete-failed")
     }
 
     fun completeFailedByName(playerName: String): Component {
-        return render(
-            "complete-failed",
-            "Floodgate 登录失败：认证完成阶段出错。",
+        return render("complete-failed",
             HyperZoneMessagePlaceholder.text("player", playerName)
         )
     }
 
     fun genericDisconnect(): Component {
-        return render("generic-disconnect", "Floodgate 登录失败。")
+        return render("generic-disconnect")
     }
 
     private fun render(
         key: String,
-        fallback: String,
         vararg placeholders: HyperZoneMessagePlaceholder
     ): Component {
-        val service = HyperZoneMessageServiceProvider.getOrNull()
-        return service?.render("$NAMESPACE.$key", *placeholders)
-            ?: Component.text(placeholders.fold(fallback) { acc, placeholder ->
-                val replacement = when (placeholder) {
-                    is HyperZoneMessagePlaceholder.Text -> placeholder.value
-                    is HyperZoneMessagePlaceholder.ComponentValue -> placeholder.value.toString()
-                }
-                acc.replace("<${placeholder.name}>", replacement)
-            })
+        return HyperZoneMessageServiceProvider.get().render("$NAMESPACE.$key", *placeholders)
     }
 
     private fun render(
         player: HyperZonePlayer,
         key: String,
-        fallback: String,
         vararg placeholders: HyperZoneMessagePlaceholder
     ): Component {
-        val service = HyperZoneMessageServiceProvider.getOrNull()
-        return service?.render(player, "$NAMESPACE.$key", *placeholders)
-            ?: render(key, fallback, *placeholders)
+        return HyperZoneMessageServiceProvider.get().render(player, "$NAMESPACE.$key", *placeholders)
     }
 }
 

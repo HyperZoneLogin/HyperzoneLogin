@@ -29,33 +29,23 @@ object ProfileSkinMessages {
     private const val NAMESPACE = "profile-skin"
 
     fun processing(player: HyperZonePlayer): Component {
-        val service = HyperZoneMessageServiceProvider.getOrNull()
-        return service?.render(player, "$NAMESPACE.processing")
-            ?: Component.text("正在处理皮肤信息，请稍候…")
+        return HyperZoneMessageServiceProvider.get().render(player, "$NAMESPACE.processing")
     }
 
     fun ready(player: HyperZonePlayer): Component {
-        val service = HyperZoneMessageServiceProvider.getOrNull()
-        return service?.render(player, "$NAMESPACE.ready")
-            ?: Component.text("皮肤信息处理完成，进入游戏后将自动应用。")
+        return HyperZoneMessageServiceProvider.get().render(player, "$NAMESPACE.ready")
     }
 
     fun readyWithFallback(player: HyperZonePlayer): Component {
-        val service = HyperZoneMessageServiceProvider.getOrNull()
-        return service?.render(player, "$NAMESPACE.ready-with-fallback")
-            ?: Component.text("皮肤信息处理完成，但使用了回退结果，显示可能不稳定。")
+        return HyperZoneMessageServiceProvider.get().render(player, "$NAMESPACE.ready-with-fallback")
     }
 
     fun noSkin(player: HyperZonePlayer): Component {
-        val service = HyperZoneMessageServiceProvider.getOrNull()
-        return service?.render(player, "$NAMESPACE.no-skin")
-            ?: Component.text("未检测到可用皮肤信息，将使用默认外观。")
+        return HyperZoneMessageServiceProvider.get().render(player, "$NAMESPACE.no-skin")
     }
 
     fun repairFailed(player: HyperZonePlayer): Component {
-        val service = HyperZoneMessageServiceProvider.getOrNull()
-        return service?.render(player, "$NAMESPACE.repair-failed")
-            ?: Component.text("皮肤修复失败，需要重新进入游戏")
+        return HyperZoneMessageServiceProvider.get().render(player, "$NAMESPACE.repair-failed")
     }
 }
 

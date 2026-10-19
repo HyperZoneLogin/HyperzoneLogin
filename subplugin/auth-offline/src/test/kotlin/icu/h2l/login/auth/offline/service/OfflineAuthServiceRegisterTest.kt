@@ -33,6 +33,7 @@ import icu.h2l.api.profile.HyperZoneCredentialFlow
 import icu.h2l.api.profile.HyperZoneCredentialFlowProvider
 import icu.h2l.api.profile.HyperZoneProfileService
 import icu.h2l.login.auth.offline.OfflineAuthMessages
+import icu.h2l.login.auth.offline.TestMessageService
 import icu.h2l.login.auth.offline.api.db.OfflineAuthTable
 import icu.h2l.login.auth.offline.config.AuthOfflineConfigLoader
 import icu.h2l.login.auth.offline.db.OfflineAuthRepository
@@ -69,6 +70,7 @@ class OfflineAuthServiceRegisterTest {
 
     @BeforeEach
     fun setUp() {
+        TestMessageService.install()
         AuthOfflineConfigLoader.load(tempDir)
         AuthOfflineConfigLoader.getConfig().main.passOfflineUuidToProfileResolve = false
 
