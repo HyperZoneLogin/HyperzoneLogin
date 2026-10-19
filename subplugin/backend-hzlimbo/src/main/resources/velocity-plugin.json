@@ -1,0 +1,8 @@
+{
+  "id": "hzl-backend-hzlimbo",
+  "name": "HyperZoneLogin - Backend HzLimbo",
+  "version": "${pluginVersion}",
+  "authors": ["ksqeib"],
+  "dependencies": [{"id":"hyperzonelogin","optional":false}],
+  "main": "icu.h2l.login.backend.hzlimbo.HzLimboPlugin"
+}

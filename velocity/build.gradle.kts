@@ -60,6 +60,8 @@ val embeddedModuleProjects = listOf(
     project(":subplugin:safe"),
     project(":subplugin:profile-skin"),
     project(":subplugin:helper-chatsession"),
+    // 注意：backend-nanolimbo 是可选模块，不嵌入 all-in-one（build/HZL）；
+    // 它由 collectSplitPluginJars 单独收集。
 )
 
 val relocateBstatsCompileOnlyJar = tasks.register<ShadowJar>("relocateBstatsCompileOnlyJar") {

@@ -41,6 +41,7 @@ dependencies {
 }
 
 tasks.named<Jar>("jar") {
+    // Keep the default version so the standalone plugin jar carries the same
+    // version as the rest of the distribution (HZL-backend-hzlimbo-<version>.jar).
     archiveClassifier.set("")
-    archiveVersion.set("")
 }

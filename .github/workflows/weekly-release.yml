@@ -17,10 +17,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          # subplugin/backend-nanolimbo/NanoLimbo is a git submodule holding the vendored NanoLimbo
-          # Java sources. Without this, the empty directory is checked out and
-          # :subplugin:backend-nanolimbo:compileKotlin fails with unresolved references to every
-          # NanoLimbo type (LimboServer, LimboConfig, PacketHandler, ...).
+          # backend-nanolimbo 是 HZL-nanolimbo submodule（其内部还有 NanoLimbo submodule）；
+          # 它不嵌入 all-in-one，但会作为可选模块单独构建/发布。
           submodules: recursive
 
       - name: Set up JDK 25
@@ -46,7 +44,7 @@ jobs:
           echo "name=HyperZoneLogin $TAG" >> "$GITHUB_OUTPUT"
 
       - name: Build plugin jars
-        run: ./gradlew clean build buildCtdDistributions -PreleaseChannel=WEEKLY
+        run: ./gradlew clean build buildAllDistributions buildCtdDistributions -PreleaseChannel=WEEKLY
 
       - name: Update weekly tag
         run: |
@@ -66,12 +64,35 @@ jobs:
           removeArtifacts: true
           artifacts: |
             build/HZL/*
+            build/HZL-split/*
             build/HZL-ctd/*
           body: |
             This is an automatically generated weekly prerelease build for HyperZoneLogin.
 
-            Included artifacts are collected from `build/HZL/` and VelocityCTD artifacts are collected from `build/HZL-ctd/`.
+            - `build/HZL/`: all-in-one plugin (plugin + embedded modules + CLI)
+            - `build/HZL-split/`: split plugin and optional module jars (incl. `backend-nanolimbo`)
+            - `build/HZL-ctd/`: VelocityCTD-flavored all-in-one plugin
+
+            The optional `backend-nanolimbo` module is maintained in the separate
+            [HZL-nanolimbo](https://github.com/HyperZoneLogin/HZL-nanolimbo) repository and is not bundled
+            into the all-in-one jar.
 
             If you encounter issues, please open an Issue and include environment, modules, logs, config snippets, and reproduction steps.
           generateReleaseNotes: true
+
+      # 同步触发 HZL-nanolimbo 仓库的发布（可选；需要配置 HZL_NANOLIMBO_TOKEN）。
+      - name: Dispatch HZL-nanolimbo release
+        continue-on-error: true
+        env:
+          TOKEN: ${{ secrets.HZL_NANOLIMBO_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "HZL_NANOLIMBO_TOKEN 未配置，跳过 HZL-nanolimbo 同步发布。"
+            exit 0
+          fi
+          curl -fsS -X POST \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/HyperZoneLogin/HZL-nanolimbo/dispatches \
+            -d '{"event_type":"hzl-weekly","client_payload":{"tag":"${{ steps.meta.outputs.tag }}"}}'
 

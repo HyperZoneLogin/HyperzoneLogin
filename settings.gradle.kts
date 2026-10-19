@@ -55,3 +55,11 @@ include("subplugin:profile-skin")
 include("subplugin:helper-chatsession")
 include("subplugin:backend-hzlimbo")
 include("paper")
+
+// backend-nanolimbo 已拆分到独立仓库 HZL-nanolimbo，以 git submodule 形式放在
+// subplugin/backend-nanolimbo。检出时默认参与构建（作为可选模块，不嵌入 all-in-one）；
+// submodule 未初始化（目录为空）时自动跳过。
+val nanolimboDir = file("subplugin/backend-nanolimbo")
+if (nanolimboDir.resolve("build.gradle.kts").isFile) {
+    include("subplugin:backend-nanolimbo")
+}

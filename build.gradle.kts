@@ -391,7 +391,7 @@ val buildMonolith = tasks.register("buildMonolith") {
 
 val buildAllDistributions = tasks.register("buildAllDistributions") {
     group = "build"
-    description = "Builds both the all-in-one and split HyperZoneLogin distributions."
+    description = "Builds the all-in-one and split (incl. optional modules) distributions."
     dependsOn(collectPluginJars)
     dependsOn(collectSplitPluginJars)
 }
@@ -418,6 +418,8 @@ val printVersionInfo = tasks.register("printVersionInfo") {
 
 tasks.named("assemble") {
     dependsOn(collectPluginJars)
+    // 构建时自动生成 split 分发（主插件 + 各可选模块，含 backend-nanolimbo）。
+    dependsOn(collectSplitPluginJars)
 }
 
 tasks.named("check") {
