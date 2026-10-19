@@ -29,6 +29,7 @@ import net.minecraft.nbt.CompoundTag
 import net.minecraft.nbt.IntTag
 import net.minecraft.nbt.ListTag
 import net.minecraft.nbt.NbtOps
+import net.minecraft.network.protocol.game.GameProtocols
 import net.minecraft.resources.RegistryOps
 import net.minecraft.resources.ResourceKey
 import net.minecraft.server.MinecraftServer
@@ -55,6 +56,26 @@ class CodecDumpPlugin : JavaPlugin() {
             true
         }
         runCatching { dump(server.consoleSender) }
+        runCatching { dumpPacketIds() }
+    }
+
+    private fun dumpPacketIds() {
+        val wanted = setOf(
+            "minecraft:initialize_border",
+            "minecraft:keep_alive",
+            "minecraft:level_chunk_with_light",
+            "minecraft:player_abilities",
+            "minecraft:login",
+            "minecraft:set_default_spawn_position",
+            "minecraft:synchronize_player_position",
+            "minecraft:game_event",
+        )
+        GameProtocols.CLIENTBOUND_TEMPLATE.details().listPackets { type, id ->
+            val name = type.id().toString()
+            if (name in wanted) {
+                logger.info("[codecgen] $name = 0x${id.toString(16)} ($id)")
+            }
+        }
     }
 
     private fun dump(sender: CommandSender) {

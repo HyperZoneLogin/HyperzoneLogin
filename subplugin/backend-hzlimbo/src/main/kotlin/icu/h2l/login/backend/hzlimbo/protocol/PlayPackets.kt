@@ -23,6 +23,7 @@ package icu.h2l.login.backend.hzlimbo.protocol
 
 import com.velocitypowered.api.network.ProtocolVersion
 import com.velocitypowered.proxy.protocol.ProtocolUtils
+import icu.h2l.login.backend.hzlimbo.config.HzLimboConfig
 import io.netty.buffer.ByteBuf
 import io.netty.buffer.Unpooled
 import net.kyori.adventure.nbt.CompoundBinaryTag
@@ -44,6 +45,17 @@ object PlayPackets {
     private const val VIEW_DISTANCE = 2
     private const val SIMULATION_DISTANCE = 2
     private const val GAME_MODE_ADVENTURE = 2
+
+    /** overworld 最低 Y。 */
+    private const val MIN_Y = -64
+
+    /** 空气 / 石头的全局 block state id（1.20.2+ 稳定）。 */
+    private const val AIR_STATE_ID = 0
+    private const val STONE_STATE_ID = 1
+
+    /** 光照 section 数（24 个方块 section + 上下各 1）。 */
+    private const val LIGHT_SECTIONS = 26
+    private const val LIGHT_MASK = 0x3FFFFFFL
 
     // ---------------------------------------------------------------------
     // packet id（clientbound, play 阶段）
@@ -109,6 +121,19 @@ object PlayPackets {
         else -> 0x25
     }
 
+    /** `initialize_border` 的包 id（各版本不同；未知版本返回 null，不发送边界）。 */
+    private fun borderId(p: Int): Int? = when {
+        p >= ProtocolVersions.P_26_3 -> 0x2C
+        p == ProtocolVersions.P_26_2 -> null // 26.2 未验证，避免发包错位
+        p >= ProtocolVersions.P_26_1 -> 0x2B
+        p >= ProtocolVersions.P_1_21_9 -> 0x2A
+        p >= ProtocolVersions.P_1_21_5 -> 0x25
+        p >= ProtocolVersions.P_1_21_2 -> 0x26
+        p >= ProtocolVersions.P_1_20_5 -> 0x25
+        p >= ProtocolVersions.P_1_20_2 -> 0x23
+        else -> null
+    }
+
     // ---------------------------------------------------------------------
     // 入口：生成一条已写入 packet id 的原始包
     // ---------------------------------------------------------------------
@@ -157,38 +182,51 @@ object PlayPackets {
         return buf
     }
 
-    /** 生成 PlayerAbilities 包（悬停，禁止飞行速度）。 */
-    fun playerAbilities(version: ProtocolVersion): ByteBuf {
+    /** 生成 PlayerAbilities 包。 */
+    fun playerAbilities(version: ProtocolVersion, allowMovement: Boolean): ByteBuf {
         val buf = Unpooled.buffer()
         ProtocolUtils.writeVarInt(buf, abilitiesId(version.protocol))
-        buf.writeByte(0x02) // flying（悬停，不给 canFly 以免玩家自行切回下落）
-        buf.writeFloat(0.0f) // flying speed
-        buf.writeFloat(0.1f) // field of view modifier
+        if (allowMovement) {
+            buf.writeByte(0x00) // 正常行走（重力生效）
+            buf.writeFloat(0.05f) // flying speed
+        } else {
+            buf.writeByte(0x02) // flying（原地悬停）
+            buf.writeFloat(0.0f) // flying speed
+        }
+        buf.writeFloat(0.1f) // walking speed / FOV modifier
         return buf
     }
 
-    /** 生成 PlayerPositionAndLook 包（虚空出生点）。 */
-    fun playerPositionAndLook(version: ProtocolVersion, teleportId: Int): ByteBuf {
+    /** 生成 PlayerPositionAndLook 包。 */
+    fun playerPositionAndLook(
+        version: ProtocolVersion,
+        teleportId: Int,
+        x: Double,
+        y: Double,
+        z: Double,
+        yaw: Float,
+        pitch: Float,
+    ): ByteBuf {
         val p = version.protocol
         val buf = Unpooled.buffer()
         ProtocolUtils.writeVarInt(buf, positionAndLookId(p))
         if (p >= ProtocolVersions.P_1_21_2) {
             ProtocolUtils.writeVarInt(buf, teleportId)
-            buf.writeDouble(0.0) // x
-            buf.writeDouble(400.0) // y
-            buf.writeDouble(0.0) // z
+            buf.writeDouble(x)
+            buf.writeDouble(y)
+            buf.writeDouble(z)
             buf.writeDouble(0.0) // velocity x
             buf.writeDouble(0.0) // velocity y
             buf.writeDouble(0.0) // velocity z
-            buf.writeFloat(0.0f) // yaw
-            buf.writeFloat(0.0f) // pitch
+            buf.writeFloat(yaw)
+            buf.writeFloat(pitch)
             buf.writeInt(0x08) // flags (relative x/y/z + rotation)
         } else {
-            buf.writeDouble(0.0) // x
-            buf.writeDouble(400.0) // y
-            buf.writeDouble(0.0) // z
-            buf.writeFloat(0.0f) // yaw
-            buf.writeFloat(0.0f) // pitch
+            buf.writeDouble(x)
+            buf.writeDouble(y)
+            buf.writeDouble(z)
+            buf.writeFloat(yaw)
+            buf.writeFloat(pitch)
             buf.writeByte(0x08) // flags
             ProtocolUtils.writeVarInt(buf, teleportId)
         }
@@ -196,17 +234,24 @@ object PlayPackets {
     }
 
     /** 生成 SpawnPosition 包。 */
-    fun spawnPosition(version: ProtocolVersion): ByteBuf {
+    fun spawnPosition(
+        version: ProtocolVersion,
+        x: Int,
+        y: Int,
+        z: Int,
+        yaw: Float,
+        pitch: Float,
+    ): ByteBuf {
         val p = version.protocol
         val buf = Unpooled.buffer()
         ProtocolUtils.writeVarInt(buf, spawnPositionId(p))
         if (p >= ProtocolVersions.P_1_21_9) {
             ProtocolUtils.writeString(buf, "minecraft:overworld")
         }
-        buf.writeLong(encodeBlockPosition(0, 400, 0))
-        buf.writeFloat(0.0f) // yaw
+        buf.writeLong(encodeBlockPosition(x, y, z))
+        buf.writeFloat(yaw)
         if (p >= ProtocolVersions.P_1_21_9) {
-            buf.writeFloat(0.0f) // pitch
+            buf.writeFloat(pitch)
         }
         return buf
     }
@@ -220,17 +265,43 @@ object PlayPackets {
         return buf
     }
 
-    /** 生成一个完全为空的虚空 chunk（含光照）。 */
-    fun emptyChunk(version: ProtocolVersion, x: Int, z: Int): ByteBuf {
+    /** 生成一个带内置石台的 chunk（含高度图与光照）。 */
+    fun chunk(
+        version: ProtocolVersion,
+        x: Int,
+        z: Int,
+        world: HzLimboConfig.WorldConfig,
+    ): ByteBuf {
         val p = version.protocol
         val buf = Unpooled.buffer()
         ProtocolUtils.writeVarInt(buf, chunkId(p))
         buf.writeInt(x)
         buf.writeInt(z)
-        writeHeightmaps(buf, version)
-        writeBlocksData(buf, p)
+        writeHeightmaps(buf, version, world)
+        writeBlocksData(buf, p, world)
         ProtocolUtils.writeVarInt(buf, 0) // no block entities
         writeLightData(buf, p)
+        return buf
+    }
+
+    /** 生成 Initialize World Border 包（未知版本返回 null）。 */
+    fun worldBorder(
+        version: ProtocolVersion,
+        centerX: Double,
+        centerZ: Double,
+        size: Double,
+    ): ByteBuf? {
+        val id = borderId(version.protocol) ?: return null
+        val buf = Unpooled.buffer()
+        ProtocolUtils.writeVarInt(buf, id)
+        buf.writeDouble(centerX)
+        buf.writeDouble(centerZ)
+        buf.writeDouble(size) // old size
+        buf.writeDouble(size) // new size
+        buf.writeByte(0) // lerp time (varlong 0)
+        ProtocolUtils.writeVarInt(buf, size.toInt().coerceAtLeast(1)) // absolute max size
+        ProtocolUtils.writeVarInt(buf, 0) // warning blocks
+        ProtocolUtils.writeVarInt(buf, 0) // warning time
         return buf
     }
 
@@ -238,34 +309,104 @@ object PlayPackets {
     // 内部编码
     // ---------------------------------------------------------------------
 
-    private fun writeHeightmaps(buf: ByteBuf, version: ProtocolVersion) {
+    private fun writeHeightmaps(buf: ByteBuf, version: ProtocolVersion, world: HzLimboConfig.WorldConfig) {
         val p = version.protocol
+        val platform = world.platform
+        // 高度图的值 = 方块 Y - minY + 1；没有石台时保持 0（空）。
+        val height = if (platform.enabled) platform.y - MIN_Y + 1 else 0
+        val motionBlocking = packHeightmap(height)
+
         if (p >= ProtocolVersions.P_1_21_5) {
             ProtocolUtils.writeVarInt(buf, 1) // one heightmap
             ProtocolUtils.writeVarInt(buf, 4) // MOTION_BLOCKING ordinal
-            ProtocolUtils.writeVarInt(buf, 37) // long count
-            repeat(37) { buf.writeLong(0L) }
+            ProtocolUtils.writeVarInt(buf, motionBlocking.size)
+            for (value in motionBlocking) {
+                buf.writeLong(value)
+            }
         } else {
-            val motionBlocking = LongArrayBinaryTag.longArrayBinaryTag(*LongArray(37))
+            val surface = LongArrayBinaryTag.longArrayBinaryTag(*motionBlocking)
             val root = CompoundBinaryTag.builder()
-                .put(
-                    "root",
-                    CompoundBinaryTag.builder().put("MOTION_BLOCKING", motionBlocking).build(),
-                )
+                .put("MOTION_BLOCKING", surface)
+                .put("WORLD_SURFACE", surface)
                 .build()
             ProtocolUtils.writeBinaryTag(buf, version, root)
         }
     }
 
-    private fun writeBlocksData(buf: ByteBuf, p: Int) {
-        val section = Unpooled.buffer()
-        try {
-            writeEmptySection(section, p)
-            ProtocolUtils.writeVarInt(buf, section.readableBytes() * SECTIONS)
-            repeat(SECTIONS) { buf.writeBytes(section, 0, section.readableBytes()) }
-        } finally {
-            section.release()
+    /** 9-bit heightmap，256 列，每 long 7 个值（1.16+ 的打包方式）。 */
+    private fun packHeightmap(height: Int): LongArray {
+        val longs = LongArray(37)
+        val value = (height and 0x1FF).toLong()
+        for (index in 0 until 256) {
+            val cell = index / 7
+            val bit = (index % 7) * 9
+            longs[cell] = longs[cell] or (value shl bit)
         }
+        return longs
+    }
+
+    private fun writeBlocksData(buf: ByteBuf, p: Int, world: HzLimboConfig.WorldConfig) {
+        val platform = world.platform
+        val platformSection = if (platform.enabled) sectionIndex(platform.y) else -1
+
+        val emptySection = Unpooled.buffer()
+        val platformSectionBuf = Unpooled.buffer()
+        try {
+            writeEmptySection(emptySection, p)
+            if (platformSection >= 0) {
+                writePlatformSection(platformSectionBuf, p, platform.y, platformSection)
+            }
+
+            val sectionCount = SECTIONS
+            var dataLength = emptySection.readableBytes() * sectionCount
+            if (platformSection >= 0) {
+                dataLength += platformSectionBuf.readableBytes() - emptySection.readableBytes()
+            }
+            ProtocolUtils.writeVarInt(buf, dataLength)
+
+            for (section in 0 until SECTIONS) {
+                val source = if (section == platformSection) platformSectionBuf else emptySection
+                buf.writeBytes(source, 0, source.readableBytes())
+            }
+        } finally {
+            emptySection.release()
+            platformSectionBuf.release()
+        }
+    }
+
+    /** 计算方块 Y 所在的 section 下标（0..23）。 */
+    private fun sectionIndex(y: Int): Int = ((y - MIN_Y) / 16).coerceIn(0, SECTIONS - 1)
+
+    private fun writePlatformSection(buf: ByteBuf, p: Int, platformY: Int, section: Int) {
+        val localY = platformY - (section * 16 + MIN_Y)
+        buf.writeShort(256) // non-air block count (16x16)
+        if (p >= ProtocolVersions.P_26_1) {
+            buf.writeShort(0) // fluid count
+        }
+
+        // blocks: bits=4, local palette [air(0), stone(1)]
+        buf.writeByte(4)
+        ProtocolUtils.writeVarInt(buf, 2)
+        ProtocolUtils.writeVarInt(buf, AIR_STATE_ID)
+        ProtocolUtils.writeVarInt(buf, STONE_STATE_ID)
+
+        val longs = LongArray(256) // 4096 values * 4 bits / 64
+        for (z in 0 until 16) {
+            for (x in 0 until 16) {
+                val index = (localY shl 8) or (z shl 4) or x
+                val cell = index ushr 4
+                val bit = (index and 15) * 4
+                longs[cell] = longs[cell] or (1L shl bit) // 1 = stone
+            }
+        }
+        if (p < ProtocolVersions.P_1_21_5) {
+            ProtocolUtils.writeVarInt(buf, longs.size)
+        }
+        for (value in longs) {
+            buf.writeLong(value)
+        }
+
+        writeSinglePalette(buf, p) // biomes (plains)
     }
 
     private fun writeEmptySection(buf: ByteBuf, p: Int) {
@@ -286,24 +427,31 @@ object PlayPackets {
     }
 
     private fun writeLightData(buf: ByteBuf, p: Int) {
-        // sky mask / block mask / empty sky mask —— 均为空
-        ProtocolUtils.writeVarInt(buf, 0)
-        ProtocolUtils.writeVarInt(buf, 0)
-        ProtocolUtils.writeVarInt(buf, 0)
-        // empty block mask —— 26 个 bit 全置位
-        if (p >= ProtocolVersions.P_26_3) {
-            ProtocolUtils.writeVarInt(buf, 4)
-            buf.writeByte(0xFF)
-            buf.writeByte(0xFF)
-            buf.writeByte(0xFF)
-            buf.writeByte(0x03)
-        } else {
-            ProtocolUtils.writeVarInt(buf, 1)
-            buf.writeLong(0x3FFFFFFL)
+        // 天空光：26 个 section 全部给 15
+        writeBitSet(buf, p, LIGHT_MASK)
+        ProtocolUtils.writeVarInt(buf, 0) // block light mask
+        ProtocolUtils.writeVarInt(buf, 0) // empty sky light mask
+        writeBitSet(buf, p, LIGHT_MASK) // empty block light mask
+
+        val fullLight = ByteArray(2048) { 0xFF.toByte() } // 4096 nibbles = 15
+        ProtocolUtils.writeVarInt(buf, LIGHT_SECTIONS)
+        repeat(LIGHT_SECTIONS) {
+            ProtocolUtils.writeByteArray(buf, fullLight)
         }
-        // sky / block light updates
-        ProtocolUtils.writeVarInt(buf, 0)
-        ProtocolUtils.writeVarInt(buf, 0)
+        ProtocolUtils.writeVarInt(buf, 0) // block light arrays
+    }
+
+    private fun writeBitSet(buf: ByteBuf, p: Int, mask: Long) {
+        if (p >= ProtocolVersions.P_26_3) {
+            ProtocolUtils.writeVarInt(buf, 4) // byte count
+            buf.writeByte((mask and 0xFF).toInt())
+            buf.writeByte(((mask ushr 8) and 0xFF).toInt())
+            buf.writeByte(((mask ushr 16) and 0xFF).toInt())
+            buf.writeByte(((mask ushr 24) and 0xFF).toInt())
+        } else {
+            ProtocolUtils.writeVarInt(buf, 1) // long count
+            buf.writeLong(mask)
+        }
     }
 
     private fun encodeBlockPosition(x: Int, y: Int, z: Int): Long =

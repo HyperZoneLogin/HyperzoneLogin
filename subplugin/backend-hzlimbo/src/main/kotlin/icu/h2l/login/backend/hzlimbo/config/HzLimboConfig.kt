@@ -37,6 +37,10 @@ class HzLimboConfig {
     @JvmField
     val bind = BindConfig()
 
+    @Comment("config.hzlimbo.world")
+    @JvmField
+    val world = WorldConfig()
+
     // 连接读超时（秒）
     @Comment("config.hzlimbo.read-timeout-seconds")
     val readTimeoutSeconds: Int = 30
@@ -50,5 +54,55 @@ class HzLimboConfig {
         // 监听 Port
         @param:Comment("config.hzlimbo.bind.port")
         val port: Int = 30066,
+    )
+
+    @ConfigSerializable
+    class WorldConfig(
+        // 出生点 X（默认 8.0 = 3x3 区块石台的正中心）
+        @param:Comment("config.hzlimbo.world.spawn-x")
+        val spawnX: Double = 8.0,
+
+        // 出生点 Y
+        @param:Comment("config.hzlimbo.world.spawn-y")
+        val spawnY: Double = 1.0,
+
+        // 出生点 Z（默认 8.0 = 3x3 区块石台的正中心）
+        @param:Comment("config.hzlimbo.world.spawn-z")
+        val spawnZ: Double = 8.0,
+
+        // 朝向（水平角）
+        @param:Comment("config.hzlimbo.world.yaw")
+        val yaw: Float = 0.0f,
+
+        // 俯仰角
+        @param:Comment("config.hzlimbo.world.pitch")
+        val pitch: Float = 0.0f,
+
+        // 以出生点所在区块为中心，向四周发送的区块半径（1 = 3x3）
+        @param:Comment("config.hzlimbo.world.chunk-radius")
+        val chunkRadius: Int = 1,
+
+        // 是否允许玩家自由移动（false 则原地悬停）
+        @param:Comment("config.hzlimbo.world.allow-movement")
+        val allowMovement: Boolean = true,
+
+        // 是否发送世界边界（与石台范围一致）
+        @param:Comment("config.hzlimbo.world.border")
+        val border: Boolean = true,
+    ) {
+        @Comment("config.hzlimbo.world.platform")
+        @JvmField
+        val platform = PlatformConfig()
+    }
+
+    @ConfigSerializable
+    class PlatformConfig(
+        // 是否生成内置石台
+        @param:Comment("config.hzlimbo.world.platform.enabled")
+        val enabled: Boolean = true,
+
+        // 石台表面所在的方块 Y（石台为 1 格厚）
+        @param:Comment("config.hzlimbo.world.platform.y")
+        val y: Int = 0,
     )
 }

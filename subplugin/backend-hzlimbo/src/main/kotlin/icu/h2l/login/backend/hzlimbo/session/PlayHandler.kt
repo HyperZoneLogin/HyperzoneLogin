@@ -50,19 +50,49 @@ class PlayHandler(
 
         val version = connection.protocolVersion
         val protocol = version.protocol
+        val world = server.config().world
 
         connection.write(PlayPackets.joinGame(version, server.nextEntityId()))
-        connection.write(PlayPackets.playerAbilities(version))
-        connection.write(PlayPackets.playerPositionAndLook(version, teleportId))
-        connection.write(PlayPackets.spawnPosition(version))
+        connection.write(PlayPackets.playerAbilities(version, world.allowMovement))
+        connection.write(
+            PlayPackets.playerPositionAndLook(
+                version = version,
+                teleportId = teleportId,
+                x = world.spawnX,
+                y = world.spawnY,
+                z = world.spawnZ,
+                yaw = world.yaw,
+                pitch = world.pitch,
+            ),
+        )
+        connection.write(
+            PlayPackets.spawnPosition(
+                version = version,
+                x = world.spawnX.toInt(),
+                y = world.spawnY.toInt(),
+                z = world.spawnZ.toInt(),
+                yaw = world.yaw,
+                pitch = world.pitch,
+            ),
+        )
         connection.write(brandPacket())
 
         if (protocol >= ProtocolVersions.P_1_20_3) {
             connection.write(PlayPackets.startWaitingForChunks(version))
-            for (chunkX in -1..1) {
-                for (chunkZ in -1..1) {
-                    connection.write(PlayPackets.emptyChunk(version, chunkX, chunkZ))
+            val radius = world.chunkRadius.coerceIn(0, 8)
+            val centerChunkX = Math.floorDiv(world.spawnX.toInt(), 16)
+            val centerChunkZ = Math.floorDiv(world.spawnZ.toInt(), 16)
+            for (chunkX in -radius..radius) {
+                for (chunkZ in -radius..radius) {
+                    connection.write(PlayPackets.chunk(version, centerChunkX + chunkX, centerChunkZ + chunkZ, world))
                 }
+            }
+            if (world.border) {
+                val borderCenterX = centerChunkX * 16 + 8.0
+                val borderCenterZ = centerChunkZ * 16 + 8.0
+                val borderSize = (radius * 2 + 1) * 16.0
+                PlayPackets.worldBorder(version, borderCenterX, borderCenterZ, borderSize)
+                    ?.let { connection.write(it) }
             }
         }
 
