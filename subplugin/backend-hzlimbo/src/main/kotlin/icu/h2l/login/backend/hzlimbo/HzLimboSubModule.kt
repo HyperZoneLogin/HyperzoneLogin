@@ -25,12 +25,15 @@ import com.velocitypowered.api.event.Subscribe
 import com.velocitypowered.api.event.proxy.ProxyShutdownEvent
 import com.velocitypowered.proxy.VelocityServer
 import icu.h2l.api.HyperZoneApi
+import icu.h2l.api.config.HZLConfig
+import icu.h2l.api.config.HZLConfigRegistry
 import icu.h2l.api.log.info
 import icu.h2l.api.log.warn
 import icu.h2l.api.message.HyperZoneModuleMessageResources
 import icu.h2l.api.module.HyperSubModule
-import icu.h2l.api.vServer.HyperZoneVServerLimboReporter
 import icu.h2l.login.backend.hzlimbo.command.HzLimboCommand
+import icu.h2l.login.backend.hzlimbo.config.HzLimboConfig
+import icu.h2l.login.backend.hzlimbo.config.HzLimboConfigLoader
 import java.net.InetSocketAddress
 import java.nio.file.Files
 
@@ -38,8 +41,11 @@ import java.nio.file.Files
  * 内置 HzLimbo 后端模块。
  *
  * 与 backend-nanolimbo 不同，本模块直接复用 Velocity 的网络栈（compileOnly velocity-proxy），
- * 只实现 limbo 特有的连接状态机与固定数据下发；不做 infoForwarding，ping / brand / 玩家列表
- * 全部固定，不提供任何外部配置。
+ * 只实现 limbo 特有的连接状态机与固定数据下发；不做 infoForwarding。
+ *
+ * 配置见 `backend-hzlimbo.conf`。监听地址的解析规则：
+ * - 上层 `vServer.mode = outpre`：直接复用 `v-server.outpre.auth-host` / `auth-port`；
+ * - 其他模式：使用 `backend-hzlimbo.conf` 的 `bind.host` / `bind.port`。
  */
 class HzLimboSubModule : HyperSubModule {
     @Volatile
@@ -53,8 +59,11 @@ class HzLimboSubModule : HyperSubModule {
         Files.createDirectories(dataDirectory)
         HyperZoneModuleMessageResources.copyBundledLocales(api.dataDirectory, "backend-hzlimbo", javaClass.classLoader)
 
-        val bindAddress = resolveBindAddress()
-        val server = HzLimboServer(velocityServer, bindAddress)
+        val config = HzLimboConfigLoader.load(api.dataDirectory)
+        registerConfigAccess(api)
+
+        val bindAddress = resolveBindAddress(config)
+        val server = HzLimboServer(velocityServer, bindAddress, config)
         limboServer = server
 
         api.proxy.eventManager.register(api, object {
@@ -67,7 +76,7 @@ class HzLimboSubModule : HyperSubModule {
 
         val startupThread = Thread {
             runCatching { server.start() }
-                .onSuccess { reportLimboBoundAddress(server) }
+                .onSuccess { info { "backend-hzlimbo 已启动，监听 ${server.boundAddress()}" } }
                 .onFailure { throwable -> warn { "backend-hzlimbo 启动失败: ${throwable.message}" } }
         }
         startupThread.name = "backend-hzlimbo-startup"
@@ -79,6 +88,16 @@ class HzLimboSubModule : HyperSubModule {
         info { "backend-hzlimbo 已加载，后端正在 ${bindAddress} 启动" }
     }
 
+    private fun registerConfigAccess(api: HyperZoneApi) {
+        val access = object : HZLConfig<HzLimboConfig>(
+            api.dataDirectory,
+            HzLimboConfigLoader.FILE_NAME,
+            { HzLimboConfig() },
+        ) {}
+        access.reload()
+        HZLConfigRegistry.register("backend-hzlimbo", access)
+    }
+
     private fun registerCommand(api: HyperZoneApi, server: HzLimboServer) {
         val command = HzLimboCommand(server).createCommand()
         val meta = api.proxy.commandManager.metaBuilder(command).aliases(COMMAND_ALIAS).build()
@@ -86,27 +105,33 @@ class HzLimboSubModule : HyperSubModule {
         info { "backend-hzlimbo 管理命令 /$COMMAND_NAME 与 /$COMMAND_ALIAS 已注册" }
     }
 
-    private fun reportLimboBoundAddress(server: HzLimboServer) {
-        val address = server.boundAddress() as? InetSocketAddress ?: return
-        HyperZoneVServerLimboReporter.report(address.hostString, address.port)
-        info { "backend-hzlimbo 已把实际监听地址 ${address.hostString}:${address.port} 回填给核心层" }
-    }
+    /**
+     * 解析 limbo 的监听地址。
+     *
+     * `vServer.mode = outpre` 时直接读取核心配置里的 outpre 认证服地址，保证与
+     * 转接目标完全一致；其他模式使用模块自己的 `bind` 配置。
+     */
+    private fun resolveBindAddress(config: HzLimboConfig): InetSocketAddress {
+        val core = HZLConfigRegistry.get("core")
+        val mode = (core?.get("config.vserver.mode") as? String)?.trim()?.lowercase()
+        if (mode == "outpre" && core != null) {
+            val host = (core.get("config.vserver.outpre.auth-host") as? String)?.trim().orEmpty()
+            val port = (core.get("config.vserver.outpre.auth-port") as? Int) ?: -1
+            if (host.isNotBlank() && port in 1..65535) {
+                return InetSocketAddress(host, port)
+            }
+            warn { "outpre 的 auth-host/auth-port 无效（host='$host', port=$port），回退到 ${HzLimboConfigLoader.FILE_NAME}" }
+        }
 
-    private fun resolveBindAddress(): InetSocketAddress {
-        val host = System.getProperty(BIND_HOST_PROPERTY, DEFAULT_BIND_HOST)
-        val port = System.getProperty(BIND_PORT_PROPERTY, DEFAULT_BIND_PORT.toString())
-            .toIntOrNull()?.takeIf { it in 1..65535 }
-            ?: error("Invalid ${BIND_PORT_PROPERTY}: ${System.getProperty(BIND_PORT_PROPERTY)}")
+        val host = config.bind.host.trim()
+        val port = config.bind.port
+        require(host.isNotBlank()) { "${HzLimboConfigLoader.FILE_NAME} 的 bind.host 不能为空" }
+        require(port in 1..65535) { "${HzLimboConfigLoader.FILE_NAME} 的 bind.port 无效: $port" }
         return InetSocketAddress(host, port)
     }
 
     companion object {
         private const val COMMAND_NAME = "hzlimbo"
         private const val COMMAND_ALIAS = "hz-limbo"
-
-        private const val BIND_HOST_PROPERTY = "hzlimbo.bindHost"
-        private const val BIND_PORT_PROPERTY = "hzlimbo.bindPort"
-        private const val DEFAULT_BIND_HOST = "127.0.0.1"
-        private const val DEFAULT_BIND_PORT = 30066
     }
 }

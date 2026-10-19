@@ -42,7 +42,6 @@ import icu.h2l.api.util.ConfigCommentTranslatorProvider
 import icu.h2l.api.util.ConfigLoader
 import icu.h2l.login.config.i18n.ConfigCommentI18nService
 import icu.h2l.api.vServer.HyperZoneVServerAdapter
-import icu.h2l.api.vServer.HyperZoneVServerLimboReporter
 import icu.h2l.login.command.BindCodeCommandRegistrar
 import icu.h2l.login.command.HyperZoneLoginCommand
 import icu.h2l.login.command.ReUuidCommand
@@ -166,12 +165,6 @@ class HyperZoneLoginMain(
         // ── 第二步：根据 start.conf 中的 language 初始化配置注释 i18n 服务 ──────────
         ConfigCommentTranslatorProvider.bind(ConfigCommentI18nService(dataDirectory, logger, startConfig.language))
         loadCoreConfig()
-        // limbo 模块启动成功后，会通过该入口把实际监听地址回填到 vServer 配置（仅内存，不落盘），
-        // 供网络注入层识别 limbo 登录服并跳过无关拦截。
-        HyperZoneVServerLimboReporter.bind { host, port ->
-            coreConfig.vServer.limbo.host = host
-            coreConfig.vServer.limbo.port = port
-        }
         credentialChannelRegistry = CredentialChannelRegistryImpl(coreConfig.auth)
         messageService = MessageService(dataDirectory, logger)
         messageService.load(coreConfig.messages)

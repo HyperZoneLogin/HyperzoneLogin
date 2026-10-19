@@ -52,7 +52,7 @@ class HzChannelInitializer(
     override fun initChannel(ch: Channel) {
         ch.pipeline()
             .addLast("frame-decoder", MinecraftVarintFrameDecoder(ProtocolUtils.Direction.SERVERBOUND))
-            .addLast("read-timeout", ReadTimeoutHandler(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS))
+            .addLast("read-timeout", ReadTimeoutHandler(server.config().readTimeoutSeconds.toLong(), TimeUnit.SECONDS))
             .addLast("frame-encoder", MinecraftVarintLengthEncoder.INSTANCE)
             .addLast("minecraft-decoder", MinecraftDecoder(ProtocolUtils.Direction.SERVERBOUND))
             .addLast("minecraft-encoder", MinecraftEncoder(ProtocolUtils.Direction.CLIENTBOUND))
@@ -60,9 +60,5 @@ class HzChannelInitializer(
         val connection = MinecraftConnection(ch, velocityServer, UUID.randomUUID())
         connection.setActiveSessionHandler(StateRegistry.HANDSHAKE, HandshakeHandler(connection, server))
         ch.pipeline().addLast("handler", connection)
-    }
-
-    companion object {
-        private const val READ_TIMEOUT_SECONDS = 30L
     }
 }

@@ -178,14 +178,14 @@ class ChatSessionKillerPacketReplacer(
      * 判断指定后端 [ServerInfo] 是否属于「limbo 登录服」。
      *
      * 通过 [HZLConfigRegistry] 读取核心 `core.conf` 的 limbo 配置（避免依赖核心类）：
-     * - limbo 未启用（`config.vserver.limbo.enabled` 非 true）→ false；
+     * - limbo 未启用（`config.vserver.is-limbo-backend` 非 true）→ false；
      * - 否则比对登录服逻辑名（outpre 用 auth-label，backend 用 fallback-auth-server）。
      */
     private fun isLimboLoginServer(serverInfo: ServerInfo?): Boolean {
         if (serverInfo == null) return false
         val core = HZLConfigRegistry.get("core") ?: return false
 
-        val limboEnabled = core.get("config.vserver.limbo.enabled") as? Boolean ?: return false
+        val limboEnabled = core.get("config.vserver.is-limbo-backend") as? Boolean ?: return false
         if (!limboEnabled) return false
 
         val mode = (core.get("config.vserver.mode") as? String).orEmpty().trim().lowercase()

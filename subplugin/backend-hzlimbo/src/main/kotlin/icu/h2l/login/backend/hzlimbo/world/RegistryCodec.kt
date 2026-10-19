@@ -129,6 +129,20 @@ object RegistryCodec {
             }
         }
 
+        // 静态 registry 的 tags（如 block 的 infiniburn_overworld）：不需要裁剪 codec，
+        // 也不需要重映射 id，直接按原样下发。
+        for ((registryType, tagNames) in MinimalRegistryTable.TAGS) {
+            if (registryType in MinimalRegistryTable.CODEC) continue
+            val registryTags = allTags[registryType] ?: continue
+            val out = LinkedHashMap<String, IntArray>()
+            for (tagName in tagNames) {
+                registryTags[tagName]?.let { out[tagName] = it }
+            }
+            if (out.isNotEmpty()) {
+                tags[registryType] = out
+            }
+        }
+
         return Filtered(codecBuilder.build(), registries, tags)
     }
 

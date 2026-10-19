@@ -11,6 +11,9 @@
     "minecraft:pattern_item/globe": [5],
     "minecraft:pattern_item/guster": [6]
   },
+  "minecraft:block": {
+    "minecraft:infiniburn_overworld": [268, 635]
+  },
   "minecraft:damage_type": {
     "minecraft:is_fire": [17, 1, 22, 20, 16, 29, 10],
     "minecraft:is_explosion": [11, 6, 25, 0],

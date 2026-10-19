@@ -7,6 +7,9 @@
     "minecraft:pattern_item/mojang": [3],
     "minecraft:pattern_item/globe": [2]
   },
+  "minecraft:block": {
+    "minecraft:infiniburn_overworld": [255, 607]
+  },
   "minecraft:damage_type": {
     "minecraft:is_fire": [15, 20, 18, 14, 27, 8],
     "minecraft:is_explosion": [9, 4, 23, 0],

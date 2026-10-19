@@ -24,6 +24,7 @@ package icu.h2l.login.backend.hzlimbo
 import com.velocitypowered.proxy.VelocityServer
 import com.velocitypowered.proxy.connection.MinecraftConnection
 import com.velocitypowered.proxy.protocol.packet.KeepAlivePacket
+import icu.h2l.login.backend.hzlimbo.config.HzLimboConfig
 import icu.h2l.login.backend.hzlimbo.connection.HzChannelInitializer
 import io.netty.bootstrap.ServerBootstrap
 import io.netty.channel.Channel
@@ -49,7 +50,10 @@ import java.util.concurrent.atomic.AtomicInteger
 class HzLimboServer(
     private val velocityServer: VelocityServer,
     private val bindAddress: InetSocketAddress,
+    private val config: HzLimboConfig,
 ) {
+    /** 当前模块配置，供各会话 handler 读取 ping / brand / world 设置。 */
+    fun config(): HzLimboConfig = config
     /** 当前处于 play 阶段的连接，用于 keep-alive 广播与连接计数。 */
     private val connections: MutableSet<MinecraftConnection> = ConcurrentHashMap.newKeySet()
 

@@ -1,4 +1,12 @@
 {
+  "minecraft:timeline": {
+    "minecraft:in_overworld": [3, 0, 2, 1]
+  },
+  "minecraft:damage_type": {
+    "minecraft:is_fire": [19, 2, 25, 22, 18, 33, 35, 12],
+    "minecraft:is_explosion": [13, 8, 28, 0],
+    "minecraft:bypasses_shield": [25, 20, 3, 5, 14, 16, 36, 4, 32, 9, 7, 15, 31, 24, 21, 26, 17, 29, 27, 1, 2, 6, 10, 11, 18, 33, 19, 22, 23, 34]
+  },
   "minecraft:banner_pattern": {
     "minecraft:pattern_item/creeper": [1],
     "minecraft:pattern_item/field_masoned": [0],
@@ -11,12 +19,7 @@
     "minecraft:pattern_item/globe": [5],
     "minecraft:pattern_item/guster": [6]
   },
-  "minecraft:timeline": {
-    "minecraft:in_overworld": [3, 0, 2, 1]
-  },
-  "minecraft:damage_type": {
-    "minecraft:is_fire": [19, 2, 25, 22, 18, 33, 35, 12],
-    "minecraft:is_explosion": [13, 8, 28, 0],
-    "minecraft:bypasses_shield": [25, 20, 3, 5, 14, 16, 36, 4, 32, 9, 7, 15, 31, 24, 21, 26, 17, 29, 27, 1, 2, 6, 10, 11, 18, 33, 19, 22, 23, 34]
+  "minecraft:block": {
+    "minecraft:infiniburn_overworld": [334, 729]
   }
 }

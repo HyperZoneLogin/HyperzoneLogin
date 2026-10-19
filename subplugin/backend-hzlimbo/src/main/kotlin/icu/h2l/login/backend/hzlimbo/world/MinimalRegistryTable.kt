@@ -63,6 +63,10 @@ object MinimalRegistryTable {
         "minecraft:timeline" to setOf(
             "minecraft:in_overworld",
         ),
+        // dimension_type.infiniburn 是 block 标签；block 是静态 registry，只补这一个标签。
+        "minecraft:block" to setOf(
+            "minecraft:infiniburn_overworld",
+        ),
         "minecraft:damage_type" to setOf(
             "minecraft:is_fire",
             "minecraft:bypasses_shield",

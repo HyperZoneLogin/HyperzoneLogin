@@ -40,7 +40,10 @@ object PlayPackets {
     /** 虚空世界固定的 section 数（overworld 高度 384 / 16，1.18+ 至今未变）。 */
     private const val SECTIONS = 24
 
-    private const val GAMEMODE_ADVENTURE = 2
+    private const val MAX_PLAYERS = 100
+    private const val VIEW_DISTANCE = 2
+    private const val SIMULATION_DISTANCE = 2
+    private const val GAME_MODE_ADVENTURE = 2
 
     // ---------------------------------------------------------------------
     // packet id（clientbound, play 阶段）
@@ -118,9 +121,9 @@ object PlayPackets {
         buf.writeInt(entityId)
         buf.writeBoolean(false) // hardcore
         ProtocolUtils.writeStringArray(buf, arrayOf("minecraft:overworld"))
-        ProtocolUtils.writeVarInt(buf, 100) // maxPlayers
-        ProtocolUtils.writeVarInt(buf, 2) // viewDistance
-        ProtocolUtils.writeVarInt(buf, 2) // simulationDistance
+        ProtocolUtils.writeVarInt(buf, MAX_PLAYERS)
+        ProtocolUtils.writeVarInt(buf, VIEW_DISTANCE)
+        ProtocolUtils.writeVarInt(buf, SIMULATION_DISTANCE)
         buf.writeBoolean(true) // reducedDebugInfo
         buf.writeBoolean(true) // showRespawnScreen
         buf.writeBoolean(false) // doLimitedCrafting
@@ -132,10 +135,10 @@ object PlayPackets {
         ProtocolUtils.writeString(buf, "minecraft:overworld") // level name
         buf.writeLong(0L) // seed
         if (p >= ProtocolVersions.P_26_3) {
-            ProtocolUtils.writeVarInt(buf, GAMEMODE_ADVENTURE)
+            ProtocolUtils.writeVarInt(buf, GAME_MODE_ADVENTURE)
             ProtocolUtils.writeVarInt(buf, -1) // previous gamemode
         } else {
-            buf.writeByte(GAMEMODE_ADVENTURE)
+            buf.writeByte(GAME_MODE_ADVENTURE)
             buf.writeByte(-1) // previous gamemode
         }
         buf.writeBoolean(false) // debug

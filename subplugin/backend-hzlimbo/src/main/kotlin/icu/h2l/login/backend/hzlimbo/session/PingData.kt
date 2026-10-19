@@ -22,10 +22,10 @@
 package icu.h2l.login.backend.hzlimbo.session
 
 /**
- * 固定返回的 server list ping 数据。
+ * server list ping 数据。
  *
- * limbo 不对外暴露，因此版本名、描述、玩家槽位全部写死；仅协议号回显客户端版本，
- * 以保证客户端在服务器列表里显示为可连接。
+ * limbo 只作为内部认证等待服，ping 一般不可见，因此版本名/描述/玩家槽位全部写死；
+ * 仅协议号回显客户端版本，保证直连时列表里显示为可连接。
  */
 object PingData {
     private const val VERSION_NAME = "HyperZoneLogin"
