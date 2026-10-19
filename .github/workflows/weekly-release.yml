@@ -44,7 +44,34 @@ jobs:
           echo "name=HyperZoneLogin $TAG" >> "$GITHUB_OUTPUT"
 
       - name: Build plugin jars
-        run: ./gradlew clean build buildAllDistributions buildCtdDistributions -PreleaseChannel=WEEKLY
+        run: ./gradlew clean build buildAllDistributions -PreleaseChannel=WEEKLY
+
+      # VelocityCTD 构建用独立的 Gradle 进程，失败时不应阻塞主产物发布。
+      # continue-on-error 会保留失败步骤的红色标记，但工作流继续执行。
+      - name: Build VelocityCTD plugin jars (optional)
+        id: ctd
+        continue-on-error: true
+        run: ./gradlew buildCtdDistributions -PreleaseChannel=WEEKLY
+
+      - name: Note VelocityCTD failure
+        if: steps.ctd.outcome == 'failure'
+        run: echo "::warning::VelocityCTD 构建失败，已跳过 CTD 产物，其余产物照常发布。"
+
+      # 先把本次成功产出的 jar 收进 release-artifacts，避免 CTD 目录为空时
+      # release 步骤的 glob 匹配不到文件而整体失败。
+      - name: Collect release artifacts
+        env:
+          CTD_OUTCOME: ${{ steps.ctd.outcome }}
+        run: |
+          mkdir -p release-artifacts
+          cp -f build/HZL/*.jar release-artifacts/
+          cp -f build/HZL-split/*.jar release-artifacts/
+          if [ "$CTD_OUTCOME" = "success" ] && compgen -G "build/HZL-ctd/*.jar" > /dev/null; then
+            cp -f build/HZL-ctd/*.jar release-artifacts/
+          else
+            echo "本次没有可用的 VelocityCTD 产物，跳过 CTD jar。"
+          fi
+          ls -l release-artifacts
 
       - name: Update weekly tag
         run: |
@@ -63,15 +90,13 @@ jobs:
           artifactErrorsFailBuild: true
           removeArtifacts: true
           artifacts: |
-            build/HZL/*
-            build/HZL-split/*
-            build/HZL-ctd/*
+            release-artifacts/*
           body: |
             This is an automatically generated weekly prerelease build for HyperZoneLogin.
 
-            - `build/HZL/`: all-in-one plugin (plugin + embedded modules + CLI)
-            - `build/HZL-split/`: split plugin and optional module jars (incl. `backend-nanolimbo`)
-            - `build/HZL-ctd/`: VelocityCTD-flavored all-in-one plugin
+            - All-in-one plugin (plugin + embedded modules + CLI)
+            - Split plugin and optional module jars (incl. `backend-nanolimbo`)
+            - VelocityCTD-flavored all-in-one plugin (only when the optional CTD build succeeds)
 
             The optional `backend-nanolimbo` module is maintained in the separate
             [HZL-nanolimbo](https://github.com/HyperZoneLogin/HZL-nanolimbo) repository and is not bundled
