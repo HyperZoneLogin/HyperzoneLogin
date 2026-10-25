@@ -253,6 +253,7 @@ subprojects {
 
         maven("https://repo.papermc.io/repository/maven-public/")
         maven("https://maven.fabricmc.net/")
+        maven("https://maven.yuluo.dev/repository/maven-public/")
         maven("https://repo.opencollab.dev/maven-snapshots")
         maven("https://maven.elytrium.net/repo/")
         maven {
