@@ -2,8 +2,8 @@ metadata.format.version = "1.1"
 
 [versions]
 
-velocity = "4.2.1-SNAPSHOT"
-velocityCtd = "4.2.1-SNAPSHOT"
+velocity = "4.3.0"
+velocityCtd = "4.3.0"
 asm = "9.7"
 shadow = "9.4.1"
 spotless = "7.2.1"
