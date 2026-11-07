@@ -28,6 +28,7 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
+import org.jetbrains.exposed.sql.update
 import java.util.*
 
 /**
@@ -81,6 +82,31 @@ class BindingCodeDatabaseHelper(
             } > 0
         } catch (e: Exception) {
             warn { "销毁绑定码失败: ${e.message}" }
+            false
+        }
+    }
+
+    override fun delete(userUUID: UUID): Boolean {
+        return try {
+            databaseManager.executeTransaction {
+                table.deleteWhere { table.userUUID eq userUUID }
+            }
+            true
+        } catch (e: Exception) {
+            warn { "删除绑定码失败: ${e.message}" }
+            false
+        }
+    }
+
+    override fun reassignUser(sourceUserUUID: UUID, targetUserUUID: UUID): Boolean {
+        return try {
+            databaseManager.executeTransaction {
+                table.update({ table.userUUID eq sourceUserUUID }) {
+                    it[userUUID] = targetUserUUID
+                }
+            } > 0
+        } catch (e: Exception) {
+            warn { "迁移绑定码失败: ${e.message}" }
             false
         }
     }

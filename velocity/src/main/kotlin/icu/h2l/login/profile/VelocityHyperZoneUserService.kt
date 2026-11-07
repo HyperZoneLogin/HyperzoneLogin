@@ -30,8 +30,10 @@ import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.profile.HyperZoneCredential
 import icu.h2l.api.profile.HyperZoneUserService
 import icu.h2l.api.profile.InGameProfileConflictException
+import icu.h2l.api.profile.UserMergeHandlerRegistry
 import icu.h2l.api.util.RemapUtils
 import icu.h2l.login.HyperZoneLoginMain
+import icu.h2l.login.database.helper.BindingCodeStore
 import icu.h2l.login.database.helper.InGameProfileDatabaseHelper
 import icu.h2l.login.database.helper.UserDatabaseHelper
 import icu.h2l.login.player.VelocityHyperZonePlayer
@@ -51,6 +53,7 @@ import java.util.*
 class VelocityHyperZoneUserService(
     private val userDatabaseHelper: UserDatabaseHelper,
     private val inGameProfileDatabaseHelper: InGameProfileDatabaseHelper,
+    private val bindingCodeStore: BindingCodeStore,
 ) : HyperZoneUserService {
     companion object {
         private const val PROFILE_INSERT_RETRIES = 3
@@ -386,5 +389,70 @@ class VelocityHyperZoneUserService(
         }
 
         return null
+    }
+
+    /**
+     * 将 [sourceUserUUID] 聚合到 [targetUserUUID]。
+     *
+     * 执行顺序固定：
+     * 1. 同步调用模块 [icu.h2l.api.profile.UserMergeHandler]，迁移渠道账号绑定；
+     * 2. 把 source 的 InGameProfile 全部改挂到 target；
+     * 3. target 原本没有活动身份时，沿用 source 的活动身份；
+     * 4. 处理绑定码（target 已有则丢弃 source，否则迁移）；
+     * 5. 删除 source User。
+     *
+     * 任一模块处理器抛错都会中止合并，且不会删除 source。
+     */
+    override fun mergeUsers(sourceUserUUID: UUID, targetUserUUID: UUID): User {
+        if (sourceUserUUID == targetUserUUID) {
+            throw IllegalArgumentException("不能将 User 合并到自身: $sourceUserUUID")
+        }
+        val source = getUser(sourceUserUUID)
+            ?: throw IllegalStateException("未找到待合并的源 User: $sourceUserUUID")
+        val target = getUser(targetUserUUID)
+            ?: throw IllegalStateException("未找到合并目标的 User: $targetUserUUID")
+
+        val sourceActiveIdentity = getActiveInGameProfile(source.id)
+        val targetHadActiveIdentity = getActiveInGameProfile(target.id) != null
+
+        UserMergeHandlerRegistry.getHandlers().forEach { handler ->
+            try {
+                handler.migrateUserBindings(source.id, target.id)
+            } catch (throwable: Throwable) {
+                throw IllegalStateException(
+                    "User 合并失败：模块 ${handler.handlerId} 迁移绑定关系时出错",
+                    throwable,
+                )
+            }
+        }
+
+        inGameProfileDatabaseHelper.reassignUser(source.id, target.id)
+
+        if (!targetHadActiveIdentity && sourceActiveIdentity != null) {
+            userDatabaseHelper.setActiveInGameProfileId(target.id, sourceActiveIdentity.id)
+        }
+
+        val sourceCode = bindingCodeStore.findCode(source.id)
+        if (sourceCode != null) {
+            if (bindingCodeStore.findCode(target.id) == null) {
+                if (!bindingCodeStore.reassignUser(source.id, target.id)) {
+                    throw IllegalStateException("User 合并失败：无法迁移绑定码 $sourceCode")
+                }
+            } else if (!bindingCodeStore.delete(source.id)) {
+                throw IllegalStateException("User 合并失败：无法清理源 User 的绑定码 $sourceCode")
+            }
+        }
+
+        if (!userDatabaseHelper.delete(source.id)) {
+            throw IllegalStateException("User 合并失败：无法删除源 User $sourceUserUUID")
+        }
+
+        debugOutPreTrace {
+            "userService.mergeUsers source=${source.id} target=${target.id} " +
+                "movedActiveInGameProfile=${if (targetHadActiveIdentity) "keep-target" else sourceActiveIdentity?.id}"
+        }
+
+        return getUser(target.id)
+            ?: throw IllegalStateException("User 合并后无法读取目标 User: $targetUserUUID")
     }
 }

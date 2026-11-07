@@ -144,6 +144,16 @@ class UserBindingCodeServiceTest {
         override fun findProfileId(code: String): UUID? = codes[code]
 
         override fun consume(code: String): Boolean = codes.remove(code) != null
+
+        override fun delete(userUUID: UUID): Boolean {
+            return codes.entries.removeIf { it.value == userUUID }
+        }
+
+        override fun reassignUser(sourceUserUUID: UUID, targetUserUUID: UUID): Boolean {
+            val code = findCode(sourceUserUUID) ?: return false
+            codes[code] = targetUserUUID
+            return true
+        }
     }
 
     private class FakeProfileService : HyperZoneUserService {

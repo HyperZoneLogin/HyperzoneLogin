@@ -29,6 +29,7 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
+import org.jetbrains.exposed.sql.update
 import java.util.*
 
 /**
@@ -114,6 +115,22 @@ class InGameProfileDatabaseHelper(
             name = normalizedName,
             uuid = uuid,
         )
+    }
+
+    /**
+     * 将指定 User 名下的全部 InGameProfile 迁移到另一个 User。
+     *
+     * 只更新 `user_uuid`，不修改 `name` / `uuid`。UUID 在整张表中全局唯一，
+     * 因此迁移不会产生行冲突。
+     *
+     * @return 迁移的记录数
+     */
+    fun reassignUser(sourceUserUUID: UUID, targetUserUUID: UUID): Int {
+        return manager.executeTransaction {
+            table.update({ table.userUUID eq sourceUserUUID }) {
+                it[userUUID] = targetUserUUID
+            }
+        }
     }
 
     fun delete(id: UUID): Boolean {

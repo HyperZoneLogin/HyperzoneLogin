@@ -283,6 +283,39 @@ class FloodgateAuthServiceTest {
     }
 
     @Test
+    fun `complete merges stale xuid user into user owning linked java uuid`() {
+        val javaUuid = UUID.fromString("102c37d6-c5e4-42ea-8408-cdfcfa397090")
+        val xuid = 1234567890123456L
+        val sourceUserUUID = UUID.fromString("b058452d-99d7-47ce-a6cb-9bebe6769414")
+        val targetUserUUID = UUID.fromString("d0a8b119-1c3b-484b-9e0e-f416ac614a95")
+        floodgateApiHolder.configuredPlayerPrefix = "."
+        floodgateApiHolder.trustedUuids += javaUuid
+        repository.createOrUpdate("oldname", xuid, sourceUserUUID)
+        every { userService.findInGameProfileByUuid(javaUuid) } returns InGameProfile(
+            id = UUID.randomUUID(),
+            userUUID = targetUserUUID,
+            name = "ksqeib",
+            uuid = javaUuid,
+        )
+        every { userService.getUser(targetUserUUID) } returns User(targetUserUUID)
+        every { userService.mergeUsers(sourceUserUUID, targetUserUUID) } answers {
+            repository.migrateUserBindings(sourceUserUUID, targetUserUUID)
+            User(targetUserUUID)
+        }
+
+        val acceptResult = service.acceptInitialProfile(channel, ".ksqeib", javaUuid, xuid)
+        val result = service.complete(channel, "ksqeib")
+
+        assertSame(FloodgateAuthService.VerifyResult.Accepted, acceptResult)
+        assertTrue(result.handled)
+        assertTrue(result.passed)
+        assertEquals(targetUserUUID, result.userUUIDHint)
+        assertEquals(targetUserUUID, repository.findProfileIdByXuid(xuid))
+        verify(exactly = 1) { userService.mergeUsers(sourceUserUUID, targetUserUUID) }
+        verify(exactly = 0) { userService.createUser(any<HyperZoneCredential>()) }
+    }
+
+    @Test
     fun `acceptInitialProfile strips custom floodgate prefix returned by api`() {
         val userUuid = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
         val xuid = 8888888888888888L
@@ -373,6 +406,20 @@ class FloodgateAuthServiceTest {
         override fun updateGameUuid(xuid: Long, gameUuid: UUID): Boolean {
             val existing = entriesByXuid[xuid] ?: return false
             entriesByXuid[xuid] = existing.copy(gameUuid = gameUuid)
+            return true
+        }
+
+        override fun migrateUserBindings(sourceUserUUID: UUID, targetUserUUID: UUID): Boolean {
+            if (sourceUserUUID == targetUserUUID) {
+                return true
+            }
+            val targetEntry = entriesByXuid.values.firstOrNull { it.userUUID == targetUserUUID }
+            val sourceEntry = entriesByXuid.values.firstOrNull { it.userUUID == sourceUserUUID } ?: return true
+            if (targetEntry == null) {
+                entriesByXuid[sourceEntry.xuid] = sourceEntry.copy(userUUID = targetUserUUID)
+            } else {
+                entriesByXuid.remove(sourceEntry.xuid)
+            }
             return true
         }
     }

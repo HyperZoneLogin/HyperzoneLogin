@@ -39,5 +39,17 @@ interface BindingCodeStore {
     fun findProfileId(code: String): UUID?
 
     fun consume(code: String): Boolean
+
+    /**
+     * 删除指定 User 当前持有的绑定码。
+     */
+    fun delete(userUUID: UUID): Boolean
+
+    /**
+     * 将 source User 当前持有的绑定码迁移到 target User。
+     *
+     * 调用方必须确保 target 当前没有绑定码，否则应使用 [delete] 清理 source 的绑定码。
+     */
+    fun reassignUser(sourceUserUUID: UUID, targetUserUUID: UUID): Boolean
 }
 

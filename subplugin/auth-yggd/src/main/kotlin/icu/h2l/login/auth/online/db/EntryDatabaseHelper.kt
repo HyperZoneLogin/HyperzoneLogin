@@ -23,6 +23,8 @@ package icu.h2l.login.auth.online.db
 
 import icu.h2l.api.db.HyperZoneDatabaseManager
 import icu.h2l.api.log.warn
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.update
@@ -140,6 +142,46 @@ class EntryDatabaseHelper(
                         userUUID = row[entryTable.pid],
                     )
                 }
+        }
+    }
+
+    /**
+     * 把所有已注册入口表中属于 source User 的绑定迁移到 target User。
+     *
+     * 入口表对 `(name, uuid)` 有唯一约束；若 target 已有相同 `(name, uuid)`，
+     * 则删除 source 的重复行，避免迁移产生唯一键冲突。
+     */
+    fun migrateUserBindings(sourceUserUUID: UUID, targetUserUUID: UUID): Boolean {
+        if (sourceUserUUID == targetUserUUID) {
+            return true
+        }
+        return try {
+            entryTableManager.getEntryIds().forEach { entryId ->
+                val entryTable = entryTableManager.getEntryTable(entryId) ?: return@forEach
+                databaseManager.executeTransaction {
+                    val targetKeys = entryTable.selectAll().where { entryTable.pid eq targetUserUUID }
+                        .map { row -> row[entryTable.name] to row[entryTable.uuid] }
+                        .toSet()
+                    val sourceRows = entryTable.selectAll().where { entryTable.pid eq sourceUserUUID }
+                        .map { row -> Triple(row[entryTable.id], row[entryTable.name], row[entryTable.uuid]) }
+                    sourceRows.forEach { (id, name, uuid) ->
+                        if ((name to uuid) in targetKeys) {
+                            warn {
+                                "Yggdrasil 合并：目标 User $targetUserUUID 已存在入口 $entryId 的相同绑定，删除源记录"
+                            }
+                            entryTable.deleteWhere { entryTable.id eq id }
+                        } else {
+                            entryTable.update({ entryTable.id eq id }) {
+                                it[pid] = targetUserUUID
+                            }
+                        }
+                    }
+                }
+            }
+            true
+        } catch (e: Exception) {
+            warn { "迁移 Yggdrasil 入口绑定失败: ${e.message}" }
+            false
         }
     }
 

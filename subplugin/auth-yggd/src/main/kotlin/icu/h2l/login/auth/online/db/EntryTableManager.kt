@@ -62,6 +62,10 @@ class EntryTableManager(
         return entryTables[entryId.lowercase()]
     }
 
+    fun getEntryIds(): Set<String> {
+        return entryTables.keys.toSet()
+    }
+
     fun createAllEntryTables() {
         entryTables.values.forEach(::createEntryTable)
     }

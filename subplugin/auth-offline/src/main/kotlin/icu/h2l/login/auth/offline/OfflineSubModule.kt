@@ -28,6 +28,8 @@ import icu.h2l.api.log.info
 import icu.h2l.api.message.HyperZoneModuleMessageResources
 import icu.h2l.api.module.HyperSubModule
 import icu.h2l.api.profile.HyperZoneUserServiceProvider
+import icu.h2l.api.profile.UserMergeHandler
+import icu.h2l.api.profile.UserMergeHandlerRegistry
 import icu.h2l.login.auth.offline.command.OfflineAuthCommandRegistrar
 import icu.h2l.login.auth.offline.config.AuthOfflineConfigLoader
 import icu.h2l.login.auth.offline.db.OfflineAuthRepository
@@ -67,6 +69,15 @@ class OfflineSubModule : HyperSubModule {
             databaseManager = databaseManager,
             table = offlineAuthTableManager.offlineAuthTable
         )
+        UserMergeHandlerRegistry.register(object : UserMergeHandler {
+            override val handlerId: String = "auth-offline"
+
+            override fun migrateUserBindings(sourceUserUUID: UUID, targetUserUUID: UUID) {
+                if (!offlineAuthRepository.migrateUserBindings(sourceUserUUID, targetUserUUID)) {
+                    throw IllegalStateException("离线认证绑定迁移失败")
+                }
+            }
+        })
         val offlineAuthConfig = AuthOfflineConfigLoader.getConfig().main
         val logger = java.util.logging.Logger.getLogger("hzl-auth-offline")
         val emailSender: OfflineAuthEmailSender = when (offlineAuthConfig.email.deliveryMode.uppercase(Locale.ROOT)) {

@@ -28,12 +28,15 @@ import icu.h2l.api.log.info
 import icu.h2l.api.message.HyperZoneModuleMessageResources
 import icu.h2l.api.module.HyperSubModule
 import icu.h2l.api.profile.HyperZoneUserServiceProvider
+import icu.h2l.api.profile.UserMergeHandler
+import icu.h2l.api.profile.UserMergeHandlerRegistry
 import icu.h2l.login.profile.skin.config.ProfileSkinConfigLoader
 import icu.h2l.login.profile.skin.config.ProfileSkinDebug
 import icu.h2l.login.profile.skin.db.*
 import icu.h2l.login.profile.skin.service.ProfileSkinAuthenticatedListener
 import icu.h2l.login.profile.skin.service.ProfileSkinSelfReplayService
 import icu.h2l.login.profile.skin.service.ProfileSkinService
+import java.util.*
 
 class ProfileSkinSubModule : HyperSubModule {
     lateinit var tableManager: ProfileSkinCacheTableManager
@@ -62,6 +65,15 @@ class ProfileSkinSubModule : HyperSubModule {
         tableManager = ProfileSkinCacheTableManager(databaseManager, cacheTable, userTable)
         cacheRepository = ProfileSkinCacheRepository(databaseManager, cacheTable)
         profileRepository = ProfileSkinProfileRepository(databaseManager, userTable)
+        UserMergeHandlerRegistry.register(object : UserMergeHandler {
+            override val handlerId: String = "profile-skin"
+
+            override fun migrateUserBindings(sourceUserUUID: UUID, targetUserUUID: UUID) {
+                if (!profileRepository.migrateUserBindings(sourceUserUUID, targetUserUUID)) {
+                    throw IllegalStateException("皮肤绑定迁移失败")
+                }
+            }
+        })
         authenticatedListener = ProfileSkinAuthenticatedListener(proxy)
         service = ProfileSkinService(
             config,

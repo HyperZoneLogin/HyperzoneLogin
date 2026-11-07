@@ -191,6 +191,21 @@ interface HyperZoneUserService {
     fun switchActiveInGameProfile(userUUID: UUID, inGameProfileId: UUID): InGameProfile {
         throw UnsupportedOperationException("HyperZoneUserService.switchActiveInGameProfile is not supported")
     }
+
+    /**
+     * 将一个 HZL User 聚合到另一个 User。
+     *
+     * 合并方向是 `source -> target`：source 的全部 InGameProfile 与绑定码会迁移到 target，
+     * 随后 source 被删除。渠道绑定由 [UserMergeHandlerRegistry] 中注册的模块处理器同步迁移。
+     *
+     * 调用方必须显式给出 source 与 target；该方法不会自动选择合并方向，
+     * 也不会把两个 User 互相保留。任一模块处理器失败时合并中止并抛错。
+     *
+     * @return 合并后的 target User
+     */
+    fun mergeUsers(sourceUserUUID: UUID, targetUserUUID: UUID): User {
+        throw UnsupportedOperationException("HyperZoneUserService.mergeUsers is not supported")
+    }
 }
 
 /**

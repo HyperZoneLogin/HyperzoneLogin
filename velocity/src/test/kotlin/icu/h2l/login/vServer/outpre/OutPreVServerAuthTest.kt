@@ -29,6 +29,7 @@ import icu.h2l.api.HyperZoneApi
 import icu.h2l.api.event.auth.LoginHandleRequestEvent
 import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.database.DatabaseConfig
+import icu.h2l.login.database.helper.BindingCodeDatabaseHelper
 import icu.h2l.login.database.helper.InGameProfileDatabaseHelper
 import icu.h2l.login.database.helper.UserDatabaseHelper
 import icu.h2l.login.manager.HyperZonePlayerManager
@@ -132,6 +133,7 @@ class OutPreVServerAuthTest {
         return VelocityHyperZoneUserService(
             UserDatabaseHelper(databaseManager, databaseManager.getUserTable()),
             InGameProfileDatabaseHelper(databaseManager, databaseManager.getInGameProfileTable()),
+            BindingCodeDatabaseHelper(databaseManager, databaseManager.getBindingCodeTable()),
         )
     }
 

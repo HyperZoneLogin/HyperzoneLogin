@@ -26,6 +26,8 @@ import icu.h2l.login.auth.floodgate.api.db.FloodgateAuthEntry
 import icu.h2l.login.auth.floodgate.api.db.FloodgateAuthTable
 import icu.h2l.api.log.warn
 import org.jetbrains.exposed.sql.ResultRow
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.update
@@ -97,6 +99,40 @@ open class FloodgateAuthRepository(
             }
         } catch (e: Exception) {
             warn { "写入 Floodgate 认证记录失败: ${e.message}" }
+            false
+        }
+    }
+
+    /**
+     * 把 source User 的 Floodgate 绑定迁移到 target User。
+     *
+     * 表内 `user_uuid` 唯一，因此 target 已经持有 Floodgate 绑定时不迁移，
+     * 直接删除 source 的重复绑定，保留 target 的渠道账号。
+     */
+    open fun migrateUserBindings(sourceUserUUID: UUID, targetUserUUID: UUID): Boolean {
+        if (sourceUserUUID == targetUserUUID) {
+            return true
+        }
+        return try {
+            databaseManager.executeTransaction {
+                val targetEntry = table.selectAll().where { table.userUUID eq targetUserUUID }
+                    .limit(1)
+                    .map(::toEntry)
+                    .firstOrNull()
+                if (targetEntry == null) {
+                    table.update({ table.userUUID eq sourceUserUUID }) {
+                        it[userUUID] = targetUserUUID
+                    }
+                } else {
+                    warn {
+                        "Floodgate 合并：目标 User $targetUserUUID 已有 Floodgate 绑定，删除源 User $sourceUserUUID 的重复绑定"
+                    }
+                    table.deleteWhere { table.userUUID eq sourceUserUUID }
+                }
+                true
+            }
+        } catch (e: Exception) {
+            warn { "迁移 Floodgate 绑定失败: ${e.message}" }
             false
         }
     }

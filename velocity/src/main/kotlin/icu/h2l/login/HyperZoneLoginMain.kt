@@ -183,14 +183,22 @@ class HyperZoneLoginMain(
         )
         legacySchemaMigrator.migrateLegacyUserData(userDatabaseHelper, inGameProfileDatabaseHelper)
         legacySchemaMigrator.dropLegacyUserColumns()
-        userService = VelocityHyperZoneUserService(userDatabaseHelper, inGameProfileDatabaseHelper)
+        val bindingCodeDatabaseHelper = BindingCodeDatabaseHelper(
+            databaseManager,
+            databaseManager.getBindingCodeTable(),
+        )
+        userService = VelocityHyperZoneUserService(
+            userDatabaseHelper,
+            inGameProfileDatabaseHelper,
+            bindingCodeDatabaseHelper,
+        )
         HyperZoneUserServiceProvider.bind(userService)
         inGameProfileSyncService = InGameProfileSyncService(server, userService)
         loginManager = LoginManager(server, userService)
         HyperZoneCredentialFlowProvider.bind(loginManager)
         backendRuntimeProfileCompensator = BackendRuntimeProfileCompensator(logger)
         bindingCodeService = UserBindingCodeService(
-            BindingCodeDatabaseHelper(databaseManager, databaseManager.getBindingCodeTable()),
+            bindingCodeDatabaseHelper,
             userService,
             loginManager,
         )

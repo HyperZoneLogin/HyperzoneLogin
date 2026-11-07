@@ -84,6 +84,46 @@ class OfflineAuthRepository(
         }
     }
 
+    /**
+     * 把 source User 的离线认证记录迁移到 target User。
+     *
+     * 表内 `user_uuid` 与 `name` 都是唯一键。target 已有离线认证记录时保留 target，
+     * 删除 source 的重复记录，避免一个 User 出现两套离线密码。
+     */
+    fun migrateUserBindings(sourceUserUUID: UUID, targetUserUUID: UUID): Boolean {
+        if (sourceUserUUID == targetUserUUID) {
+            return true
+        }
+        return try {
+            databaseManager.executeTransaction {
+                val sourceEntry = table.selectAll().where { table.userUUID eq sourceUserUUID }
+                    .limit(1)
+                    .map(::toEntry)
+                    .firstOrNull()
+                    ?: return@executeTransaction true
+                val targetEntry = table.selectAll().where { table.userUUID eq targetUserUUID }
+                    .limit(1)
+                    .map(::toEntry)
+                    .firstOrNull()
+
+                if (targetEntry == null) {
+                    table.update({ table.userUUID eq sourceUserUUID }) {
+                        it[userUUID] = targetUserUUID
+                    }
+                } else {
+                    warn {
+                        "离线认证合并：目标 User $targetUserUUID 已有离线认证记录，删除源 User $sourceUserUUID 的重复记录"
+                    }
+                    table.deleteWhere { table.userUUID eq sourceEntry.userUUID }
+                }
+                true
+            }
+        } catch (e: Exception) {
+            warn { "迁移离线认证绑定失败: ${e.message}" }
+            false
+        }
+    }
+
     fun updatePassword(userUUID: UUID, passwordHash: String, hashFormat: String): Boolean {
         return try {
             databaseManager.executeTransaction {

@@ -27,6 +27,8 @@ import icu.h2l.api.log.info
 import icu.h2l.api.message.HyperZoneModuleMessageResources
 import icu.h2l.api.module.HyperSubModule
 import icu.h2l.api.profile.HyperZoneUserServiceProvider
+import icu.h2l.api.profile.UserMergeHandler
+import icu.h2l.api.profile.UserMergeHandlerRegistry
 import icu.h2l.login.auth.floodgate.config.FloodgateAuthConfigLoader
 import icu.h2l.login.auth.floodgate.config.FloodgateDebug
 import icu.h2l.login.auth.floodgate.db.FloodgateAuthRepository
@@ -39,6 +41,7 @@ import icu.h2l.login.auth.floodgate.listener.FloodgateVServerAuthListener
 import icu.h2l.login.auth.floodgate.service.FloodgateApiHolder
 import icu.h2l.login.auth.floodgate.service.FloodgateAuthService
 import icu.h2l.login.auth.floodgate.service.FloodgateSessionHolder
+import java.util.*
 
 class FloodgateSubModule : HyperSubModule {
     override val credentialChannelIds: Set<String> = setOf("floodgate")
@@ -65,6 +68,15 @@ class FloodgateSubModule : HyperSubModule {
             repository = repository,
             config = config,
         )
+        UserMergeHandlerRegistry.register(object : UserMergeHandler {
+            override val handlerId: String = "auth-floodgate"
+
+            override fun migrateUserBindings(sourceUserUUID: UUID, targetUserUUID: UUID) {
+                if (!repository.migrateUserBindings(sourceUserUUID, targetUserUUID)) {
+                    throw IllegalStateException("Floodgate 绑定迁移失败")
+                }
+            }
+        })
         tableManager.createTable()
         api.proxy.eventManager.register(api, tableManager)
         api.proxy.eventManager.register(api, FloodgateOpenStartAuthListener(authService, floodgateApiHolder))

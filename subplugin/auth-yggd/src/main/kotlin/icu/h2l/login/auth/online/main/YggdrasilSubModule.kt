@@ -27,6 +27,8 @@ import icu.h2l.api.db.table.UserTable
 import icu.h2l.api.message.HyperZoneModuleMessageResources
 import icu.h2l.api.module.HyperSubModule
 import icu.h2l.api.profile.HyperZoneUserServiceProvider
+import icu.h2l.api.profile.UserMergeHandler
+import icu.h2l.api.profile.UserMergeHandlerRegistry
 import icu.h2l.login.auth.online.config.YggdrasilConfigLoader
 import icu.h2l.login.auth.online.config.YggdrasilDebug
 import icu.h2l.login.auth.online.db.EntryDatabaseHelper
@@ -35,6 +37,7 @@ import icu.h2l.login.auth.online.listener.AuthListener
 import icu.h2l.login.auth.online.listener.YggdrasilProfileLookupListener
 import icu.h2l.login.auth.online.manager.EntryConfigManager
 import icu.h2l.login.auth.online.manager.YggdrasilAuthModule
+import java.util.*
 
 class YggdrasilSubModule : HyperSubModule {
     lateinit var entryConfigManager: EntryConfigManager
@@ -68,6 +71,15 @@ class YggdrasilSubModule : HyperSubModule {
             databaseManager = databaseManager,
             entryTableManager = entryTableManager,
         )
+        UserMergeHandlerRegistry.register(object : UserMergeHandler {
+            override val handlerId: String = "auth-yggd"
+
+            override fun migrateUserBindings(sourceUserUUID: UUID, targetUserUUID: UUID) {
+                if (!entryDatabaseHelper.migrateUserBindings(sourceUserUUID, targetUserUUID)) {
+                    throw IllegalStateException("Yggdrasil 入口绑定迁移失败")
+                }
+            }
+        })
 
         val yggdrasilAuthModule = YggdrasilAuthModule(
             proxy = proxy,

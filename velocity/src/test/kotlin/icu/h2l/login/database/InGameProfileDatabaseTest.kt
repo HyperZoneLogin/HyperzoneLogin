@@ -24,6 +24,9 @@ package icu.h2l.login.database
 import icu.h2l.api.db.InGameProfileCandidate
 import icu.h2l.api.profile.HyperZoneCredential
 import icu.h2l.api.profile.InGameProfileConflictException
+import icu.h2l.api.profile.UserMergeHandler
+import icu.h2l.api.profile.UserMergeHandlerRegistry
+import icu.h2l.login.database.helper.BindingCodeDatabaseHelper
 import icu.h2l.login.database.helper.InGameProfileDatabaseHelper
 import icu.h2l.login.database.helper.UserDatabaseHelper
 import icu.h2l.login.database.DatabaseManager
@@ -193,6 +196,69 @@ class InGameProfileDatabaseTest {
         }
     }
 
+    @Test
+    fun `merge moves source identities and binding code into target`() {
+        withDatabase { context ->
+            val targetGameUuid = UUID.randomUUID()
+            val sourceGameUuid = UUID.randomUUID()
+            val target = context.service.createUser("MergeTarget", targetGameUuid)
+            val source = context.service.createUser("MergeSource", sourceGameUuid)
+            val targetActive = context.service.getActiveInGameProfile(target.id)!!
+            val sourceExtra = context.service.createInGameProfile(
+                source.id,
+                InGameProfileCandidate(
+                    channel = "test",
+                    name = "MergeSourceBedrock",
+                    uuid = UUID.randomUUID(),
+                ),
+            )
+            context.bindingCodeDatabaseHelper.replace("MERGE01", source.id, 1L)
+
+            var migratedSource: UUID? = null
+            var migratedTarget: UUID? = null
+            val handler = object : UserMergeHandler {
+                override val handlerId: String = "test-merge-handler"
+
+                override fun migrateUserBindings(sourceUserUUID: UUID, targetUserUUID: UUID) {
+                    migratedSource = sourceUserUUID
+                    migratedTarget = targetUserUUID
+                }
+            }
+            UserMergeHandlerRegistry.register(handler)
+            try {
+                val merged = context.service.mergeUsers(source.id, target.id)
+
+                assertEquals(target.id, merged.id)
+                assertNull(context.service.getUser(source.id))
+                assertEquals(3, context.service.getInGameProfiles(target.id).size)
+                assertEquals(targetActive.id, context.service.getActiveInGameProfile(target.id)!!.id)
+                assertEquals(target.id, context.service.findInGameProfileByUuid(sourceGameUuid)?.userUUID)
+                assertEquals(target.id, context.service.findInGameProfileByUuid(sourceExtra.uuid)?.userUUID)
+                assertEquals("MERGE01", context.bindingCodeDatabaseHelper.findCode(target.id))
+                assertNull(context.bindingCodeDatabaseHelper.findCode(source.id))
+                assertEquals(source.id, migratedSource)
+                assertEquals(target.id, migratedTarget)
+            } finally {
+                UserMergeHandlerRegistry.unregister(handler.handlerId)
+            }
+        }
+    }
+
+    @Test
+    fun `merge keeps target binding code when both users have one`() {
+        withDatabase { context ->
+            val target = context.service.createUser("CodeTarget", UUID.randomUUID())
+            val source = context.service.createUser("CodeSource", UUID.randomUUID())
+            context.bindingCodeDatabaseHelper.replace("TARGET01", target.id, 1L)
+            context.bindingCodeDatabaseHelper.replace("SOURCE01", source.id, 2L)
+
+            context.service.mergeUsers(source.id, target.id)
+
+            assertEquals("TARGET01", context.bindingCodeDatabaseHelper.findCode(target.id))
+            assertNull(context.bindingCodeDatabaseHelper.findCode(source.id))
+        }
+    }
+
     private fun withDatabase(
         block: (TestContext) -> Unit,
     ) {
@@ -207,12 +273,18 @@ class InGameProfileDatabaseTest {
 
             val userDatabaseHelper = UserDatabaseHelper(manager, manager.getUserTable())
             val inGameProfileDatabaseHelper = InGameProfileDatabaseHelper(manager, manager.getInGameProfileTable())
-            val service = VelocityHyperZoneUserService(userDatabaseHelper, inGameProfileDatabaseHelper)
+            val bindingCodeDatabaseHelper = BindingCodeDatabaseHelper(manager, manager.getBindingCodeTable())
+            val service = VelocityHyperZoneUserService(
+                userDatabaseHelper,
+                inGameProfileDatabaseHelper,
+                bindingCodeDatabaseHelper,
+            )
             block(
                 TestContext(
                     service = service,
                     userDatabaseHelper = userDatabaseHelper,
                     inGameProfileDatabaseHelper = inGameProfileDatabaseHelper,
+                    bindingCodeDatabaseHelper = bindingCodeDatabaseHelper,
                     manager = manager,
                 )
             )
@@ -228,6 +300,7 @@ class InGameProfileDatabaseTest {
         val service: VelocityHyperZoneUserService,
         val userDatabaseHelper: UserDatabaseHelper,
         val inGameProfileDatabaseHelper: InGameProfileDatabaseHelper,
+        val bindingCodeDatabaseHelper: BindingCodeDatabaseHelper,
         val manager: DatabaseManager,
     )
 }

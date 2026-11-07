@@ -23,6 +23,7 @@ package icu.h2l.login.database.migration
 
 import icu.h2l.login.database.DatabaseConfig
 import icu.h2l.login.database.DatabaseManager
+import icu.h2l.login.database.helper.BindingCodeDatabaseHelper
 import icu.h2l.login.database.helper.InGameProfileDatabaseHelper
 import icu.h2l.login.database.helper.UserDatabaseHelper
 import icu.h2l.login.profile.VelocityHyperZoneUserService
@@ -96,7 +97,11 @@ class LegacySchemaMigratorTest {
             migrator.migrateLegacyUserData(userDatabaseHelper, inGameProfileDatabaseHelper)
             migrator.dropLegacyUserColumns()
 
-            val service = VelocityHyperZoneUserService(userDatabaseHelper, inGameProfileDatabaseHelper)
+            val service = VelocityHyperZoneUserService(
+                userDatabaseHelper,
+                inGameProfileDatabaseHelper,
+                BindingCodeDatabaseHelper(manager, manager.getBindingCodeTable()),
+            )
             val user = service.getUser(userUUID)
             assertNotNull(user)
             val active = service.getActiveInGameProfile(userUUID)
