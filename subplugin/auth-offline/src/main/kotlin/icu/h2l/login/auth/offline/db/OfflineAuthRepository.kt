@@ -26,6 +26,7 @@ import icu.h2l.api.log.warn
 import icu.h2l.login.auth.offline.api.db.OfflineAuthEntry
 import icu.h2l.login.auth.offline.api.db.OfflineAuthTable
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
@@ -294,6 +295,25 @@ class OfflineAuthRepository(
             } > 0
         } catch (e: Exception) {
             warn { "更新离线认证 TOTP 状态失败: ${e.message}" }
+            false
+        }
+    }
+
+    /**
+     * 删除指定离线认证名称与 User 完全匹配的绑定。
+     *
+     * 仅用于 unbind：只删除渠道认证记录，不触碰 HZL User 与 InGameProfile。
+     */
+    fun deleteByNameAndProfile(name: String, userUUID: UUID): Boolean {
+        val normalizedName = name.lowercase()
+        return try {
+            databaseManager.executeTransaction {
+                table.deleteWhere {
+                    (table.name eq normalizedName) and (table.userUUID eq userUUID)
+                } > 0
+            }
+        } catch (e: Exception) {
+            warn { "删除离线认证绑定失败: ${e.message}" }
             false
         }
     }

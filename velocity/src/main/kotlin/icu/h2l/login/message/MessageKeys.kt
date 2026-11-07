@@ -68,6 +68,18 @@ object MessageKeys {
         const val USE_ATTACH_FAILED = "bindcode.use.attach-failed"
         const val USE_ATTACH_FAILED_WITH_REASON = "bindcode.use.attach-failed-with-reason"
         const val USE_SUCCESS = "bindcode.use.success"
+        const val USE_MERGE_SAME = "bindcode.use.merge.same"
+        const val USE_MERGE_SUCCESS = "bindcode.use.merge.success"
+        const val USE_MERGE_FAILED = "bindcode.use.merge.failed"
+        const val USE_MERGE_FAILED_WITH_REASON = "bindcode.use.merge.failed-with-reason"
+    }
+
+    object Unbind {
+        const val NOT_ATTACHED = "unbind.not-attached"
+        const val NO_CREDENTIAL = "unbind.no-credential"
+        const val UNSUPPORTED = "unbind.unsupported"
+        const val FAILED = "unbind.failed"
+        const val DISCONNECTED = "unbind.disconnected"
     }
 
     object HzlCommand {

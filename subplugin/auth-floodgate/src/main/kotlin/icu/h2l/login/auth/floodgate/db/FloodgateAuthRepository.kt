@@ -27,6 +27,7 @@ import icu.h2l.login.auth.floodgate.api.db.FloodgateAuthTable
 import icu.h2l.api.log.warn
 import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
@@ -133,6 +134,25 @@ open class FloodgateAuthRepository(
             }
         } catch (e: Exception) {
             warn { "迁移 Floodgate 绑定失败: ${e.message}" }
+            false
+        }
+    }
+
+    /**
+     * 删除指定 XUID 与 User 的 Floodgate 绑定。
+     *
+     * 仅删除渠道账号绑定行，不触碰 HZL User 与 InGameProfile。
+     * XUID 与 User 必须同时匹配，避免误删其他账号的绑定。
+     */
+    open fun deleteByXuid(xuid: Long, userUUID: UUID): Boolean {
+        return try {
+            databaseManager.executeTransaction {
+                table.deleteWhere {
+                    (table.xuid eq xuid) and (table.userUUID eq userUUID)
+                } > 0
+            }
+        } catch (e: Exception) {
+            warn { "删除 Floodgate 绑定失败: ${e.message}" }
             false
         }
     }

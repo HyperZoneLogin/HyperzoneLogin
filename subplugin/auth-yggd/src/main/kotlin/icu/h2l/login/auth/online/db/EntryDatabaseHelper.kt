@@ -24,6 +24,7 @@ package icu.h2l.login.auth.online.db
 import icu.h2l.api.db.HyperZoneDatabaseManager
 import icu.h2l.api.log.warn
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
@@ -95,6 +96,26 @@ class EntryDatabaseHelper(
             }
         } catch (e: Exception) {
             warn { "创建入口记录失败: ${e.message}" }
+            false
+        }
+    }
+
+    /**
+     * 删除指定入口、UUID 与 User 完全匹配的单条绑定。
+     *
+     * 只删除渠道入口绑定，不触碰 HZL User 与 InGameProfile。
+     */
+    fun deleteEntry(entryId: String, uuid: UUID, pid: UUID): Boolean {
+        val entryTable = entryTableManager.getEntryTable(entryId) ?: return false
+
+        return try {
+            databaseManager.executeTransaction {
+                entryTable.deleteWhere {
+                    (entryTable.uuid eq uuid) and (entryTable.pid eq pid)
+                } > 0
+            }
+        } catch (e: Exception) {
+            warn { "删除入口记录失败: ${e.message}" }
             false
         }
     }

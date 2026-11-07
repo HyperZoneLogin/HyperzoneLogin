@@ -102,6 +102,40 @@ interface HyperZoneCredential : IPropertiesHolder {
     fun bind(userUUID: UUID): Boolean
 
     /**
+     * 解除当前渠道账号与该 User 的绑定关系。
+     *
+     * ============================================================
+     * 危险操作边界（后续实现者必须严格遵守）
+     * ============================================================
+     *
+     * 该接口只允许删除“当前渠道账号 -> User”的绑定记录，例如：
+     *
+     * - Floodgate：删除当前 XUID 对应的 `floodgate_auth` 行；
+     * - Yggdrasil：删除当前入口 + UUID 对应的 `entry_*` 行；
+     * - Offline：删除当前离线认证名称对应的 `offline_auth` 行。
+     *
+     * 严禁在该接口内：
+     *
+     * - 创建、合并或删除 HZL User；
+     * - 创建、删除、切换或修改 InGameProfile；
+     * - 解绑后自动重新绑定、自动建档、自动 attach 或触发其他登录补偿流程；
+     * - 修改其他渠道的账号绑定。
+     *
+     * 该接口的语义只有一个：切断当前渠道账号。调用方在成功后必须立即踢出玩家，
+     * 不允许在同一会话里继续走任何建档/绑定/身份补偿分支；否则会立刻产生
+     * “渠道账号被删除后又以新的 HZL User 重建”的档案冲突。
+     *
+     * 未实现该能力的渠道必须抛 [UnsupportedOperationException]，不得静默返回 false。
+     *
+     * @return true 表示当前渠道绑定已删除；false 表示绑定不存在或删除失败
+     */
+    fun unbind(userUUID: UUID): Boolean {
+        throw UnsupportedOperationException(
+            "Credential ${channelId}:${credentialId} does not support unbind"
+        )
+    }
+
+    /**
      * 核心层确认凭证消费完成（通常是绑定并 attach 成功）后的回调。
      *
      * 默认空实现；渠道可按需落库或清理一次性状态。

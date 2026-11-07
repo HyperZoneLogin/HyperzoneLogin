@@ -21,6 +21,7 @@
 
 package icu.h2l.login.profile
 
+import icu.h2l.api.db.User
 import icu.h2l.api.message.HyperZoneMessagePlaceholder
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.profile.HyperZoneUserService
@@ -96,20 +97,6 @@ class UserBindingCodeService(
 
     fun use(player: HyperZonePlayer, rawCode: String): Result {
         val messages = messages()
-        if (player.hasAttachedUser()) {
-            return Result(
-                false,
-                messages?.render(player, MessageKeys.BindCode.USE_ALREADY_BOUND)
-                    ?: Component.text("你当前已经绑定正式档案，无需再次使用绑定码")
-            )
-        }
-        if (player.getSubmittedCredentials().isEmpty()) {
-            return Result(
-                false,
-                messages?.render(player, MessageKeys.BindCode.USE_NO_CREDENTIALS)
-                    ?: Component.text("当前没有可绑定的认证凭证")
-            )
-        }
 
         val code = normalizeCode(rawCode)
         if (code.isBlank()) {
@@ -123,15 +110,28 @@ class UserBindingCodeService(
         val lock = codeLocks.computeIfAbsent(code) { ReentrantLock() }
         try {
             return lock.withLock {
-                val userUUID = store.findProfileId(code)
+                val targetUserUUID = store.findProfileId(code)
                     ?: return@withLock Result(
                         false,
                         messages?.render(player, MessageKeys.BindCode.USE_INVALID)
                             ?: Component.text("绑定码不存在、已过期或已被使用")
                     )
 
-                val attachedUser = try {
-                    userService.bindSubmittedCredentials(player, userUUID)
+                val attachedUser = userService.getAttachedUser(player)
+                if (attachedUser != null) {
+                    return@withLock mergeAttachedUser(player, attachedUser, targetUserUUID, code)
+                }
+
+                if (player.getSubmittedCredentials().isEmpty()) {
+                    return@withLock Result(
+                        false,
+                        messages?.render(player, MessageKeys.BindCode.USE_NO_CREDENTIALS)
+                            ?: Component.text("当前没有可绑定的认证凭证")
+                    )
+                }
+
+                val boundUser = try {
+                    userService.bindSubmittedCredentials(player, targetUserUUID)
                 } catch (t: Throwable) {
                     val reason = t.message?.takeUnless { it.isBlank() }
                     return@withLock Result(
@@ -159,7 +159,7 @@ class UserBindingCodeService(
                 }
 
                 val attached = try {
-                    attachUser(player, attachedUser.id)
+                    attachUser(player, boundUser.id)
                 } catch (throwable: Throwable) {
                     val reason = throwable.message?.takeUnless { it.isBlank() }
                     return@withLock Result(
@@ -196,6 +196,99 @@ class UserBindingCodeService(
                 codeLocks.remove(code, lock)
             }
         }
+    }
+
+    /**
+     * 已 attach 玩家使用绑定码时，把“当前 User”合并到“绑定码目标 User”。
+     *
+     * 合并方向固定为 `current -> target`：成功后玩家使用目标 User 的身份，
+     * 当前 User 的全部数据（InGameProfile、渠道绑定、绑定码等）由核心聚合流程迁移。
+     *
+     * 该流程不读取也不修改 Credential 的渠道绑定结果；合并成功后绑定码立即销毁。
+     */
+    private fun mergeAttachedUser(
+        player: HyperZonePlayer,
+        attachedUser: User,
+        targetUserUUID: UUID,
+        code: String,
+    ): Result {
+        val messages = messages()
+        if (attachedUser.id == targetUserUUID) {
+            return Result(
+                false,
+                messages?.render(player, MessageKeys.BindCode.USE_MERGE_SAME)
+                    ?: Component.text("当前档案已经是绑定码目标档案，无需合并")
+            )
+        }
+
+        val targetUser = userService.getUser(targetUserUUID)
+            ?: return Result(
+                false,
+                messages?.render(player, MessageKeys.BindCode.USE_INVALID)
+                    ?: Component.text("绑定码不存在、已过期或已被使用")
+            )
+
+        try {
+            userService.mergeUsers(attachedUser.id, targetUser.id)
+        } catch (throwable: Throwable) {
+            val reason = throwable.message?.takeUnless { it.isBlank() }
+            return Result(
+                false,
+                if (reason != null && messages != null) {
+                    messages.render(
+                        player,
+                        MessageKeys.BindCode.USE_MERGE_FAILED_WITH_REASON,
+                        HyperZoneMessagePlaceholder.text("reason", reason)
+                    )
+                } else {
+                    messages?.render(player, MessageKeys.BindCode.USE_MERGE_FAILED)
+                        ?: Component.text("合并当前档案到目标档案失败，请联系管理员")
+                }
+            )
+        }
+
+        val attached = try {
+            userService.attachUser(player, targetUser.id)
+        } catch (throwable: Throwable) {
+            val reason = throwable.message?.takeUnless { it.isBlank() }
+            return Result(
+                false,
+                if (reason != null && messages != null) {
+                    messages.render(
+                        player,
+                        MessageKeys.BindCode.USE_ATTACH_FAILED_WITH_REASON,
+                        HyperZoneMessagePlaceholder.text("reason", reason)
+                    )
+                } else {
+                    messages?.render(player, MessageKeys.BindCode.USE_ATTACH_FAILED)
+                        ?: Component.text("档案已合并，但切换档案失败，请联系管理员")
+                }
+            )
+        }
+        if (attached == null) {
+            return Result(
+                false,
+                messages?.render(player, MessageKeys.BindCode.USE_ATTACH_FAILED)
+                    ?: Component.text("档案已合并，但切换档案失败，请联系管理员")
+            )
+        }
+
+        if (!store.consume(code)) {
+            return Result(
+                false,
+                messages?.render(player, MessageKeys.BindCode.USE_CONSUME_FAILED)
+                    ?: Component.text("档案已合并，但销毁绑定码失败，请联系管理员")
+            )
+        }
+
+        return Result(
+            true,
+            messages?.render(
+                player,
+                MessageKeys.BindCode.USE_MERGE_SUCCESS,
+                HyperZoneMessagePlaceholder.text("profile_name", displayName(player))
+            ) ?: Component.text("已合并当前档案，并切换到目标档案 ${displayName(player)}")
+        )
     }
 
     private fun generatedMessage(code: String, profileName: String): Component {

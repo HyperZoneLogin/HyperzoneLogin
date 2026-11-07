@@ -104,6 +104,15 @@ class OfflineHyperZoneCredential(
     }
 
     /**
+     * 只删除当前离线认证名称与 User 完全匹配的绑定。
+     *
+     * 禁止在这里删除 HZL User、删除或切换 InGameProfile，或触发重新建档。
+     */
+    override fun unbind(userUUID: UUID): Boolean {
+        return repository.deleteByNameAndProfile(effectiveNormalizedName(), userUUID)
+    }
+
+    /**
      * 创建一个新名称的凭证副本，同时同步更新 [PendingOfflineRegistrationManager] 中的待绑定数据。
      *
      * 旧凭证保持不变；调用方应先销毁旧凭证，再提交返回的新凭证。

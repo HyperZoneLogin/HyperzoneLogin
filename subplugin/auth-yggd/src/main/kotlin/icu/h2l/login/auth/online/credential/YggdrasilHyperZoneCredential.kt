@@ -67,6 +67,15 @@ class YggdrasilHyperZoneCredential(
         )
     }
 
+    /**
+     * 只删除当前入口 + UUID + User 完全匹配的 Yggdrasil 绑定。
+     *
+     * 禁止在这里删除 HZL User、删除或切换 InGameProfile，或触发重新建档。
+     */
+    override fun unbind(userUUID: UUID): Boolean {
+        return entryDatabaseHelper.deleteEntry(entryId, authenticatedUUID, userUUID)
+    }
+
     companion object {
         private const val CHANNEL_ID = "yggdrasil"
 

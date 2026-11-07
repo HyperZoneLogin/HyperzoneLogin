@@ -45,6 +45,7 @@ import icu.h2l.api.vServer.HyperZoneVServerAdapter
 import icu.h2l.login.command.BindCodeCommandRegistrar
 import icu.h2l.login.command.HyperZoneLoginCommand
 import icu.h2l.login.command.RenameCommand
+import icu.h2l.login.command.UnbindCommand
 import icu.h2l.login.config.*
 import icu.h2l.login.database.DatabaseConfig
 import icu.h2l.login.database.helper.BindingCodeDatabaseHelper
@@ -63,6 +64,7 @@ import icu.h2l.login.module.EmbeddedModuleSpec
 import icu.h2l.login.profile.CredentialChannelRegistryImpl
 import icu.h2l.login.profile.InGameProfileSyncService
 import icu.h2l.login.profile.UserBindingCodeService
+import icu.h2l.login.profile.UserUnbindService
 import icu.h2l.login.profile.VelocityHyperZoneUserService
 import icu.h2l.login.util.isSnapshotPluginVersion
 import icu.h2l.login.util.readRuntimePluginVersion
@@ -248,6 +250,13 @@ class HyperZoneLoginMain(
             )
         )
         BindCodeCommandRegistrar.register(chatCommandManager, bindingCodeService)
+        chatCommandManager.register(
+            HyperChatCommandRegistration(
+                name = "unbind",
+                aliases = setOf("unlink"),
+                executor = UnbindCommand(UserUnbindService(userService, messageService)),
+            )
+        )
         syncSlowTestCommands()
 
 //        网络注入：核心基础设施，直接加载，不走子模块系统

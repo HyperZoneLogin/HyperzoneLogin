@@ -62,6 +62,15 @@ class FloodgateHyperZoneCredential(
         return bound
     }
 
+    /**
+     * 只删除当前 XUID 与 User 的 Floodgate 绑定。
+     *
+     * 禁止在这里删除 HZL User、删除或切换 InGameProfile，或触发重新建档。
+     */
+    override fun unbind(userUUID: UUID): Boolean {
+        return repository.deleteByXuid(xuid, userUUID)
+    }
+
     fun matches(uuid: UUID): Boolean {
         return trustedUuid == uuid
     }

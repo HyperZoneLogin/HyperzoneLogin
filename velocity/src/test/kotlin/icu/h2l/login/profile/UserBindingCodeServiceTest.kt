@@ -103,6 +103,28 @@ class UserBindingCodeServiceTest {
     }
 
     @Test
+    fun `use merges attached user into binding code target and attaches target`() {
+        val sourceUserUUID = UUID.fromString("33333333-3333-3333-3333-333333333333")
+        val targetUserUUID = UUID.fromString("44444444-4444-4444-4444-444444444444")
+        val sourceUser = User(id = sourceUserUUID)
+        val targetUser = User(id = targetUserUUID)
+        userService.attachedUser = sourceUser
+        userService.mergeTargetUser = targetUser
+        userService.attachUserResult = targetUser
+        hyperZonePlayer.credentials += FakeCredential()
+        repository.codes["MERGE01"] = targetUserUUID
+
+        val result = bindingCodeService.use(hyperZonePlayer, "merge01")
+
+        assertTrue(result.success)
+        assertEquals(sourceUserUUID, userService.mergeSourceUUID)
+        assertEquals(targetUserUUID, userService.mergeTargetUUID)
+        assertTrue(userService.attachUserCalled)
+        assertEquals(targetUserUUID, userService.attachedUser?.id)
+        assertFalse(repository.codes.containsKey("MERGE01"))
+    }
+
+    @Test
     fun `use binds credentials consumes code and attaches profile`() {
         val userUUID = UUID.fromString("11111111-1111-1111-1111-111111111111")
         val profile = User(id = userUUID)
@@ -158,13 +180,19 @@ class UserBindingCodeServiceTest {
 
     private class FakeProfileService : HyperZoneUserService {
         var attachedUser: User? = null
+        var mergeTargetUser: User? = null
         var activeIdentity: InGameProfile? = null
         lateinit var bindSubmittedCredentialsResult: User
         var attachUserResult: User? = null
         var bindSubmittedCredentialsCalled: Boolean = false
         var attachUserCalled: Boolean = false
+        var mergeSourceUUID: UUID? = null
+        var mergeTargetUUID: UUID? = null
 
-        override fun getUser(userUUID: UUID): User? = attachedUser?.takeIf { it.id == userUUID }
+        override fun getUser(userUUID: UUID): User? {
+            attachedUser?.takeIf { it.id == userUUID }?.let { return it }
+            return mergeTargetUser?.takeIf { it.id == userUUID }
+        }
 
         override fun getUserByName(name: String): User? =
             activeIdentity?.takeIf { it.name.equals(name, ignoreCase = true) }
@@ -199,6 +227,12 @@ class UserBindingCodeServiceTest {
         override fun bindSubmittedCredentials(player: HyperZonePlayer, userUUID: UUID): User {
             bindSubmittedCredentialsCalled = true
             return bindSubmittedCredentialsResult
+        }
+
+        override fun mergeUsers(sourceUserUUID: UUID, targetUserUUID: UUID): User {
+            mergeSourceUUID = sourceUserUUID
+            mergeTargetUUID = targetUserUUID
+            return mergeTargetUser ?: error("merge target is not configured")
         }
     }
 
