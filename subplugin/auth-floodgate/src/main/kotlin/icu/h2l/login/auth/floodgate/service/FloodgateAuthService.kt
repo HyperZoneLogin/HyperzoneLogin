@@ -22,10 +22,11 @@
 package icu.h2l.login.auth.floodgate.service
 
 import icu.h2l.api.HyperZoneApi
+import icu.h2l.api.db.InGameProfileCandidate
 import icu.h2l.login.auth.floodgate.config.FloodgateDebug
 import icu.h2l.api.profile.CredentialChannelRegistryProvider
-import icu.h2l.api.profile.HyperZoneProfileService
-import icu.h2l.api.profile.HyperZoneProfileServiceProvider
+import icu.h2l.api.profile.HyperZoneUserService
+import icu.h2l.api.profile.HyperZoneUserServiceProvider
 import icu.h2l.login.auth.floodgate.FloodgateMessages
 import icu.h2l.login.auth.floodgate.config.FloodgateAuthConfig
 import icu.h2l.login.auth.floodgate.credential.FloodgateHyperZoneCredential
@@ -40,7 +41,7 @@ class FloodgateAuthService(
     private val sessionHolder: FloodgateSessionHolder,
     private val repository: FloodgateAuthRepository,
     private val config: FloodgateAuthConfig = FloodgateAuthConfig(),
-    private val profileService: HyperZoneProfileService = HyperZoneProfileServiceProvider.get()
+    private val userService: HyperZoneUserService = HyperZoneUserServiceProvider.get()
 ) {
     private val logger = java.util.logging.Logger.getLogger("hzl-auth-floodgate")
 
@@ -58,7 +59,7 @@ class FloodgateAuthService(
         val handled: Boolean,
         val passed: Boolean,
         val credential: FloodgateHyperZoneCredential? = null,
-        val profileIdHint: UUID? = null,
+        val userUUIDHint: UUID? = null,
         val disconnectOnFailure: Boolean = false,
         val userMessage: Component? = null
     )
@@ -97,9 +98,10 @@ class FloodgateAuthService(
             return CompleteResult(handled = false, passed = false)
         }
 
+        val suggestedProfileCreateUuid = resolveProfileUuid(session.userUUID)
+
         return try {
-            val suggestedProfileCreateUuid = resolveProfileUuid(session.userUUID)
-            val knownProfileId = resolveKnownProfileId(session)
+            val knownUserUUID = resolveKnownUserUUID(session)
                 ?: run {
                     val channelAbility = CredentialChannelRegistryProvider.getOrNull()?.getChannelAbility("floodgate")
                     if (channelAbility?.canRegister == false) {
@@ -113,7 +115,7 @@ class FloodgateAuthService(
                     createAndBindProfileIfAllowed(session, suggestedProfileCreateUuid)
                 }
 
-            if (knownProfileId == null) {
+            if (knownUserUUID == null) {
                 trace("complete blocked channel=$channel player=$playerName: no known profile id")
                 return CompleteResult(
                     handled = true,
@@ -129,7 +131,7 @@ class FloodgateAuthService(
                 trustedUuid = session.userUUID,
                 xuid = session.xuid,
                 suggestedProfileCreateUuid = suggestedProfileCreateUuid,
-                knownProfileId = knownProfileId
+                knownUserUUID = knownUserUUID
             )
             sessionHolder.remove(channel)
             trace("complete success channel=$channel player=$playerName sessionCleared=true")
@@ -137,7 +139,7 @@ class FloodgateAuthService(
                 handled = true,
                 passed = true,
                 credential = credential,
-                profileIdHint = knownProfileId
+                userUUIDHint = knownUserUUID
             )
         } catch (throwable: Throwable) {
             logger.warning("Floodgate 玩家 $playerName 完成认证失败: ${throwable.message}")
@@ -153,13 +155,42 @@ class FloodgateAuthService(
         }
     }
 
-    private fun resolveKnownProfileId(
+    private fun resolveKnownUserUUID(
         session: FloodgateSessionHolder.FloodgateSession,
     ): UUID? {
 
-        val repositoryProfileId = repository.findProfileIdByXuid(session.xuid) ?: return null
+        val repositoryUserUUID = repository.findProfileIdByXuid(session.xuid)
+        if (repositoryUserUUID != null) {
+            repository.updateEntryName(session.xuid, session.userName)
+            repository.updateGameUuid(session.xuid, session.userUUID)
+            return repositoryUserUUID
+        }
+
+        if (!config.autoBindLinkedUuid) {
+            return null
+        }
+
+        val linkedProfile = userService.getUserByGameUuid(session.userUUID) ?: return null
+        val candidate = InGameProfileCandidate(
+            channel = "floodgate",
+            name = session.userName,
+            uuid = if (config.passFloodgateUuidToProfileResolve) session.userUUID else null,
+            channelEntry = "",
+            channelAccountId = session.xuid.toString(),
+        )
+        userService.validateInGameProfileCandidate(linkedProfile.id, candidate)?.let { reason ->
+            trace("auto-bind rejected xuid=${session.xuid} linkedProfile=${linkedProfile.id} reason=$reason")
+            return null
+        }
+        if (!repository.createOrUpdate(session.userName, session.xuid, linkedProfile.id)) {
+            return null
+        }
+        repository.updateGameUuid(session.xuid, session.userUUID)
         repository.updateEntryName(session.xuid, session.userName)
-        return repositoryProfileId
+        trace(
+            "auto-bind linked Floodgate account channel=${session.userUUID} xuid=${session.xuid} linkedProfile=${linkedProfile.id}"
+        )
+        return linkedProfile.id
     }
 
     private fun createAndBindProfileIfAllowed(
@@ -174,17 +205,18 @@ class FloodgateAuthService(
             xuid = session.xuid,
             suggestedProfileCreateUuid = suggestedProfileCreateUuid
         )
-        if (!profileService.canCreate(candidateCredential)) {
+        if (!userService.canCreateUser(candidateCredential)) {
             return null
         }
 
-        val createdProfile = profileService.create(candidateCredential)
-        if (!repository.createOrUpdate(session.userName, session.xuid, createdProfile.id)) {
+        val createdUser = userService.createUser(candidateCredential)
+        if (!repository.createOrUpdate(session.userName, session.xuid, createdUser.id)) {
             throw IllegalStateException(
-                "Floodgate 玩家 ${session.userName}(${session.xuid}) Profile 已创建，但模块绑定写入失败"
+                "Floodgate 玩家 ${session.userName}(${session.xuid}) User 已创建，但模块绑定写入失败"
             )
         }
-        return createdProfile.id
+        repository.updateGameUuid(session.xuid, session.userUUID)
+        return createdUser.id
     }
 
 

@@ -58,7 +58,7 @@ object ProfilePropertiesApplySupport {
         return HyperZoneLoginMain.getInstance().proxy.eventManager.fire(event)
             .handle { _, throwable ->
                 if (throwable != null) {
-                    error(throwable) { "Profile properties apply event failed: ${throwable.message}" }
+                    error(throwable) { "User properties apply event failed: ${throwable.message}" }
                     return@handle resolvedBaseProfile
                 }
 
@@ -79,7 +79,7 @@ object ProfilePropertiesApplySupport {
             hyperZonePlayer.getAttachedGameProfile()
         }.getOrElse { throwable ->
             debugGeneral {
-                "[ProfilePropertiesFlow] apply aborted: clientOriginal=${hyperZonePlayer.clientOriginalName}, reason=${throwable.message ?: throwable.javaClass.simpleName}, attachedProfile=${hyperZonePlayer.hasAttachedProfile()}"
+                "[ProfilePropertiesFlow] apply aborted: player=${hyperZonePlayer.logLabel}, reason=${throwable.message ?: throwable.javaClass.simpleName}, attachedUser=${hyperZonePlayer.hasAttachedUser()}"
             }
             null
         }

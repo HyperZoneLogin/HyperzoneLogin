@@ -59,7 +59,7 @@ object RemapUtils {
     }
 
     /**
-     * 根据正式用户名生成稳定的 Profile UUID。
+     * 根据正式用户名生成稳定的 User UUID。
      */
     fun genProfileUUID(username: String): UUID {
         val normalized = username.lowercase()

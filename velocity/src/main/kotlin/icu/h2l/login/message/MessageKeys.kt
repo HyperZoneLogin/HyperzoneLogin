@@ -43,24 +43,14 @@ object MessageKeys {
         const val CONTEXT_CONFLICT = "rename.context-conflict"
         const val SUCCESS = "rename.success"
         const val REMEMBER_NAME = "rename.remember-name"
-        const val REUUID_REQUIRED = "rename.reuuid-required"
+        const val LINK_REQUIRED = "rename.link-required"
         const val EVENT_FAILED = "rename.event-failed"
-    }
-
-    object ReUuid {
-        const val USAGE = "reuuid.usage"
-        const val NOT_IN_WAITING_AREA = "reuuid.not-in-waiting-area"
-        const val ALREADY_BOUND = "reuuid.already-bound"
-        const val CREATE_BLOCKED = "reuuid.create-blocked"
-        const val CONTEXT_CONFLICT = "reuuid.context-conflict"
-        const val SUCCESS = "reuuid.success"
-        const val EVENT_FAILED = "reuuid.event-failed"
     }
 
     object BindCode {
         const val COMMAND_USAGE = "bindcode.command-usage"
         const val COMMAND_USE_USAGE = "bindcode.command-use-usage"
-        const val GENERATE_NO_PROFILE = "bindcode.generate.no-profile"
+        const val GENERATE_NO_USER = "bindcode.generate.no-user"
         const val GENERATE_FAILED = "bindcode.generate.failed"
         const val EXISTING_HEADER = "bindcode.existing.header"
         const val EXISTING_FOOTER = "bindcode.existing.footer"
@@ -76,6 +66,7 @@ object MessageKeys {
         const val USE_BIND_FAILED_WITH_REASON = "bindcode.use.bind-failed-with-reason"
         const val USE_CONSUME_FAILED = "bindcode.use.consume-failed"
         const val USE_ATTACH_FAILED = "bindcode.use.attach-failed"
+        const val USE_ATTACH_FAILED_WITH_REASON = "bindcode.use.attach-failed-with-reason"
         const val USE_SUCCESS = "bindcode.use.success"
     }
 
@@ -90,10 +81,32 @@ object MessageKeys {
         const val REAUTH_START = "hzl.reauth-start"
         const val AUTH_FLOW_UNAVAILABLE = "hzl.auth-flow-unavailable"
         const val UUID_PROXY_PLAYER = "hzl.uuid.proxy-player"
-        const val UUID_CLIENT_ORIGINAL = "hzl.uuid.client-original"
+        const val UUID_SESSION = "hzl.uuid.session"
         const val UUID_HYPER_PLAYER = "hzl.uuid.hyper-player"
-        const val UUID_PROFILE = "hzl.uuid.profile"
-        const val UUID_PROFILE_NULL = "hzl.uuid.profile-null"
+        const val UUID_USER = "hzl.uuid.user"
+        const val UUID_USER_NULL = "hzl.uuid.user-null"
+
+        object User {
+            const val USAGE = "hzl.user.usage"
+            const val NO_USER = "hzl.user.no-user"
+            const val EMPTY = "hzl.user.empty"
+            const val LIST_HEADER = "hzl.user.list-header"
+            const val ENTRY = "hzl.user.entry"
+            const val ENTRY_ACTIVE = "hzl.user.entry-active"
+            const val NOT_FOUND = "hzl.user.not-found"
+            const val SWITCHED = "hzl.user.switched"
+        }
+
+        object Sync {
+            const val USAGE = "hzl.sync.usage"
+            const val CONSOLE_NEEDS_ID = "hzl.sync.console-needs-id"
+            const val NO_USER = "hzl.sync.no-user"
+            const val INVALID_ID = "hzl.sync.invalid-id"
+            const val NOT_FOUND = "hzl.sync.not-found"
+            const val FAILED = "hzl.sync.failed"
+            const val RESULT = "hzl.sync.result"
+            const val CONFLICT = "hzl.sync.conflict"
+        }
     }
 
     object Player {
@@ -102,6 +115,7 @@ object MessageKeys {
         const val ENTER_GAME_AREA = "player.enter-game-area"
         const val LEAVE_GAME_AREA = "player.leave-game-area"
         const val VERIFIED_UNBOUND = "player.verified-unbound"
+        const val INGAME_PROFILE_CONFLICT = "player.ingame-profile-conflict"
         const val PROFILE_CONFLICT_SELF = "player.profile-conflict-self"
         const val PROFILE_CONFLICT_OTHER = "player.profile-conflict-other"
     }

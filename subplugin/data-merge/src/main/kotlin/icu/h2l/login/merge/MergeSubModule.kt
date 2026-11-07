@@ -50,13 +50,13 @@ class MergeSubModule : HyperSubModule {
         val mergeCommand = MergeCommand(
             runMlMigration = {
                 val report = mlMigrator.migrate()
-                "profiles(created=${report.targetProfilesCreated}, matched=${report.targetProfilesMatched}, failed=${report.targetProfileFailures}), " +
+                "profiles(created=${report.targetUsersCreated}, matched=${report.targetUsersMatched}, failed=${report.targetUserFailures}), " +
                     "entries(created=${report.targetEntriesCreated}, matched=${report.targetEntriesMatched}, conflicts=${report.targetEntryConflicts}, failed=${report.targetEntryFailures}, missingProfile=${report.missingProfileReference}), " +
                     "floodgate(created=${report.floodgateEntriesCreated}, matched=${report.floodgateEntriesMatched}, conflicts=${report.floodgateEntryConflicts}, failed=${report.floodgateEntryFailures}, invalidUuid=${report.floodgateInvalidUuid})"
             },
             runAmMigration = {
                 val report = amMigrator.migrate()
-                "profiles(created=${report.targetProfilesCreated}, matched=${report.targetProfilesMatched}, failed=${report.targetProfileFailures}), " +
+                "profiles(created=${report.targetUsersCreated}, matched=${report.targetUsersMatched}, failed=${report.targetUserFailures}), " +
                     "offlineAuth(created=${report.targetOfflineAuthCreated}, matched=${report.targetOfflineAuthMatched}, updated=${report.targetOfflineAuthUpdated}, conflicts=${report.targetOfflineAuthConflicts}, failed=${report.targetOfflineAuthFailures}, invalidPassword=${report.invalidPasswordFormat})"
             }
         ).createCommand()

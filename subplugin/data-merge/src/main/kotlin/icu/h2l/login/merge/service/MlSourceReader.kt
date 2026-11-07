@@ -31,7 +31,7 @@ import java.sql.DriverManager
 import java.sql.SQLException
 import java.util.*
 
-data class MlInGameProfileRow(
+data class MlInGameUserRow(
     val inGameUuid: UUID,
     val currentUsernameLowerCase: String?,
     val currentUsernameOriginal: String?
@@ -49,7 +49,7 @@ class MlSourceReader(
     private val dataDirectory: Path,
     private val config: MergeMlConfig
 ) {
-    fun readProfilesAndUserData(): Pair<List<MlInGameProfileRow>, List<MlUserDataRow>> {
+    fun readProfilesAndUserData(): Pair<List<MlInGameUserRow>, List<MlUserDataRow>> {
         connect().use { connection ->
             return readProfiles(connection) to readUserData(connection)
         }
@@ -120,15 +120,15 @@ class MlSourceReader(
         )
     }
 
-    private fun readProfiles(connection: Connection): List<MlInGameProfileRow> {
-        val sql = "SELECT in_game_uuid, current_username_lower_case, current_username_original FROM ${config.tables.inGameProfileTable}"
+    private fun readProfiles(connection: Connection): List<MlInGameUserRow> {
+        val sql = "SELECT in_game_uuid, current_username_lower_case, current_username_original FROM ${config.tables.inGameUserTable}"
         connection.prepareStatement(sql).use { statement ->
             statement.executeQuery().use { rs ->
-                val result = mutableListOf<MlInGameProfileRow>()
+                val result = mutableListOf<MlInGameUserRow>()
                 while (rs.next()) {
                     val inGameUuid = bytesToUuid(rs.getBytes("in_game_uuid")) ?: continue
                     result.add(
-                        MlInGameProfileRow(
+                        MlInGameUserRow(
                             inGameUuid = inGameUuid,
                             currentUsernameLowerCase = rs.getString("current_username_lower_case"),
                             currentUsernameOriginal = rs.getString("current_username_original")

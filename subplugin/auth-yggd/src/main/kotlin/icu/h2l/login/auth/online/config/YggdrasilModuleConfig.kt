@@ -34,4 +34,9 @@ class YggdrasilModuleConfig {
     // Yggdrasil 认证链路调试日志
     @Comment("config.yggdrasil.debug")
     var debug: Boolean = false
+
+    // 多入口联动组：组名 -> 入口 ID 列表。
+    // 同组入口在 UUID 一致时自动共用同一个 HZL User 绑定。
+    @Comment("config.yggdrasil.link-groups")
+    var linkGroups: MutableMap<String, MutableList<String>> = mutableMapOf()
 }

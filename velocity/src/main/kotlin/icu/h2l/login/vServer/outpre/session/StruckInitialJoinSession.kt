@@ -52,7 +52,7 @@ internal class StruckInitialJoinSession(
                     fallbackToWaitingArea(owner, "error=${throwable.message}")
                     return@whenCompleteAsync
                 }
-                if (!player.isActive || hyperPlayer.hasAttachedProfile()) {
+                if (!player.isActive || hyperPlayer.hasAttachedUser()) {
                     return@whenCompleteAsync
                 }
                 when (result?.status) {
@@ -90,7 +90,7 @@ internal class StruckInitialJoinSession(
         if (!fallbackStarted.compareAndSet(false, true)) {
             return
         }
-        if (!player.isActive || hyperPlayer.hasAttachedProfile()) {
+        if (!player.isActive || hyperPlayer.hasAttachedUser()) {
             return
         }
         val fallbackSession = OutPreInitialJoinSessionFactory.waitingAreaFallbackFrom(this)

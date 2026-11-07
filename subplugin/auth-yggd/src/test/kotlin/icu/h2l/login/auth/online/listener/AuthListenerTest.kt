@@ -51,7 +51,7 @@ class AuthListenerTest {
         )
         val hyperZonePlayer = interfaceStub(
             HyperZonePlayer::class.java,
-            mapOf("hasAttachedProfile" to false)
+            mapOf("hasAttachedUser" to false)
         )
         val uuid = UUID.fromString("11111111-1111-1111-1111-111111111111")
 
@@ -104,7 +104,7 @@ class AuthListenerTest {
         )
         val hyperZonePlayer = interfaceStub(
             HyperZonePlayer::class.java,
-            mapOf("hasAttachedProfile" to false)
+            mapOf("hasAttachedUser" to false)
         )
 
         listener.onWaitingAreaJoin(channel, player, hyperZonePlayer)

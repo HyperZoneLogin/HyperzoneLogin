@@ -39,17 +39,19 @@ class FloodgateVServerAuthListener(
     fun onLoginHandleRequest(event: LoginHandleRequestEvent) {
         event.claim("auth-floodgate:primary") { context ->
             FloodgateDebug.log {
-                "onLoginHandleRequest before complete channel=${context.proxyPlayer.getChannel()} player=${context.session.originalName()} attachedProfile=${context.session.hasAttachedProfile()}"
+                "onLoginHandleRequest before complete channel=${context.proxyPlayer.getChannel()} player=${context.session.originalName()} attachedUser=${context.session.hasAttachedUser()}"
             }
             val result = authService.complete(
                 channel = context.proxyPlayer.getChannel(),
                 playerName = context.session.originalName()
             )
             FloodgateDebug.log {
-                "onLoginHandleRequest after complete channel=${context.proxyPlayer.getChannel()} player=${context.session.originalName()} handled=${result.handled} passed=${result.passed} disconnectOnFailure=${result.disconnectOnFailure} attachedProfile=${context.session.hasAttachedProfile()}"
+                "onLoginHandleRequest after complete channel=${context.proxyPlayer.getChannel()} player=${context.session.originalName()} handled=${result.handled} passed=${result.passed} disconnectOnFailure=${result.disconnectOnFailure} attachedUser=${context.session.hasAttachedUser()}"
             }
             if (!result.handled) {
-                return@claim CompletableFuture.completedFuture(LoginHandleResult.failed("not a floodgate player"))
+                return@claim CompletableFuture.completedFuture(
+                    LoginHandleResult.failed("not a floodgate player")
+                )
             }
             if (!result.passed) {
                 if (result.disconnectOnFailure) {
@@ -64,7 +66,7 @@ class FloodgateVServerAuthListener(
             CompletableFuture.completedFuture(
                 LoginHandleResult.success(
                     credential = result.credential,
-                    profileIdHint = result.profileIdHint
+                    userUUIDHint = result.userUUIDHint,
                 )
             )
         }

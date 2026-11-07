@@ -32,7 +32,7 @@ import icu.h2l.api.profile.CredentialChannelRegistryProvider
 import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.manager.HyperZonePlayerManager
 import icu.h2l.login.message.MessageKeys
-import icu.h2l.login.profile.resolvePendingProfileCreateContext
+import icu.h2l.login.profile.resolvePendingUserCreateContext
 
 class RenameCommand : HyperChatCommandExecutor {
     override fun execute(invocation: HyperChatCommandInvocation) {
@@ -57,12 +57,12 @@ class RenameCommand : HyperChatCommandExecutor {
             return
         }
 
-        if (hyperZonePlayer.hasAttachedProfile()) {
+        if (hyperZonePlayer.hasAttachedUser()) {
             messages.send(source, MessageKeys.Rename.NOT_IN_WAITING_AREA)
             return
         }
 
-        if (hyperZonePlayer.hasAttachedProfile()) {
+        if (hyperZonePlayer.hasAttachedUser()) {
             messages.send(source, MessageKeys.Rename.ALREADY_BOUND)
             return
         }
@@ -70,13 +70,13 @@ class RenameCommand : HyperChatCommandExecutor {
         val newRegistrationName = args[0].trim()
 
         val currentRegistrationName = hyperZonePlayer.getSubmittedCredentials().firstOrNull()
-            ?.getRegistrationName() ?: hyperZonePlayer.clientOriginalName
+            ?.getRegistrationName() ?: hyperZonePlayer.logLabel
         if (newRegistrationName.equals(currentRegistrationName, ignoreCase = true)) {
             messages.send(source, MessageKeys.Rename.SAME_AS_CURRENT)
             return
         }
 
-        val pendingContext = resolvePendingProfileCreateContext(hyperZonePlayer.getSubmittedCredentials()) ?: run {
+        val pendingContext = resolvePendingUserCreateContext(hyperZonePlayer.getSubmittedCredentials()) ?: run {
             messages.send(source, MessageKeys.Rename.CONTEXT_CONFLICT)
             return
         }
@@ -84,7 +84,7 @@ class RenameCommand : HyperChatCommandExecutor {
             messages.send(source, MessageKeys.Rename.CONTEXT_CONFLICT)
             return
         }
-        val createBlockedReason = main.profileService.getRenameBlockedReason(
+        val createBlockedReason = main.userService.getRenameBlockedReason(
             newRegistrationName,
             pendingContext.suggestedUuid
         )
@@ -98,7 +98,7 @@ class RenameCommand : HyperChatCommandExecutor {
         }
 
         val pendingCredential = hyperZonePlayer.getSubmittedCredentials()
-            .singleOrNull { it.getBoundProfileId() == null } ?: run {
+            .singleOrNull { it.getBoundUserUUID() == null } ?: run {
             messages.send(source, MessageKeys.Rename.CONTEXT_CONFLICT)
             return
         }
@@ -120,11 +120,11 @@ class RenameCommand : HyperChatCommandExecutor {
 
         runCatching {
             main.loginManager.replaceCredential(hyperZonePlayer, pendingCredential.channelId, renamedCredential)
-            if (main.profileService.canCreate(renamedCredential)) {
-                val createdProfile = main.profileService.create(renamedCredential)
-                main.profileService.bindSubmittedCredentials(hyperZonePlayer, createdProfile.id)
-                main.loginManager.attachProfile(hyperZonePlayer, createdProfile.id)
-                    ?: throw IllegalStateException("rename 后 attach Profile 失败: ${createdProfile.id}")
+            if (main.userService.canCreateUser(renamedCredential)) {
+                val createdUser = main.userService.createUser(renamedCredential)
+                main.userService.bindSubmittedCredentials(hyperZonePlayer, createdUser.id)
+                main.loginManager.attachUser(hyperZonePlayer, createdUser.id)
+                    ?: throw IllegalStateException("rename 后 attach User 失败: ${createdUser.id}")
             }
         }.onSuccess {
             messages.send(
@@ -133,11 +133,11 @@ class RenameCommand : HyperChatCommandExecutor {
                 HyperZoneMessagePlaceholder.text("name", newRegistrationName)
             )
 
-            val remainingCreateBlockedReason = main.profileService.getCreateBlockedReason(
+            val remainingCreateBlockedReason = main.userService.getCreateBlockedReason(
                 newRegistrationName,
                 pendingContext.suggestedUuid
             )
-            if (hyperZonePlayer.hasAttachedProfile()) {
+            if (hyperZonePlayer.hasAttachedUser()) {
                 messages.send(
                     source,
                     MessageKeys.Rename.SUCCESS,
@@ -146,7 +146,7 @@ class RenameCommand : HyperChatCommandExecutor {
             } else if (remainingCreateBlockedReason != null) {
                 messages.send(
                     source,
-                    MessageKeys.Rename.REUUID_REQUIRED,
+                    MessageKeys.Rename.LINK_REQUIRED,
                     HyperZoneMessagePlaceholder.text("reason", remainingCreateBlockedReason)
                 )
             } else {

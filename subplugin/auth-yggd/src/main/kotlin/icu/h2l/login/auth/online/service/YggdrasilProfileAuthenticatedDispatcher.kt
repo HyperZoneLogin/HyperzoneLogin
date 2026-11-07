@@ -52,17 +52,17 @@ class YggdrasilProfileAuthenticatedDispatcher(
         )
 
         YggdrasilDebug.log {
-            "[ProfileAuthenticatedFlow] dispatch start: clientOriginal=${handler.clientOriginalName}, entry=${result.entryId}, server=${result.serverUrl}, profile=${describeProfile(result.profile)}"
+            "[ProfileAuthenticatedFlow] dispatch start: player=${handler.logLabel}, entry=${result.entryId}, server=${result.serverUrl}, profile=${describeProfile(result.profile)}"
         }
 
         runCatching {
             proxy.eventManager.fire(event).join()
         }.onSuccess {
             YggdrasilDebug.log {
-                "[ProfileAuthenticatedFlow] dispatch completed: clientOriginal=${handler.clientOriginalName}, entry=${result.entryId}"
+                "[ProfileAuthenticatedFlow] dispatch completed: player=${handler.logLabel}, entry=${result.entryId}"
             }
         }.onFailure { throwable ->
-            error(throwable) { "Profile authenticated event dispatch failed: ${throwable.message}" }
+            error(throwable) { "User authenticated event dispatch failed: ${throwable.message}" }
         }
     }
 

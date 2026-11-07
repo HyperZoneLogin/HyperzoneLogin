@@ -192,28 +192,26 @@ open class OutPreAuthSessionHandlerLogic(
         }
 
         debugOutPreTrace {
-            "outpre.handler.completeAfterVerification start channel=${mcConnection.channel.id()} player=${connectedPlayer.username} preferredTarget=$preferredTargetServerName attachedProfile=${hyperPlayer.hasAttachedProfile()} credentials=${
+            "outpre.handler.completeAfterVerification start channel=${mcConnection.channel.id()} player=${connectedPlayer.username} preferredTarget=$preferredTargetServerName attachedUser=${hyperPlayer.hasAttachedUser()} credentials=${
                 hyperPlayer.getSubmittedCredentials().map { it.javaClass.simpleName }
             }"
         }
 
-        val attachedProfile = runCatching {
-            HyperZoneLoginMain.getInstance().profileService.getAttachedProfile(hyperPlayer)
-                ?: throw IllegalStateException("missing attached profile")
-        }.getOrElse { throwable ->
-            logger.error("OutPre finalization failed for {}: attached profile unavailable", connectedPlayer, throwable)
-            connectedPlayer.disconnect0(
-                Component.text(
-                    "OutPre finalization failed: attached profile missing",
-                    NamedTextColor.RED
-                ), false
-            )
-            return
-        }
+        val activeIdentity = hyperPlayer.activeInGameProfile
+            ?: run {
+                logger.error("OutPre finalization failed for {}: attached user identity unavailable", connectedPlayer)
+                connectedPlayer.disconnect0(
+                    Component.text(
+                        "OutPre finalization failed: attached user identity missing",
+                        NamedTextColor.RED
+                    ), false
+                )
+                return
+            }
 
         val finalCandidateProfile = buildAttachedIdentityGameProfile(
             currentGameProfile = connectedPlayer.gameProfile,
-            attachedProfile = attachedProfile,
+            activeIdentity = activeIdentity,
         )
 
         val finalProfileEvent = GameProfileRequestEvent(inbound, finalCandidateProfile, onlineMode)

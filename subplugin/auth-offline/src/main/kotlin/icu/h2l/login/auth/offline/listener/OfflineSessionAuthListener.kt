@@ -36,7 +36,7 @@ class OfflineSessionAuthListener(
         if (event.proxyPlayer.isOnlineMode) {
             return
         }
-        if (event.hyperZonePlayer.hasAttachedProfile()) {
+        if (event.hyperZonePlayer.hasAttachedUser()) {
             return
         }
 
@@ -52,11 +52,13 @@ class OfflineSessionAuthListener(
                 CompletableFuture.completedFuture(
                     LoginHandleResult.success(
                         credential = result.credential,
-                        profileIdHint = result.credential?.getBoundProfileId()
+                        userUUIDHint = result.credential?.getBoundUserUUID(),
                     )
                 )
             } else {
-                CompletableFuture.completedFuture(LoginHandleResult.failed("offline session rejected"))
+                CompletableFuture.completedFuture(
+                    LoginHandleResult.failed("offline session rejected")
+                )
             }
         }
     }

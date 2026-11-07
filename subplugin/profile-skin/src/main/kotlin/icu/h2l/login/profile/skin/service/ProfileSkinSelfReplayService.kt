@@ -35,9 +35,8 @@ import icu.h2l.api.log.error
 import icu.h2l.api.log.warn
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.player.HyperZonePlayerAccessor
-import icu.h2l.api.profile.HyperZoneProfileService
+import icu.h2l.api.profile.HyperZoneUserService
 import icu.h2l.login.profile.skin.data.ProfileSkinTextures
-import icu.h2l.api.util.RemapUtils
 import icu.h2l.login.profile.skin.config.ProfileSkinConfig
 import icu.h2l.login.profile.skin.db.ProfileSkinCacheRepository
 import icu.h2l.login.profile.skin.db.ProfileSkinProfileRepository
@@ -87,7 +86,7 @@ class ProfileSkinSelfReplayService(
     private val config: ProfileSkinConfig,
     private val cacheRepository: ProfileSkinCacheRepository,
     private val profileRepository: ProfileSkinProfileRepository,
-    private val profileService: HyperZoneProfileService
+    private val userService: HyperZoneUserService
 ) {
     private val replayStates = ConcurrentHashMap<HyperZonePlayer, SelfSkinReplayState>()
 
@@ -112,7 +111,7 @@ class ProfileSkinSelfReplayService(
 
     @Subscribe(priority = Short.MIN_VALUE)
     fun onProfileSkinPreprocessInitialSend(event: ProfileSkinPreprocessEvent) {
-        if (!event.hyperZonePlayer.hasAttachedProfile()) {
+        if (!event.hyperZonePlayer.hasAttachedUser()) {
             return
         }
 
@@ -172,11 +171,11 @@ class ProfileSkinSelfReplayService(
         val preferred = preferredTextures?.takeIf(::canReplayTextures)
         if (preferred != null) return preferred
 
-        val profileId = profileService.getAttachedProfile(hyperZonePlayer)?.id ?: return null
-        val skinId = profileRepository.findSkinIdByProfileId(profileId) ?: return null
+        val userUUID = userService.getAttachedUser(hyperZonePlayer)?.id ?: return null
+        val skinId = profileRepository.findSkinIdByProfileId(userUUID) ?: return null
         val cached = cacheRepository.findBySkinId(skinId)?.textures?.takeIf(::canReplayTextures) ?: return null
         ProfileSkinDebug.log {
-            "[ProfileSkinFlow] self replay fallback to cached profile textures: clientOriginal=${hyperZonePlayer.clientOriginalName}, profile=$profileId, skin=$skinId, valueLength=${cached.value.length}, signed=${cached.isSigned}"
+            "[ProfileSkinFlow] self replay fallback to cached profile textures: player=${hyperZonePlayer.logLabel}, profile=$userUUID, skin=$skinId, valueLength=${cached.value.length}, signed=${cached.isSigned}"
         }
         return cached
     }
@@ -199,20 +198,17 @@ class ProfileSkinSelfReplayService(
 
         val property = textures.toPropertyOrNull() ?: run {
             warn {
-                "[ProfileSkinFlow] $failureLabel self ADD_PLAYER skipped due to incomplete textures: clientOriginal=${hyperZonePlayer.clientOriginalName}, valueLength=${textures.value.length}, signed=${textures.isSigned}"
+                "[ProfileSkinFlow] $failureLabel self ADD_PLAYER skipped due to incomplete textures: player=${hyperZonePlayer.logLabel}, valueLength=${textures.value.length}, signed=${textures.isSigned}"
             }
             return
         }
 
         if (!forceReplay && !state.selfAddPlayerSent.compareAndSet(false, true)) return
 
-        val replayUuid = hyperZonePlayer.clientOriginalUUID ?: run {
-            val prefix = "profile-skin"
-            RemapUtils.genUUID(hyperZonePlayer.clientOriginalName, prefix)
-        }
+        val temporaryProfile = hyperZonePlayer.getTemporaryGameProfile()
         val replayProfile = GameProfile(
-            replayUuid,
-            hyperZonePlayer.clientOriginalName,
+            temporaryProfile.id,
+            temporaryProfile.name,
             listOf(property),
         )
 
@@ -227,7 +223,7 @@ class ProfileSkinSelfReplayService(
             } catch (throwable: Throwable) {
                 if (!forceReplay) state.selfAddPlayerSent.set(false)
                 error(throwable) {
-                    "$failureLabel self ADD_PLAYER failed for clientOriginal=${hyperZonePlayer.clientOriginalName}: ${throwable.message}"
+                    "$failureLabel self ADD_PLAYER failed for player=${hyperZonePlayer.logLabel}: ${throwable.message}"
                 }
             }
         }

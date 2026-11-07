@@ -31,7 +31,7 @@ class YggdrasilHyperZoneCredential(
     private val authenticatedName: String,
     private val authenticatedUUID: UUID,
     private val suggestedProfileCreateUuid: UUID?,
-    private val knownProfileId: UUID? = null
+    private val knownUserUUID: UUID? = null,
 ) : HyperZoneCredential {
     override val channelId: String = CHANNEL_ID
     override val credentialId: String = "$entryId:$authenticatedUUID"
@@ -42,50 +42,29 @@ class YggdrasilHyperZoneCredential(
 
     override fun getRegistrationName(): String = authenticatedName
 
-    override fun getBoundProfileId(): UUID? {
-        return knownProfileId ?: entryDatabaseHelper.findEntryByUuid(entryId, authenticatedUUID)
+    override fun getBoundUserUUID(): UUID? {
+        return knownUserUUID ?: entryDatabaseHelper.findEntryByUuid(entryId, authenticatedUUID)
     }
 
-    override fun getSuggestedProfileCreateUuid(): UUID? {
+    override fun getSuggestedGameUuid(): UUID? {
         return suggestedProfileCreateUuid
     }
 
-    override fun validateBind(profileId: UUID): String? {
-        val currentProfileId = getBoundProfileId()
-        if (currentProfileId != null && currentProfileId != profileId) {
-            return "Yggdrasil 凭证 $credentialId 已绑定到其他 Profile: $currentProfileId"
+    override fun validateBind(userUUID: UUID): String? {
+        val currentUserUUID = getBoundUserUUID()
+        if (currentUserUUID != null && currentUserUUID != userUUID) {
+            return "Yggdrasil 凭证 $credentialId 已绑定到其他 User: $currentUserUUID"
         }
         return null
     }
 
-    override fun bind(profileId: UUID): Boolean {
+    override fun bind(userUUID: UUID): Boolean {
         return entryDatabaseHelper.createEntry(
             entryId = entryId,
             name = authenticatedName,
             uuid = authenticatedUUID,
-            pid = profileId
+            pid = userUUID
         )
-    }
-
-    /**
-     * 创建一个更新了建议 UUID 的凭证副本，用于 ReUuid 流程。
-     *
-     * Yggdrasil 认证名与 UUID 由 Mojang 认证，不受 rename 影响；
-     * 仅更新向 Profile 服务建议的建档 UUID（传入 null 表示由核心 ReUuid 逻辑自行决定）。
-     */
-    fun withNewSuggestedUuid(newSuggestedUuid: UUID?): YggdrasilHyperZoneCredential {
-        return YggdrasilHyperZoneCredential(
-            entryDatabaseHelper = entryDatabaseHelper,
-            entryId = entryId,
-            authenticatedName = authenticatedName,
-            authenticatedUUID = authenticatedUUID,
-            suggestedProfileCreateUuid = newSuggestedUuid,
-            knownProfileId = knownProfileId
-        )
-    }
-
-    override fun withReUuidRequest(): YggdrasilHyperZoneCredential {
-        return withNewSuggestedUuid(null)
     }
 
     companion object {

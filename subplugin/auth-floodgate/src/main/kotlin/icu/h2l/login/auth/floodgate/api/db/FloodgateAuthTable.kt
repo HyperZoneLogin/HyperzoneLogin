@@ -21,7 +21,7 @@
 
 package icu.h2l.login.auth.floodgate.api.db
 
-import icu.h2l.api.db.table.ProfileTable
+import icu.h2l.api.db.table.UserTable
 import org.jetbrains.exposed.sql.Table
 import java.util.*
 
@@ -29,27 +29,29 @@ data class FloodgateAuthEntry(
     val id: Int,
     val name: String,
     val xuid: Long,
-    val profileId: UUID,
+    val userUUID: UUID,
+    val gameUuid: UUID? = null,
 )
 
 /**
  * Floodgate 认证数据表定义（公开 API）。
  *
  * 该表保存通过 Floodgate 接入的 Bedrock 玩家记录，
- * 以 xuid 和 profile_id 作为唯一标识。
+ * 以 xuid 和 user_uuid 作为唯一标识。
  *
  * @param prefix 表名前缀
- * @param profileTable 主档案表引用
+ * @param userTable 主档案表引用
  */
-class FloodgateAuthTable(prefix: String, profileTable: ProfileTable) : Table("${prefix}floodgate_auth") {
+class FloodgateAuthTable(prefix: String, userTable: UserTable) : Table("${prefix}floodgate_auth") {
     val id = integer("id").autoIncrement()
     val name = varchar("name", 32)
     val xuid = long("xuid")
-    val profileId = uuid("profile_id").references(profileTable.id)
+    val userUUID = uuid("user_uuid").references(userTable.id)
+    val gameUuid = uuid("game_uuid").nullable()
 
     init {
         uniqueIndex("${tableName}_xuid", xuid)
-        uniqueIndex("${tableName}_profile_id", profileId)
+        uniqueIndex("${tableName}_user_uuid", userUUID)
     }
 
     override val primaryKey = PrimaryKey(id)

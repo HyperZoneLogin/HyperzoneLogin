@@ -31,31 +31,35 @@ class FloodgateHyperZoneCredential(
     private val trustedUuid: UUID,
     private val xuid: Long,
     private val suggestedProfileCreateUuid: UUID?,
-    private val knownProfileId: UUID? = null
+    private val knownUserUUID: UUID? = null,
 ) : HyperZoneCredential {
     override val channelId: String = CHANNEL_ID
     override val credentialId: String = trustedUuid.toString()
 
     override fun getRegistrationName(): String = trustedName
 
-    override fun getBoundProfileId(): UUID? {
-        return knownProfileId ?: repository.findProfileIdByXuid(xuid)
+    override fun getBoundUserUUID(): UUID? {
+        return knownUserUUID ?: repository.findProfileIdByXuid(xuid)
     }
 
-    override fun getSuggestedProfileCreateUuid(): UUID? {
+    override fun getSuggestedGameUuid(): UUID? {
         return suggestedProfileCreateUuid
     }
 
-    override fun validateBind(profileId: UUID): String? {
-        val currentProfileId = getBoundProfileId()
-        if (currentProfileId != null && profileId != currentProfileId) {
-            return "Floodgate 凭证 $trustedName($xuid) 已绑定到其他 Profile: $currentProfileId"
+    override fun validateBind(userUUID: UUID): String? {
+        val currentUserUUID = getBoundUserUUID()
+        if (currentUserUUID != null && userUUID != currentUserUUID) {
+            return "Floodgate 凭证 $trustedName($xuid) 已绑定到其他 User: $currentUserUUID"
         }
         return null
     }
 
-    override fun bind(profileId: UUID): Boolean {
-        return repository.createOrUpdate(trustedName, xuid, profileId)
+    override fun bind(userUUID: UUID): Boolean {
+        val bound = repository.createOrUpdate(trustedName, xuid, userUUID)
+        if (bound) {
+            repository.updateGameUuid(xuid, trustedUuid)
+        }
+        return bound
     }
 
     fun matches(uuid: UUID): Boolean {
@@ -66,7 +70,7 @@ class FloodgateHyperZoneCredential(
      * 创建一个新显示名称的凭证副本，用于 Rename 流程。
      *
      * Floodgate UUID 由 Mojang 分配，不受 rename 影响；
-     * 仅更新显示给 Profile 服务的注册名。
+     * 仅更新显示给 User 服务的注册名。
      */
     fun withNewName(newName: String): FloodgateHyperZoneCredential {
         return FloodgateHyperZoneCredential(
@@ -75,7 +79,7 @@ class FloodgateHyperZoneCredential(
             trustedUuid = trustedUuid,
             xuid = xuid,
             suggestedProfileCreateUuid = suggestedProfileCreateUuid,
-            knownProfileId = knownProfileId
+            knownUserUUID = knownUserUUID,
         )
     }
 

@@ -30,7 +30,7 @@ package icu.h2l.api.profile
  *
  * @property channelId   对应的凭证渠道唯一标识
  * @property canRegister 该渠道是否允许通过凭证注册（建档）新玩家档案。
- *                       若为 `false`，子模块不应调用 [HyperZoneProfileService.create] 等新建档案接口。
+ *                       若为 `false`，子模块不应调用 [HyperZoneUserService.create] 等新建档案接口。
  */
 data class CredentialChannelAbility(
     val channelId: String,

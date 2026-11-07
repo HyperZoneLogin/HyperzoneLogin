@@ -34,6 +34,10 @@ class FloodgateAuthConfig {
     @Comment("config.floodgate.pass-uuid")
     var passFloodgateUuidToProfileResolve: Boolean = true
 
+    // Floodgate UUID 与已有任意渠道游戏内 UUID 一致时自动绑定
+    @Comment("config.floodgate.auto-bind-linked-uuid")
+    var autoBindLinkedUuid: Boolean = true
+
     // 模块调试日志
     @Comment("config.floodgate.debug")
     var debug: Boolean = false

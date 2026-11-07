@@ -21,7 +21,7 @@
 
 package icu.h2l.login.auth.online.api.db
 
-import icu.h2l.api.db.table.ProfileTable
+import icu.h2l.api.db.table.UserTable
 import org.jetbrains.exposed.sql.Table
 
 /**
@@ -30,9 +30,9 @@ import org.jetbrains.exposed.sql.Table
  *
  * @param entryId 入口ID，全小写，如 "mojang"、"offline"
  * @param prefix 表名前缀，默认为空字符串
- * @param profileTable 档案表实例，用于外键关联
+ * @param userTable 档案表实例，用于外键关联
  */
-class EntryTable(entryId: String, prefix: String = "", profileTable: ProfileTable) : Table("${prefix}entry_$entryId") {
+class EntryTable(entryId: String, prefix: String = "", userTable: UserTable) : Table("${prefix}entry_$entryId") {
     /**
      * 自增ID
      */
@@ -51,7 +51,7 @@ class EntryTable(entryId: String, prefix: String = "", profileTable: ProfileTabl
     /**
      * 映射的档案ID（外键）
      */
-    val pid = uuid("pid").references(profileTable.id)
+    val pid = uuid("pid").references(userTable.id)
 
     override val primaryKey = PrimaryKey(id)
 

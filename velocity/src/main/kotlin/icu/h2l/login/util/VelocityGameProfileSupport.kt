@@ -24,27 +24,27 @@ package icu.h2l.login.util
 import com.velocitypowered.api.util.GameProfile
 import com.velocitypowered.proxy.VelocityServer
 import com.velocitypowered.proxy.connection.client.ConnectedPlayer
-import icu.h2l.api.db.Profile
+import icu.h2l.api.db.InGameProfile
 import icu.h2l.login.reflect.VelocityInternalAccess
 import java.util.*
 import java.util.concurrent.CompletableFuture
 
 internal fun buildDeliveredGameProfile(
     currentGameProfile: GameProfile,
-    attachedProfile: Profile,
+    activeIdentity: InGameProfile,
     enableNameHotChange: Boolean,
     enableUuidHotChange: Boolean,
 ): GameProfile {
-    val resolvedName = if (enableNameHotChange) attachedProfile.name else currentGameProfile.name
-    val resolvedUuid = if (enableUuidHotChange) attachedProfile.uuid else currentGameProfile.id
+    val resolvedName = if (enableNameHotChange) activeIdentity.name else currentGameProfile.name
+    val resolvedUuid = if (enableUuidHotChange) activeIdentity.uuid else currentGameProfile.id
     return GameProfile(resolvedUuid, resolvedName, currentGameProfile.properties)
 }
 
 internal fun buildAttachedIdentityGameProfile(
     currentGameProfile: GameProfile,
-    attachedProfile: Profile,
+    activeIdentity: InGameProfile,
 ): GameProfile {
-    return GameProfile(attachedProfile.uuid, attachedProfile.name, currentGameProfile.properties)
+    return GameProfile(activeIdentity.uuid, activeIdentity.name, currentGameProfile.properties)
 }
 
 internal fun hasSemanticGameProfileDifference(expected: GameProfile, actual: GameProfile): Boolean {

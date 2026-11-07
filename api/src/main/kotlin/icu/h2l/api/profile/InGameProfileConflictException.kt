@@ -19,17 +19,14 @@
  *
  */
 
-package icu.h2l.login.database
+package icu.h2l.api.profile
 
-import java.util.*
-
-interface BindingCodeStore {
-    fun createOrReplace(code: String, profileId: UUID, createdAt: Long): Boolean
-
-    fun findCode(profileId: UUID): String?
-
-    fun findProfileId(code: String): UUID?
-
-    fun consume(code: String): Boolean
-}
-
+/**
+ * 渠道提供的游戏内身份与现有 InGameProfile 发生冲突。
+ *
+ * 该异常用于让调用方明确进入“停留等待区 + 绑定码”处理路径，
+ * 不得被静默吞掉后继续 attach。
+ */
+class InGameProfileConflictException(
+    val conflictReason: String,
+) : IllegalStateException(conflictReason)

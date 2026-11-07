@@ -36,7 +36,7 @@ class OfflineAuthRepository(
     private val databaseManager: HyperZoneDatabaseManager,
     private val table: OfflineAuthTable
 ) {
-    fun create(name: String, passwordHash: String, hashFormat: String, profileId: UUID, email: String? = null): Boolean {
+    fun create(name: String, passwordHash: String, hashFormat: String, userUUID: UUID, email: String? = null): Boolean {
         val normalizedName = name.lowercase()
         return try {
             databaseManager.executeTransaction {
@@ -44,7 +44,7 @@ class OfflineAuthRepository(
                     it[this.name] = normalizedName
                     it[this.passwordHash] = passwordHash
                     it[this.hashFormat] = hashFormat
-                    it[this.profileId] = profileId
+                    it[this.userUUID] = userUUID
                     it[this.email] = email?.lowercase()
                 }
             }
@@ -65,9 +65,9 @@ class OfflineAuthRepository(
         }
     }
 
-    fun getByProfileId(profileId: UUID): OfflineAuthEntry? {
+    fun getByProfileId(userUUID: UUID): OfflineAuthEntry? {
         return databaseManager.executeTransaction {
-            table.selectAll().where { table.profileId eq profileId }
+            table.selectAll().where { table.userUUID eq userUUID }
                 .limit(1)
                 .map(::toEntry)
                 .firstOrNull()
@@ -84,10 +84,10 @@ class OfflineAuthRepository(
         }
     }
 
-    fun updatePassword(profileId: UUID, passwordHash: String, hashFormat: String): Boolean {
+    fun updatePassword(userUUID: UUID, passwordHash: String, hashFormat: String): Boolean {
         return try {
             databaseManager.executeTransaction {
-                table.update({ table.profileId eq profileId }) {
+                table.update({ table.userUUID eq userUUID }) {
                     it[this.passwordHash] = passwordHash
                     it[this.hashFormat] = hashFormat
                     it[this.recoveryCodeHash] = null
@@ -108,10 +108,10 @@ class OfflineAuthRepository(
         }
     }
 
-    fun updateEmail(profileId: UUID, email: String?): Boolean {
+    fun updateEmail(userUUID: UUID, email: String?): Boolean {
         return try {
             databaseManager.executeTransaction {
-                table.update({ table.profileId eq profileId }) {
+                table.update({ table.userUUID eq userUUID }) {
                     it[this.email] = email?.lowercase()
                 }
             } > 0
@@ -121,10 +121,10 @@ class OfflineAuthRepository(
         }
     }
 
-    fun updateLoginProtection(profileId: UUID, failCount: Int, blockedUntil: Long?): Boolean {
+    fun updateLoginProtection(userUUID: UUID, failCount: Int, blockedUntil: Long?): Boolean {
         return try {
             databaseManager.executeTransaction {
-                table.update({ table.profileId eq profileId }) {
+                table.update({ table.userUUID eq userUUID }) {
                     it[this.loginFailCount] = failCount
                     it[this.loginBlockedUntil] = blockedUntil
                 }
@@ -135,15 +135,15 @@ class OfflineAuthRepository(
         }
     }
 
-    fun resetLoginProtection(profileId: UUID): Boolean {
-        return updateLoginProtection(profileId, 0, null)
+    fun resetLoginProtection(userUUID: UUID): Boolean {
+        return updateLoginProtection(userUUID, 0, null)
     }
 
 
-    fun startRecovery(profileId: UUID, recoveryCodeHash: String, expireAt: Long, requestedAt: Long): Boolean {
+    fun startRecovery(userUUID: UUID, recoveryCodeHash: String, expireAt: Long, requestedAt: Long): Boolean {
         return try {
             databaseManager.executeTransaction {
-                table.update({ table.profileId eq profileId }) {
+                table.update({ table.userUUID eq userUUID }) {
                     it[this.recoveryCodeHash] = recoveryCodeHash
                     it[this.recoveryCodeExpireAt] = expireAt
                     it[this.recoveryRequestedAt] = requestedAt
@@ -157,16 +157,16 @@ class OfflineAuthRepository(
         }
     }
 
-    fun incrementRecoveryVerifyTries(profileId: UUID): Boolean {
+    fun incrementRecoveryVerifyTries(userUUID: UUID): Boolean {
         return try {
             databaseManager.executeTransaction {
-                val current = table.selectAll().where { table.profileId eq profileId }
+                val current = table.selectAll().where { table.userUUID eq userUUID }
                     .limit(1)
                     .map { it[table.recoveryVerifyTries] }
                     .firstOrNull()
                     ?: return@executeTransaction false
 
-                table.update({ table.profileId eq profileId }) {
+                table.update({ table.userUUID eq userUUID }) {
                     it[this.recoveryVerifyTries] = current + 1
                 } > 0
             }
@@ -176,10 +176,10 @@ class OfflineAuthRepository(
         }
     }
 
-    fun markRecoveryVerified(profileId: UUID, verifiedUntil: Long): Boolean {
+    fun markRecoveryVerified(userUUID: UUID, verifiedUntil: Long): Boolean {
         return try {
             databaseManager.executeTransaction {
-                table.update({ table.profileId eq profileId }) {
+                table.update({ table.userUUID eq userUUID }) {
                     it[this.resetPasswordVerifiedUntil] = verifiedUntil
                     it[this.recoveryCodeHash] = null
                     it[this.recoveryCodeExpireAt] = null
@@ -193,10 +193,10 @@ class OfflineAuthRepository(
         }
     }
 
-    fun clearRecoveryState(profileId: UUID): Boolean {
+    fun clearRecoveryState(userUUID: UUID): Boolean {
         return try {
             databaseManager.executeTransaction {
-                table.update({ table.profileId eq profileId }) {
+                table.update({ table.userUUID eq userUUID }) {
                     it[this.recoveryCodeHash] = null
                     it[this.recoveryCodeExpireAt] = null
                     it[this.recoveryRequestedAt] = null
@@ -210,10 +210,10 @@ class OfflineAuthRepository(
         }
     }
 
-    fun issueSession(profileId: UUID, sessionIp: String?, issuedAt: Long, expiresAt: Long): Boolean {
+    fun issueSession(userUUID: UUID, sessionIp: String?, issuedAt: Long, expiresAt: Long): Boolean {
         return try {
             databaseManager.executeTransaction {
-                table.update({ table.profileId eq profileId }) {
+                table.update({ table.userUUID eq userUUID }) {
                     it[this.sessionIp] = sessionIp
                     it[this.sessionIssuedAt] = issuedAt
                     it[this.sessionExpiresAt] = expiresAt
@@ -225,10 +225,10 @@ class OfflineAuthRepository(
         }
     }
 
-    fun clearSession(profileId: UUID): Boolean {
+    fun clearSession(userUUID: UUID): Boolean {
         return try {
             databaseManager.executeTransaction {
-                table.update({ table.profileId eq profileId }) {
+                table.update({ table.userUUID eq userUUID }) {
                     it[this.sessionIp] = null
                     it[this.sessionIssuedAt] = null
                     it[this.sessionExpiresAt] = null
@@ -240,10 +240,10 @@ class OfflineAuthRepository(
         }
     }
 
-    fun updateTotpSecret(profileId: UUID, totpSecret: String?): Boolean {
+    fun updateTotpSecret(userUUID: UUID, totpSecret: String?): Boolean {
         return try {
             databaseManager.executeTransaction {
-                table.update({ table.profileId eq profileId }) {
+                table.update({ table.userUUID eq userUUID }) {
                     it[this.totpSecret] = totpSecret
                     if (totpSecret == null) {
                         it[this.sessionIp] = null
@@ -258,10 +258,10 @@ class OfflineAuthRepository(
         }
     }
 
-    fun deleteByProfileId(profileId: UUID): Boolean {
+    fun deleteByProfileId(userUUID: UUID): Boolean {
         return try {
             databaseManager.executeTransaction {
-                table.deleteWhere { table.profileId eq profileId }
+                table.deleteWhere { table.userUUID eq userUUID }
             } > 0
         } catch (e: Exception) {
             warn { "删除离线认证记录失败: ${e.message}" }
@@ -275,7 +275,7 @@ class OfflineAuthRepository(
             name = row[table.name],
             passwordHash = row[table.passwordHash],
             hashFormat = row[table.hashFormat],
-            profileId = row[table.profileId],
+            userUUID = row[table.userUUID],
             email = row[table.email],
             recoveryCodeHash = row[table.recoveryCodeHash],
             recoveryCodeExpireAt = row[table.recoveryCodeExpireAt],

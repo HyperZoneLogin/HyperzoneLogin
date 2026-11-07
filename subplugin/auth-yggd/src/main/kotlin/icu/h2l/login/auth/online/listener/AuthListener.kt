@@ -66,7 +66,7 @@ class AuthListener(
     @Subscribe
     fun onLoginHandleRequest(event: LoginHandleRequestEvent) {
         if (!event.proxyPlayer.isOnlineMode) return
-        if (event.hyperZonePlayer.hasAttachedProfile()) return
+        if (event.hyperZonePlayer.hasAttachedUser()) return
 
         event.claim("auth-yggd:waiting-area") { context ->
             val channel = context.proxyPlayer.getChannel()
@@ -83,7 +83,7 @@ class AuthListener(
 
     internal fun onWaitingAreaJoin(channel: Channel, proxyPlayer: Player, hyperZonePlayer: HyperZonePlayer) {
         if (!proxyPlayer.isOnlineMode) return
-        if (hyperZonePlayer.hasAttachedProfile()) return
+        if (hyperZonePlayer.hasAttachedUser()) return
 
         val pending = pendingContexts.remove(channel)
         if (pending == null) {

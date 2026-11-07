@@ -54,7 +54,7 @@ class OverVServerCommand : HyperChatCommandExecutor {
             return
         }
 
-        if (hyperZonePlayer.hasAttachedProfile()) {
+        if (hyperZonePlayer.hasAttachedUser()) {
             messages.send(source, MessageKeys.Over.NOT_IN_WAITING_AREA)
             return
         }
@@ -63,7 +63,7 @@ class OverVServerCommand : HyperChatCommandExecutor {
             HyperZoneLoginMain.getInstance().loginManager.overVerify(hyperZonePlayer)
         }.onFailure { throwable ->
             HyperZoneLoginMain.getInstance().logger.warn(
-                "玩家 ${hyperZonePlayer.clientOriginalName} 通过 /over 完成慢测试验证失败: ${throwable.message}",
+                "玩家 ${hyperZonePlayer.logLabel} 通过 /over 完成慢测试验证失败: ${throwable.message}",
                 throwable
             )
             messages.send(source, MessageKeys.Over.FAILED)

@@ -31,7 +31,7 @@ import icu.h2l.api.player.HyperZonePlayer
  * 不再承载是否允许离开等待区的结果。
  *
  * 玩家是否可以离开等待区，统一以当前登录态是否仍在 waiting area
- *（例如是否已 attach Profile）为准。
+ *（例如是否已 attach User）为准。
  *
  * @property proxyPlayer 当前代理层玩家对象
  * @property hyperZonePlayer 当前登录态玩家对象

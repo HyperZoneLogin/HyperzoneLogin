@@ -28,6 +28,13 @@ import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.update
 import java.util.*
 
+data class EntryRecord(
+    val entryId: String,
+    val name: String,
+    val uuid: UUID,
+    val userUUID: UUID,
+)
+
 /**
  * Entry 表数据操作帮助类
  */
@@ -42,12 +49,12 @@ class EntryDatabaseHelper(
             val matchedProfileIds = entryTable.selectAll().where { entryTable.uuid eq uuid }
                 .map { it[entryTable.pid] }
 
-            val distinctProfileIds = matchedProfileIds.distinct()
-            if (distinctProfileIds.size > 1) {
-                warn { "Entry $entryId 中 UUID=$uuid 存在多个 profileId 绑定: $distinctProfileIds" }
+            val distinctUserUUIDs = matchedProfileIds.distinct()
+            if (distinctUserUUIDs.size > 1) {
+                warn { "Entry $entryId 中 UUID=$uuid 存在多个 userUUID 绑定: $distinctUserUUIDs" }
             }
 
-            distinctProfileIds.firstOrNull()
+            distinctUserUUIDs.firstOrNull()
         }
     }
 
@@ -70,7 +77,7 @@ class EntryDatabaseHelper(
 
                     existingBindings.any { (existingPid, _) -> existingPid != pid } -> {
                         warn {
-                            "创建入口记录失败: Entry $entryId 中 UUID=$uuid 已绑定到其他 profileId=${existingBindings.map { it.first }.distinct()}，拒绝改绑到 $pid"
+                            "创建入口记录失败: Entry $entryId 中 UUID=$uuid 已绑定到其他 userUUID=${existingBindings.map { it.first }.distinct()}，拒绝改绑到 $pid"
                         }
                         return@executeTransaction false
                     }
@@ -118,5 +125,33 @@ class EntryDatabaseHelper(
         return databaseManager.executeTransaction {
             entryTable.selectAll().where { entryTable.uuid eq uuid }.count() > 0
         }
+    }
+
+    fun findEntriesByProfileId(entryId: String, userUUID: UUID): List<EntryRecord> {
+        val entryTable = entryTableManager.getEntryTable(entryId) ?: return emptyList()
+
+        return databaseManager.executeTransaction {
+            entryTable.selectAll().where { entryTable.pid eq userUUID }
+                .map { row ->
+                    EntryRecord(
+                        entryId = entryId.lowercase(),
+                        name = row[entryTable.name],
+                        uuid = row[entryTable.uuid],
+                        userUUID = row[entryTable.pid],
+                    )
+                }
+        }
+    }
+
+    fun findProfileIdsByUuid(entryIds: Collection<String>, uuid: UUID): Set<UUID> {
+        val result = linkedSetOf<UUID>()
+        entryIds.forEach { entryId ->
+            val entryTable = entryTableManager.getEntryTable(entryId) ?: return@forEach
+            databaseManager.executeTransaction {
+                entryTable.selectAll().where { entryTable.uuid eq uuid }
+                    .mapTo(result) { row -> row[entryTable.pid] }
+            }
+        }
+        return result
     }
 }

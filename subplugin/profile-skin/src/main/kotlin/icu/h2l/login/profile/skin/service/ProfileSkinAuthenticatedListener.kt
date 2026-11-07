@@ -52,7 +52,7 @@ class ProfileSkinAuthenticatedListener(
         val source = extractSkinSource(textures)
 
         ProfileSkinDebug.log {
-            "[ProfileSkinFlow] authenticated event received: clientOriginal=${event.hyperZonePlayer.clientOriginalName}, entry=${event.entryId}, server=${event.serverUrl}, textures=${describeTextures(textures)}, source=${describeSource(source)}"
+            "[ProfileSkinFlow] authenticated event received: player=${event.hyperZonePlayer.logLabel}, entry=${event.entryId}, server=${event.serverUrl}, textures=${describeTextures(textures)}, source=${describeSource(source)}"
         }
 
         val preprocessEvent = ProfileSkinPreprocessEvent(

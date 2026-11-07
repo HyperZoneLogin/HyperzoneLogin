@@ -23,9 +23,10 @@ package icu.h2l.login.player
 
 import com.velocitypowered.api.proxy.Player
 import com.velocitypowered.api.util.GameProfile
+import icu.h2l.api.db.InGameProfile
+import icu.h2l.api.db.User
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.util.RemapUtils
-import icu.h2l.login.HyperZoneLoginMain
 import net.kyori.adventure.text.Component
 import java.util.*
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -36,16 +37,44 @@ import java.util.concurrent.atomic.AtomicBoolean
  *
  * 这里维护连接/等待区相关的状态，以及少量登录会话辅助状态。
  *
- * 核心会在 `LoginManager` 统一根据凭证 attach 正式 Profile，并负责凭证流编排。
- * 只有"已 attach Profile"条件满足时，
+ * 核心会在 `LoginManager` 统一根据凭证 attach 正式 User，并负责凭证流编排。
+ * 只有"已 attach User"条件满足时，
  * 玩家才允许离开等待区并使用正式游戏身份进入游戏区。
  */
 class VelocityHyperZonePlayer(
-//    最开始客户端传入的，不可信；仅用于调试、客户端回放与第一次拟定默认生成名
-    override val clientOriginalName: String,
-    override val clientOriginalUUID: UUID?,
     override val isOnlinePlayer: Boolean,
 ) : HyperZonePlayer {
+    @Volatile
+    private var cachedUser: User? = null
+
+    @Volatile
+    private var cachedActiveInGameProfile: InGameProfile? = null
+
+    override val userUUID: UUID?
+        get() = cachedUser?.id
+
+    override val attachedUser: User?
+        get() = cachedUser
+
+    override val activeInGameProfile: InGameProfile?
+        get() = cachedActiveInGameProfile
+
+    internal fun bindAttachedUser(user: User, activeIdentity: InGameProfile?) {
+        cachedUser = user
+        cachedActiveInGameProfile = activeIdentity
+    }
+
+    internal fun bindActiveInGameProfile(identity: InGameProfile) {
+        if (cachedUser?.id == identity.userUUID) {
+            cachedActiveInGameProfile = identity
+        }
+    }
+
+    internal fun clearUserCache() {
+        cachedUser = null
+        cachedActiveInGameProfile = null
+    }
+
     private var proxyPlayer: Player? = null
     private val hasBoundProxyPlayer = AtomicBoolean(false)
 
@@ -92,7 +121,7 @@ class VelocityHyperZonePlayer(
      */
     fun injectProxyPlayer(player: Player) {
         if (!hasBoundProxyPlayer.compareAndSet(false, true)) {
-            throw IllegalStateException("玩家 $clientOriginalName 的代理玩家对象只能绑定一次")
+            throw IllegalStateException("玩家 ${userUUID ?: "<unbound>"} 的代理玩家对象只能绑定一次")
         }
         proxyPlayer = player
     }
@@ -112,8 +141,8 @@ class VelocityHyperZonePlayer(
         }
     }
 
-    override fun hasAttachedProfile(): Boolean {
-        return HyperZoneLoginMain.getInstance().profileService.hasAttachedProfile(this)
+    override fun hasAttachedUser(): Boolean {
+        return cachedUser != null
     }
 
     override fun sendMessage(message: Component) {
@@ -134,11 +163,11 @@ class VelocityHyperZonePlayer(
     }
 
     override fun getAttachedGameProfile(): GameProfile {
-        val resolvedProfile = HyperZoneLoginMain.getInstance().profileService.getAttachedProfile(this)
-            ?: throw IllegalStateException("玩家 $clientOriginalName 尚未 attach Profile，无法获取正式游戏档案")
+        val activeIdentity = cachedActiveInGameProfile
+            ?: throw IllegalStateException("玩家 ${userUUID ?: "<unbound>"} 当前没有活动 InGameProfile，无法获取正式游戏档案")
         return GameProfile(
-            resolvedProfile.uuid,
-            resolvedProfile.name,
+            activeIdentity.uuid,
+            activeIdentity.name,
             emptyList()
         )
     }

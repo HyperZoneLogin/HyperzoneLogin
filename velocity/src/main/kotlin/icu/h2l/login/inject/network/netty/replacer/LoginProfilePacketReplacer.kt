@@ -156,11 +156,11 @@ class LoginProfilePacketReplacer(
      * 登录服（isLoginServerTarget）的临时档案替换由 backend 模块的专用监听器负责。
      */
     private fun resolveInitialForwardingProfile(): GameProfile {
-        if (!hyperPlayer.hasAttachedProfile()) {
+        if (!hyperPlayer.hasAttachedUser()) {
             return hyperPlayer.getTemporaryGameProfile()
         }
         return requireNotNull(hyperPlayer.getApplyGameProfile()) {
-            "Formal profile is unavailable while resolving initial forwarding profile for clientOriginal=${hyperPlayer.clientOriginalName}"
+            "Formal profile is unavailable while resolving initial forwarding profile for player=${hyperPlayer.logLabel}"
         }
     }
 

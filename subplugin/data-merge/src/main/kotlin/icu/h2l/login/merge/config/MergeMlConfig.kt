@@ -117,8 +117,8 @@ class MergeMlConfig {
         @Comment("config.merge-ml.tables.user-data-table")
         var userDataTable: String = "multilogin_user_data_v3"
 
-        // InGameProfileTableV3 的表名
+        // InGameUserTableV3 的表名
         @Comment("config.merge-ml.tables.in-game-profile-table")
-        var inGameProfileTable: String = "multilogin_in_game_profile_v3"
+        var inGameUserTable: String = "multilogin_in_game_profile_v3"
     }
 }

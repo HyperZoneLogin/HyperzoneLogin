@@ -23,7 +23,7 @@ package icu.h2l.login.profile.skin.event
 
 import com.velocitypowered.api.event.annotation.AwaitingEvent
 import com.velocitypowered.api.util.GameProfile
-import icu.h2l.api.event.profile.ProfileAttachedEvent
+import icu.h2l.api.event.profile.UserAttachedEvent
 import icu.h2l.api.event.profile.ProfilePropertiesApplyEvent
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.login.profile.skin.data.ProfileSkinSource
@@ -32,7 +32,7 @@ import icu.h2l.login.profile.skin.data.ProfileSkinTextures
 /**
  * 在认证模块完成外部鉴权后、正式档案 attach 完成前触发的皮肤预处理事件。
  *
- * 该阶段适合根据外部认证结果提前准备皮肤来源信息，并在后续 [ProfileAttachedEvent]
+ * 该阶段适合根据外部认证结果提前准备皮肤来源信息，并在后续 [UserAttachedEvent]
  * 或 [ProfilePropertiesApplyEvent] 中继续消费。
  *
  * @property hyperZonePlayer 当前登录态玩家对象

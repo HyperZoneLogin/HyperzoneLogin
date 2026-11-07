@@ -19,19 +19,19 @@
  *
  */
 
-package icu.h2l.login.manager
+package icu.h2l.login.database
 
 import com.velocitypowered.api.proxy.ProxyServer
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import icu.h2l.api.db.HyperZoneDatabaseManager
-import icu.h2l.api.db.table.ProfileTable
+import icu.h2l.api.db.table.BindingCodeTable
+import icu.h2l.api.db.table.InGameProfileTable
+import icu.h2l.api.db.table.UserTable
 import icu.h2l.api.event.db.TableSchemaAction
 import icu.h2l.api.event.db.TableSchemaEvent
 import icu.h2l.api.log.info
 import icu.h2l.api.log.warn
-import icu.h2l.login.database.BindingCodeTable
-import icu.h2l.login.database.DatabaseConfig
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.transactions.transaction
@@ -51,8 +51,9 @@ class DatabaseManager(
     /**
      * 档案表实例
      */
-    private val profileTable = ProfileTable(config.tablePrefix)
-    private val bindingCodeTable = BindingCodeTable(config.tablePrefix, profileTable)
+    private val userTable = UserTable(config.tablePrefix)
+    private val inGameProfileTable = InGameProfileTable(config.tablePrefix, userTable)
+    private val bindingCodeTable = BindingCodeTable(config.tablePrefix, userTable)
 
     override val tablePrefix: String
         get() = config.tablePrefix
@@ -120,7 +121,9 @@ class DatabaseManager(
     /**
      * 获取档案表实例
      */
-    fun getProfileTable(): ProfileTable = profileTable
+    fun getUserTable(): UserTable = userTable
+
+    fun getInGameProfileTable(): InGameProfileTable = inGameProfileTable
 
     fun getBindingCodeTable(): BindingCodeTable = bindingCodeTable
 
@@ -128,10 +131,13 @@ class DatabaseManager(
      * 创建基础表（不包括 Entry 表）
      * Entry 表由事件系统自动创建
      */
+    @Suppress("DEPRECATION")
     fun createBaseTables() {
         transaction(database) {
-            // 创建档案表
-            SchemaUtils.create(profileTable, bindingCodeTable)
+            // 先补齐 User 表结构（旧库会新增 active_in_game_profile_id 列）
+            SchemaUtils.createMissingTablesAndColumns(userTable, withLogs = false)
+            // 再创建游戏内身份表与绑定码表
+            SchemaUtils.createMissingTablesAndColumns(inGameProfileTable, bindingCodeTable, withLogs = false)
         }
     }
     
@@ -145,9 +151,10 @@ class DatabaseManager(
         proxy.eventManager.fire(TableSchemaEvent(TableSchemaAction.DROP_ALL)).join()
 
         executeTransaction {
-            // 删除档案表
-            SchemaUtils.drop(bindingCodeTable, profileTable)
-            warn { "已删除表: ${profileTable.tableName}" }
+            // 先删依赖 profile 的表，再删 profile 本身
+            SchemaUtils.drop(bindingCodeTable, inGameProfileTable, userTable)
+            warn { "已删除表: ${inGameProfileTable.tableName}" }
+            warn { "已删除表: ${userTable.tableName}" }
         }
 
         warn { "数据库表已全部删除！" }

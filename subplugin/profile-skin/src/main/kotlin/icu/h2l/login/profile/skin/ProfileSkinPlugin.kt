@@ -30,7 +30,7 @@ import com.velocitypowered.api.plugin.Plugin
 import com.velocitypowered.api.proxy.ProxyServer
 import icu.h2l.api.HyperZoneApiProvider
 
-@Plugin(id = "hzl-profile-skin", name = "HyperZoneLogin - Profile Skin")
+@Plugin(id = "hzl-profile-skin", name = "HyperZoneLogin - User Skin")
 class ProfileSkinPlugin @Inject constructor(
     private val server: ProxyServer
 ) {

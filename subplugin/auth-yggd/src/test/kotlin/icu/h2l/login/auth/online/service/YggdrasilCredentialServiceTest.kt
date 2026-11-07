@@ -24,11 +24,11 @@ package icu.h2l.login.auth.online.service
 import com.velocitypowered.api.proxy.ProxyServer
 import com.velocitypowered.api.util.GameProfile
 import icu.h2l.api.db.HyperZoneDatabaseManager
-import icu.h2l.api.db.Profile
-import icu.h2l.api.db.table.ProfileTable
+import icu.h2l.api.db.User
+import icu.h2l.api.db.table.UserTable
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.profile.HyperZoneCredential
-import icu.h2l.api.profile.HyperZoneProfileService
+import icu.h2l.api.profile.HyperZoneUserService
 import icu.h2l.login.auth.online.config.EntryConfig
 import icu.h2l.login.auth.online.db.EntryTableManager
 import icu.h2l.login.auth.online.manager.EntryConfigManager
@@ -44,7 +44,7 @@ import java.util.*
 
 class YggdrasilCredentialServiceTest {
     private lateinit var entryConfigManager: EntryConfigManager
-    private lateinit var profileService: RecordingProfileService
+    private lateinit var userService: RecordingProfileService
     private lateinit var service: YggdrasilCredentialService
 
     @BeforeEach
@@ -59,7 +59,7 @@ class YggdrasilCredentialServiceTest {
         val entryTableManager = EntryTableManager(
             databaseManager = databaseManager,
             tablePrefix = "",
-            profileTable = ProfileTable()
+            userTable = UserTable()
         )
         val proxyServer = interfaceStub(ProxyServer::class.java)
 
@@ -67,7 +67,7 @@ class YggdrasilCredentialServiceTest {
             dataDirectory = Files.createTempDirectory("auth-yggd-test"),
             proxyServer = proxyServer
         )
-        profileService = RecordingProfileService()
+        userService = RecordingProfileService()
         val entryDatabaseHelper = icu.h2l.login.auth.online.db.EntryDatabaseHelper(
             databaseManager = databaseManager,
             entryTableManager = entryTableManager
@@ -75,7 +75,7 @@ class YggdrasilCredentialServiceTest {
 
         service = YggdrasilCredentialService(
             entryConfigManager = entryConfigManager,
-            profileService = profileService,
+            userService = userService,
             entryDatabaseHelper = entryDatabaseHelper
         )
     }
@@ -86,15 +86,15 @@ class YggdrasilCredentialServiceTest {
         val disabledUuid = UUID.fromString("22222222-2222-2222-2222-222222222222")
         val enabledProfileId = UUID.fromString("33333333-3333-3333-3333-333333333333")
         val disabledProfileId = UUID.fromString("44444444-4444-4444-4444-444444444444")
-        val enabledHandler = RecordingHyperZonePlayer("EnabledUser")
-        val disabledHandler = RecordingHyperZonePlayer("DisabledUser")
+        val enabledHandler = RecordingHyperZonePlayer()
+        val disabledHandler = RecordingHyperZonePlayer()
 
         setConfigs(
             entryConfig("mojang", true),
             entryConfig("elyby", false)
         )
-        profileService.allowResolve("EnabledUser", enabledUuid, Profile(enabledProfileId, "EnabledUser", enabledUuid))
-        profileService.allowResolve("DisabledUser", null, Profile(disabledProfileId, "DisabledUser", disabledUuid))
+        userService.allowResolve("EnabledUser", enabledUuid, User(enabledProfileId))
+        userService.allowResolve("DisabledUser", null, User(disabledProfileId))
 
         val enabledPreparation = invokeEnsureCredential(
             handler = enabledHandler,
@@ -112,25 +112,25 @@ class YggdrasilCredentialServiceTest {
                 ResolveRequest("EnabledUser", enabledUuid),
                 ResolveRequest("DisabledUser", null)
             ),
-            profileService.canCreateCalls
+            userService.canCreateCalls
         )
         assertEquals(
             listOf(
                 ResolveRequest("EnabledUser", enabledUuid),
                 ResolveRequest("DisabledUser", null)
             ),
-            profileService.createCalls
+            userService.createCalls
         )
     }
 
     @Test
     fun `ensureCredential falls back to passthrough when entry config is missing`() {
         val authenticatedUuid = UUID.fromString("55555555-5555-5555-5555-555555555555")
-        val profileId = UUID.fromString("66666666-6666-6666-6666-666666666666")
-        val handler = RecordingHyperZonePlayer("FallbackUser")
+        val userUUID = UUID.fromString("66666666-6666-6666-6666-666666666666")
+        val handler = RecordingHyperZonePlayer()
 
         setConfigs(entryConfig("other", false))
-        profileService.allowResolve("FallbackUser", authenticatedUuid, Profile(profileId, "FallbackUser", authenticatedUuid))
+        userService.allowResolve("FallbackUser", authenticatedUuid, User(userUUID))
 
         val preparation = invokeEnsureCredential(
             handler = handler,
@@ -138,8 +138,8 @@ class YggdrasilCredentialServiceTest {
         )
 
         assertNull(preparation.failureReason)
-        assertEquals(listOf(ResolveRequest("FallbackUser", authenticatedUuid)), profileService.canCreateCalls)
-        assertEquals(listOf(ResolveRequest("FallbackUser", authenticatedUuid)), profileService.createCalls)
+        assertEquals(listOf(ResolveRequest("FallbackUser", authenticatedUuid)), userService.canCreateCalls)
+        assertEquals(listOf(ResolveRequest("FallbackUser", authenticatedUuid)), userService.createCalls)
     }
 
     private fun invokeEnsureCredential(
@@ -197,61 +197,59 @@ class YggdrasilCredentialServiceTest {
         val uuid: UUID?
     )
 
-    private class RecordingProfileService : HyperZoneProfileService {
-        private val allowedResolutions = mutableMapOf<ResolveRequest, Profile>()
+    private class RecordingProfileService : HyperZoneUserService {
+        private val allowedResolutions = mutableMapOf<ResolveRequest, User>()
         val canCreateCalls = mutableListOf<ResolveRequest>()
         val createCalls = mutableListOf<ResolveRequest>()
 
-        fun allowResolve(userName: String, uuid: UUID?, profile: Profile) {
+        fun allowResolve(userName: String, uuid: UUID?, profile: User) {
             allowedResolutions[ResolveRequest(userName, uuid)] = profile
         }
 
-        override fun getProfile(profileId: UUID): Profile? = null
+        override fun getUser(userUUID: UUID): User? = null
 
-        override fun getProfileByName(name: String) = null
+        override fun getUserByName(name: String) = null
 
-        override fun getProfileByUuid(playerUuid: UUID): Profile? = null
+        override fun getUserByGameUuid(playerUuid: UUID): User? = null
 
-        override fun getAttachedProfile(player: HyperZonePlayer): Profile? = null
+        override fun getAttachedUser(player: HyperZonePlayer): User? = null
 
-        override fun attachProfile(player: HyperZonePlayer, profileId: UUID): Profile? = null
+        override fun attachUser(player: HyperZonePlayer, userUUID: UUID): User? = null
 
-        override fun canCreate(credential: HyperZoneCredential): Boolean {
+        override fun canCreateUser(credential: HyperZoneCredential): Boolean {
             val request = ResolveRequest(
                 credential.getRegistrationName() ?: error("No registration name"),
-                credential.getSuggestedProfileCreateUuid()
+                credential.getSuggestedGameUuid()
             )
             canCreateCalls += request
             return allowedResolutions.containsKey(request)
         }
 
-        override fun create(credential: HyperZoneCredential): Profile {
+        override fun createUser(credential: HyperZoneCredential): User {
             val request = ResolveRequest(
                 credential.getRegistrationName() ?: error("No registration name"),
-                credential.getSuggestedProfileCreateUuid()
+                credential.getSuggestedGameUuid()
             )
             createCalls += request
             return allowedResolutions[request]
                 ?: throw IllegalStateException("Unexpected resolve request: $request")
         }
 
-        override fun attachVerifiedCredentialProfile(player: HyperZonePlayer): Profile? = null
+        override fun resolveAuthenticatedUser(player: HyperZonePlayer): User? = null
 
-        override fun bindSubmittedCredentials(player: HyperZonePlayer, profileId: UUID): Profile {
+        override fun bindSubmittedCredentials(player: HyperZonePlayer, userUUID: UUID): User {
             throw UnsupportedOperationException("Not used in this test")
         }
     }
 
-    private class RecordingHyperZonePlayer(
-        override val clientOriginalName: String,
-        override val clientOriginalUUID: UUID = UUID.randomUUID()
-    ) : HyperZonePlayer {
+    private class RecordingHyperZonePlayer : HyperZonePlayer {
+        override val userUUID: UUID? = null
         private val submittedCredentials = mutableListOf<HyperZoneCredential>()
         private val temporaryProfile: GameProfile = GameProfile(UUID.randomUUID(), "temp", emptyList())
 
         override val isOnlinePlayer: Boolean = false
 
-        override fun hasAttachedProfile(): Boolean = false
+        override fun hasAttachedUser(): Boolean = false
 
         override fun getSubmittedCredentials(): List<HyperZoneCredential> = submittedCredentials.toList()
 

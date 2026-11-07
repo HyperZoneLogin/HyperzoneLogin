@@ -25,6 +25,7 @@ import com.velocitypowered.api.event.PostOrder
 import com.velocitypowered.api.event.Subscribe
 import com.velocitypowered.api.util.GameProfile
 import icu.h2l.api.event.profile.LoginProfileReplaceEvent
+import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.login.auth.floodgate.config.FloodgateDebug
 
 /**
@@ -47,17 +48,17 @@ class FloodgateLoginProfileReplaceListener {
             return
         }
 
-        val targetProfile: GameProfile = if (!hyperPlayer.hasAttachedProfile()) {
+        val targetUser: GameProfile = if (!hyperPlayer.hasAttachedUser()) {
             hyperPlayer.getTemporaryGameProfile()
         } else {
             runCatching { hyperPlayer.getApplyGameProfile() }.getOrElse { throwable ->
                 FloodgateDebug.log {
-                    "[FloodgateProfileReplace] 获取正式档案失败，回退到初始档案: player=${hyperPlayer.clientOriginalName}, reason=${throwable.message}"
+                    "[FloodgateProfileReplace] 获取正式档案失败，回退到初始档案: player=${playerLabel(hyperPlayer)}, reason=${throwable.message}"
                 }
                 return
             } ?: run {
                 FloodgateDebug.log {
-                    "[FloodgateProfileReplace] getApplyGameProfile 返回 null，跳过覆写: player=${hyperPlayer.clientOriginalName}"
+                    "[FloodgateProfileReplace] getApplyGameProfile 返回 null，跳过覆写: player=${playerLabel(hyperPlayer)}"
                 }
                 return
             }
@@ -66,22 +67,26 @@ class FloodgateLoginProfileReplaceListener {
         val velocityPlayer = hyperPlayer.getProxyPlayerOrNull() ?: return
         val currentVcProfile = velocityPlayer.gameProfile
 
-        if (targetProfile.id == currentVcProfile.id &&
-            targetProfile.name == currentVcProfile.name &&
-            targetProfile.properties.isEmpty() && currentVcProfile.properties.isEmpty()
+        if (targetUser.id == currentVcProfile.id &&
+            targetUser.name == currentVcProfile.name &&
+            targetUser.properties.isEmpty() && currentVcProfile.properties.isEmpty()
         ) {
             // 档案无实质差异，无需触发替换
             return
         }
 
         FloodgateDebug.log {
-            "[FloodgateProfileReplace] 覆写转发档案: player=${hyperPlayer.clientOriginalName} name=${targetProfile.name} uuid=${targetProfile.id}"
+            "[FloodgateProfileReplace] 覆写转发档案: player=${playerLabel(hyperPlayer)} name=${targetUser.name} uuid=${targetUser.id}"
         }
-        event.profile = targetProfile
+        event.profile = targetUser
         event.modified = true
     }
 
     companion object {
         private const val FLOODGATE_CHANNEL_ID = "floodgate"
+    }
+
+    private fun playerLabel(player: HyperZonePlayer): String {
+        return player.getProxyPlayerOrNull()?.username ?: player.userUUID?.toString() ?: "<unknown>"
     }
 }

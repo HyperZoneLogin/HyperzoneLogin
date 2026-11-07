@@ -24,14 +24,14 @@ package icu.h2l.login.auth.offline.service
 import com.velocitypowered.api.proxy.Player
 import com.velocitypowered.api.proxy.ProxyServer
 import icu.h2l.api.db.HyperZoneDatabaseManager
-import icu.h2l.api.db.Profile
-import icu.h2l.api.db.table.ProfileTable
+import icu.h2l.api.db.User
+import icu.h2l.api.db.table.UserTable
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.player.HyperZonePlayerAccessor
 import icu.h2l.api.profile.HyperZoneCredential
 import icu.h2l.api.profile.HyperZoneCredentialFlow
 import icu.h2l.api.profile.HyperZoneCredentialFlowProvider
-import icu.h2l.api.profile.HyperZoneProfileService
+import icu.h2l.api.profile.HyperZoneUserService
 import icu.h2l.login.auth.offline.OfflineAuthMessages
 import icu.h2l.login.auth.offline.TestMessageService
 import icu.h2l.login.auth.offline.api.db.OfflineAuthTable
@@ -60,11 +60,11 @@ class OfflineAuthServiceRegisterTest {
     private lateinit var player: Player
     private lateinit var hyperZonePlayer: HyperZonePlayer
     private lateinit var proxy: ProxyServer
-    private lateinit var profileService: HyperZoneProfileService
+    private lateinit var userService: HyperZoneUserService
     private lateinit var credentialFlow: HyperZoneCredentialFlow
     private lateinit var service: OfflineAuthService
     private lateinit var pendingRegistrations: PendingOfflineRegistrationManager
-    private lateinit var profileTable: ProfileTable
+    private lateinit var userTable: UserTable
     private lateinit var offlineAuthTable: OfflineAuthTable
     private lateinit var database: Database
 
@@ -78,8 +78,8 @@ class OfflineAuthServiceRegisterTest {
             url = "jdbc:h2:mem:${UUID.randomUUID()};MODE=MySQL;DB_CLOSE_DELAY=-1",
             driver = "org.h2.Driver"
         )
-        profileTable = ProfileTable()
-        offlineAuthTable = OfflineAuthTable("", profileTable)
+        userTable = UserTable()
+        offlineAuthTable = OfflineAuthTable("", userTable)
         val databaseManager = object : HyperZoneDatabaseManager {
             override val tablePrefix: String = ""
 
@@ -88,27 +88,28 @@ class OfflineAuthServiceRegisterTest {
             }
         }
         transaction(database) {
-            SchemaUtils.create(profileTable, offlineAuthTable)
+            SchemaUtils.create(userTable, offlineAuthTable)
         }
 
         repository = OfflineAuthRepository(databaseManager, offlineAuthTable)
         player = mockk(relaxed = true)
         hyperZonePlayer = mockk(relaxUnitFun = true)
         proxy = mockk(relaxed = true)
-        profileService = mockk()
+        userService = mockk()
         credentialFlow = mockk(relaxUnitFun = true)
         HyperZoneCredentialFlowProvider.bind(credentialFlow)
         pendingRegistrations = PendingOfflineRegistrationManager()
 
-        every { hyperZonePlayer.clientOriginalName } returns USERNAME
+        every { hyperZonePlayer.logLabel } returns USERNAME
+        every { player.username } returns USERNAME
         every { hyperZonePlayer.getSubmittedCredentials() } returns emptyList()
-        every { hyperZonePlayer.hasAttachedProfile() } returns false
+        every { hyperZonePlayer.hasAttachedUser() } returns false
         every { hyperZonePlayer.canBind() } returns true
         service = OfflineAuthService(
             repository = repository,
             pendingRegistrations = pendingRegistrations,
             playerAccessor = TestPlayerAccessor(hyperZonePlayer),
-            profileService = profileService,
+            userService = userService,
             emailSender = NoopEmailSender,
             totpAuthenticator = OfflineTotpAuthenticator("HyperZoneLogin-Test", 5),
             proxy = proxy
@@ -119,13 +120,13 @@ class OfflineAuthServiceRegisterTest {
     fun `register creates a new offline password entry when player can resolve profile`() {
         insertProfile()
 
-        every { profileService.getAttachedProfile(hyperZonePlayer) } returns null
+        every { userService.getAttachedUser(hyperZonePlayer) } returns null
         // 服务现在通过凭证与 ProfileService 交互；passthrough 关闭时凭证建议 UUID 为 null
-        every { profileService.canCreate(match<HyperZoneCredential> {
-            it.getRegistrationName() == USERNAME && it.getSuggestedProfileCreateUuid() == null
+        every { userService.canCreateUser(match<HyperZoneCredential> {
+            it.getRegistrationName() == USERNAME && it.getSuggestedGameUuid() == null
         }) } returns true
-        every { profileService.create(match<HyperZoneCredential> {
-            it.getRegistrationName() == USERNAME && it.getSuggestedProfileCreateUuid() == null
+        every { userService.createUser(match<HyperZoneCredential> {
+            it.getRegistrationName() == USERNAME && it.getSuggestedGameUuid() == null
         }) } returns PROFILE
 
         val result = service.register(player, VALID_PASSWORD)
@@ -134,7 +135,7 @@ class OfflineAuthServiceRegisterTest {
         assertTrue(result.success)
         assertEquals(OfflineAuthMessages.REGISTER_SUCCESS, result.message)
         assertNotNull(saved)
-        assertEquals(PROFILE.id, saved!!.profileId)
+        assertEquals(PROFILE.id, saved!!.userUUID)
         assertEquals("sha256", saved.hashFormat)
         assertEquals(64, saved.passwordHash.length)
         assertNotEquals(VALID_PASSWORD, saved.passwordHash)
@@ -142,7 +143,7 @@ class OfflineAuthServiceRegisterTest {
             credentialFlow.submitCredential(hyperZonePlayer, match {
                 it.channelId == "offline" &&
                     it.credentialId == NORMALIZED_NAME &&
-                    it.getBoundProfileId() == PROFILE.id
+                    it.getBoundUserUUID() == PROFILE.id
             })
         }
         verify(exactly = 1) { credentialFlow.overVerify(hyperZonePlayer) }
@@ -153,28 +154,28 @@ class OfflineAuthServiceRegisterTest {
         enableOfflineUuidPassthrough()
         insertProfile()
 
-        val offlineUuid = ExtraUuidUtils.getNormalOfflineUUID(USERNAME)
-        every { profileService.getAttachedProfile(hyperZonePlayer) } returns null
+        val offlineUuid = ExtraUuidUtils.getNormalOfflineUUID(NORMALIZED_NAME)
+        every { userService.getAttachedUser(hyperZonePlayer) } returns null
         // 服务现在通过凭证与 ProfileService 交互；passthrough 开启时凭证建议 UUID 为离线 UUID
-        every { profileService.canCreate(match<HyperZoneCredential> {
-            it.getRegistrationName() == USERNAME && it.getSuggestedProfileCreateUuid() == offlineUuid
+        every { userService.canCreateUser(match<HyperZoneCredential> {
+            it.getRegistrationName() == USERNAME && it.getSuggestedGameUuid() == offlineUuid
         }) } returns true
-        every { profileService.create(match<HyperZoneCredential> {
-            it.getRegistrationName() == USERNAME && it.getSuggestedProfileCreateUuid() == offlineUuid
+        every { userService.createUser(match<HyperZoneCredential> {
+            it.getRegistrationName() == USERNAME && it.getSuggestedGameUuid() == offlineUuid
         }) } returns PROFILE
 
         val result = service.register(player, VALID_PASSWORD)
 
         assertTrue(result.success)
         assertEquals(OfflineAuthMessages.REGISTER_SUCCESS, result.message)
-        verify(exactly = 1) { profileService.canCreate(match<HyperZoneCredential> {
-            it.getRegistrationName() == USERNAME && it.getSuggestedProfileCreateUuid() == offlineUuid
+        verify(exactly = 1) { userService.canCreateUser(match<HyperZoneCredential> {
+            it.getRegistrationName() == USERNAME && it.getSuggestedGameUuid() == offlineUuid
         }) }
-        verify(exactly = 1) { profileService.create(match<HyperZoneCredential> {
-            it.getRegistrationName() == USERNAME && it.getSuggestedProfileCreateUuid() == offlineUuid
+        verify(exactly = 1) { userService.createUser(match<HyperZoneCredential> {
+            it.getRegistrationName() == USERNAME && it.getSuggestedGameUuid() == offlineUuid
         }) }
-        verify(exactly = 0) { profileService.create(match<HyperZoneCredential> {
-            it.getSuggestedProfileCreateUuid() == null
+        verify(exactly = 0) { userService.createUser(match<HyperZoneCredential> {
+            it.getSuggestedGameUuid() == null
         }) }
     }
 
@@ -182,7 +183,7 @@ class OfflineAuthServiceRegisterTest {
     fun `register falls back to binding existing profile when direct registration is unavailable`() {
         insertProfile()
 
-        every { profileService.getAttachedProfile(hyperZonePlayer) } returns PROFILE
+        every { userService.getAttachedUser(hyperZonePlayer) } returns PROFILE
         every { hyperZonePlayer.canBind() } returns true
 
         val result = service.register(player, VALID_PASSWORD)
@@ -191,13 +192,13 @@ class OfflineAuthServiceRegisterTest {
         assertTrue(result.success)
         assertEquals(OfflineAuthMessages.REGISTER_BOUND_SUCCESS, result.message)
         assertNotNull(saved)
-        verify(exactly = 1) { profileService.getAttachedProfile(hyperZonePlayer) }
+        verify(exactly = 1) { userService.getAttachedUser(hyperZonePlayer) }
         verify(exactly = 0) { credentialFlow.overVerify(hyperZonePlayer) }
     }
 
     @Test
     fun `register reports denial when attached profile binding is not allowed`() {
-        every { profileService.getAttachedProfile(hyperZonePlayer) } returns PROFILE
+        every { userService.getAttachedUser(hyperZonePlayer) } returns PROFILE
         every { hyperZonePlayer.canBind() } returns false
 
         val result = service.register(player, VALID_PASSWORD)
@@ -213,10 +214,10 @@ class OfflineAuthServiceRegisterTest {
             name = NORMALIZED_NAME,
             passwordHash = "existing-hash",
             hashFormat = "sha256",
-            profileId = PROFILE.id
+            userUUID = PROFILE.id
         )
 
-        every { profileService.getAttachedProfile(hyperZonePlayer) } returns PROFILE
+        every { userService.getAttachedUser(hyperZonePlayer) } returns PROFILE
         every { hyperZonePlayer.canBind() } returns true
 
         val result = service.register(player, VALID_PASSWORD)
@@ -229,8 +230,8 @@ class OfflineAuthServiceRegisterTest {
     fun `join prompts no longer advertise direct register binding when creation is unavailable`() {
         insertProfile()
 
-        every { hyperZonePlayer.hasAttachedProfile() } returns false
-        every { profileService.getAttachedProfile(hyperZonePlayer) } returns PROFILE
+        every { hyperZonePlayer.hasAttachedUser() } returns false
+        every { userService.getAttachedUser(hyperZonePlayer) } returns PROFILE
 
         val prompts = service.getJoinPrompts(player)
 
@@ -246,11 +247,12 @@ class OfflineAuthServiceRegisterTest {
             name = NORMALIZED_NAME,
             passwordHash = hashPassword(VALID_PASSWORD),
             hashFormat = "sha256",
-            profileId = PROFILE.id
+            userUUID = PROFILE.id
         )
 
-        every { hyperZonePlayer.hasAttachedProfile() } returns false
-        every { hyperZonePlayer.clientOriginalName } returns OTHER_NAME
+        every { hyperZonePlayer.hasAttachedUser() } returns false
+        every { hyperZonePlayer.logLabel } returns OTHER_NAME
+        every { player.username } returns OTHER_NAME
 
         val result = service.loginAs(player, USERNAME, VALID_PASSWORD)
 
@@ -260,7 +262,7 @@ class OfflineAuthServiceRegisterTest {
             credentialFlow.submitCredential(hyperZonePlayer, match {
                 it.channelId == "offline" &&
                     it.credentialId == NORMALIZED_NAME &&
-                    it.getBoundProfileId() == PROFILE.id
+                    it.getBoundUserUUID() == PROFILE.id
             })
         }
         verify(exactly = 1) { credentialFlow.overVerify(hyperZonePlayer) }
@@ -268,9 +270,10 @@ class OfflineAuthServiceRegisterTest {
 
     @Test
     fun `login without explicit username gives a hint when current connection name is unregistered`() {
-        every { hyperZonePlayer.hasAttachedProfile() } returns false
-        every { hyperZonePlayer.clientOriginalName } returns OTHER_NAME
-        every { profileService.getAttachedProfile(hyperZonePlayer) } returns null
+        every { hyperZonePlayer.hasAttachedUser() } returns false
+        every { hyperZonePlayer.logLabel } returns OTHER_NAME
+        every { player.username } returns OTHER_NAME
+        every { userService.getAttachedUser(hyperZonePlayer) } returns null
 
         val result = service.login(player, VALID_PASSWORD)
 
@@ -280,10 +283,10 @@ class OfflineAuthServiceRegisterTest {
 
     @Test
     fun `register falls back to unbound credential flow when profile name conflicts prevent direct creation`() {
-        every { profileService.getAttachedProfile(hyperZonePlayer) } returns null
+        every { userService.getAttachedUser(hyperZonePlayer) } returns null
         // 服务现在通过凭证与 ProfileService 交互；canCreate 返回 false 触发待绑定流程
-        every { profileService.canCreate(match<HyperZoneCredential> {
-            it.getRegistrationName() == USERNAME && it.getSuggestedProfileCreateUuid() == null
+        every { userService.canCreateUser(match<HyperZoneCredential> {
+            it.getRegistrationName() == USERNAME && it.getSuggestedGameUuid() == null
         }) } returns false
 
         val credentialSlot = slot<OfflineHyperZoneCredential>()
@@ -297,12 +300,12 @@ class OfflineAuthServiceRegisterTest {
         assertNull(savedBeforeBind)
         assertTrue(credentialSlot.isCaptured)
         assertNotEquals(NORMALIZED_NAME, credentialSlot.captured.credentialId)
-        assertEquals(null, credentialSlot.captured.getBoundProfileId())
+        assertEquals(null, credentialSlot.captured.getBoundUserUUID())
         verify(exactly = 1) {
             credentialFlow.submitCredential(hyperZonePlayer, match {
                 it.channelId == "offline" &&
                     it.credentialId != NORMALIZED_NAME &&
-                    it.getBoundProfileId() == null
+                    it.getBoundUserUUID() == null
             })
         }
         verify(exactly = 1) { credentialFlow.overVerify(hyperZonePlayer) }
@@ -314,18 +317,18 @@ class OfflineAuthServiceRegisterTest {
         val savedAfterBind = repository.getByProfileId(PROFILE.id)
         assertNotNull(savedAfterBind)
         assertEquals(NORMALIZED_NAME, savedAfterBind!!.name)
-        assertEquals(PROFILE.id, savedAfterBind.profileId)
+        assertEquals(PROFILE.id, savedAfterBind.userUUID)
     }
 
     @Test
     fun `register pending credential keeps offline uuid suggestion across rename when passthrough is enabled`() {
         enableOfflineUuidPassthrough()
 
-        val offlineUuid = ExtraUuidUtils.getNormalOfflineUUID(USERNAME)
-        every { profileService.getAttachedProfile(hyperZonePlayer) } returns null
+        val offlineUuid = ExtraUuidUtils.getNormalOfflineUUID(NORMALIZED_NAME)
+        every { userService.getAttachedUser(hyperZonePlayer) } returns null
         // 服务现在通过凭证与 ProfileService 交互；passthrough 开启时凭证建议 UUID 为离线 UUID
-        every { profileService.canCreate(match<HyperZoneCredential> {
-            it.getRegistrationName() == USERNAME && it.getSuggestedProfileCreateUuid() == offlineUuid
+        every { userService.canCreateUser(match<HyperZoneCredential> {
+            it.getRegistrationName() == USERNAME && it.getSuggestedGameUuid() == offlineUuid
         }) } returns false
 
         val credentialSlot = slot<OfflineHyperZoneCredential>()
@@ -336,27 +339,25 @@ class OfflineAuthServiceRegisterTest {
         assertTrue(result.success)
         assertEquals(OfflineAuthMessages.REGISTER_BIND_PENDING, result.message)
         assertTrue(credentialSlot.isCaptured)
-        assertEquals(offlineUuid, credentialSlot.captured.getSuggestedProfileCreateUuid())
+        assertEquals(offlineUuid, credentialSlot.captured.getSuggestedGameUuid())
 
         val renamed = credentialSlot.captured.withNewName("Alice_Renamed")
 
         assertEquals(
-            ExtraUuidUtils.getNormalOfflineUUID("Alice_Renamed"),
-            renamed.getSuggestedProfileCreateUuid()
+            ExtraUuidUtils.getNormalOfflineUUID("alice_renamed"),
+            renamed.getSuggestedGameUuid()
         )
         // original captured credential remains immutable
-        assertEquals(offlineUuid, credentialSlot.captured.getSuggestedProfileCreateUuid())
-        verify(exactly = 1) { profileService.canCreate(match<HyperZoneCredential> {
-            it.getRegistrationName() == USERNAME && it.getSuggestedProfileCreateUuid() == offlineUuid
+        assertEquals(offlineUuid, credentialSlot.captured.getSuggestedGameUuid())
+        verify(exactly = 1) { userService.canCreateUser(match<HyperZoneCredential> {
+            it.getRegistrationName() == USERNAME && it.getSuggestedGameUuid() == offlineUuid
         }) }
     }
 
     private fun insertProfile() {
         transaction(database) {
-            profileTable.insert {
+            userTable.insert {
                 it[id] = PROFILE.id
-                it[name] = PROFILE.name
-                it[uuid] = PROFILE.uuid
             }
         }
     }
@@ -376,8 +377,6 @@ class OfflineAuthServiceRegisterTest {
     ) : HyperZonePlayerAccessor {
         override fun create(
             channel: io.netty.channel.Channel,
-            userName: String,
-            uuid: UUID?,
             isOnline: Boolean
         ): HyperZonePlayer {
             return hyperZonePlayer
@@ -397,10 +396,8 @@ class OfflineAuthServiceRegisterTest {
         private const val NORMALIZED_NAME = "alice"
         private const val OTHER_NAME = "GuestUser"
         private const val VALID_PASSWORD = "SecurePass123"
-        private val PROFILE = Profile(
-            id = UUID.fromString("11111111-1111-1111-1111-111111111111"),
-            name = USERNAME,
-            uuid = UUID.fromString("22222222-2222-2222-2222-222222222222")
+        private val PROFILE = User(
+            id = UUID.fromString("11111111-1111-1111-1111-111111111111")
         )
 
         private fun hashPassword(password: String): String {

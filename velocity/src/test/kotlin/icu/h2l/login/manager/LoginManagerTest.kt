@@ -24,13 +24,15 @@ package icu.h2l.login.manager
 import com.velocitypowered.api.event.EventManager
 import com.velocitypowered.api.proxy.Player
 import com.velocitypowered.api.proxy.ProxyServer
-import icu.h2l.api.db.Profile
+import icu.h2l.api.db.InGameProfile
+import icu.h2l.api.db.InGameProfileCandidate
+import icu.h2l.api.db.User
 import icu.h2l.api.event.auth.LoginHandleRequestEvent
 import icu.h2l.api.event.auth.LoginHandleResult
 import icu.h2l.api.player.getChannel
 import icu.h2l.api.profile.HyperZoneCredential
-import icu.h2l.api.profile.HyperZoneProfileService
-import icu.h2l.api.profile.HyperZoneProfileServiceProvider
+import icu.h2l.api.profile.HyperZoneUserService
+import icu.h2l.api.profile.HyperZoneUserServiceProvider
 import icu.h2l.login.player.VelocityHyperZonePlayer
 import io.mockk.every
 import io.mockk.mockk
@@ -40,6 +42,7 @@ import io.netty.channel.embedded.EmbeddedChannel
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -48,21 +51,21 @@ class LoginManagerTest {
     fun `dispatch returns no claims when no module applies`() {
         val eventManager = mockk<EventManager>()
         val proxyServer = mockk<ProxyServer>()
-        val profileService = mockk<HyperZoneProfileService>()
+        val userService = mockk<HyperZoneUserService>()
         val player = mockk<Player>(relaxed = true)
         val hyperPlayer = mockk<VelocityHyperZonePlayer>()
         val channel = EmbeddedChannel()
         every { proxyServer.eventManager } returns eventManager
-        HyperZoneProfileServiceProvider.bind(profileService)
+        HyperZoneUserServiceProvider.bind(userService)
         mockkStatic("icu.h2l.api.player.VelocityPlayerExtensionsKt")
         every { player.getChannel() } returns channel
         every { hyperPlayer.getProxyPlayerOrNull() } returns player
-        every { hyperPlayer.hasAttachedProfile() } returns false
+        every { hyperPlayer.hasAttachedUser() } returns false
         every { eventManager.fire(any<Any>()) } answers {
             CompletableFuture.completedFuture(firstArg())
         }
 
-        val result = LoginManager(proxyServer, profileService, timeoutMillis = 200).dispatch(player, hyperPlayer).join()
+        val result = LoginManager(proxyServer, userService, timeoutMillis = 200).dispatch(player, hyperPlayer).join()
 
         assertEquals(LoginManager.Status.NO_CLAIMS, result.status)
     }
@@ -71,16 +74,16 @@ class LoginManagerTest {
     fun `dispatch waits all claim failures`() {
         val eventManager = mockk<EventManager>()
         val proxyServer = mockk<ProxyServer>()
-        val profileService = mockk<HyperZoneProfileService>()
+        val userService = mockk<HyperZoneUserService>()
         val player = mockk<Player>(relaxed = true)
         val hyperPlayer = mockk<VelocityHyperZonePlayer>()
         val channel = EmbeddedChannel()
         every { proxyServer.eventManager } returns eventManager
-        HyperZoneProfileServiceProvider.bind(profileService)
+        HyperZoneUserServiceProvider.bind(userService)
         mockkStatic("icu.h2l.api.player.VelocityPlayerExtensionsKt")
         every { player.getChannel() } returns channel
         every { hyperPlayer.getProxyPlayerOrNull() } returns player
-        every { hyperPlayer.hasAttachedProfile() } returns false
+        every { hyperPlayer.hasAttachedUser() } returns false
         every { eventManager.fire(any<Any>()) } answers {
             val event = firstArg<Any>()
             if (event is LoginHandleRequestEvent) {
@@ -90,7 +93,7 @@ class LoginManagerTest {
             CompletableFuture.completedFuture(event)
         }
 
-        val resultFuture = LoginManager(proxyServer, profileService, timeoutMillis = 300).dispatch(player, hyperPlayer)
+        val resultFuture = LoginManager(proxyServer, userService, timeoutMillis = 300).dispatch(player, hyperPlayer)
         channel.runUntilComplete(resultFuture)
         val result = resultFuture.join()
 
@@ -102,22 +105,28 @@ class LoginManagerTest {
     fun `dispatch short-circuits on first success and cancels others`() {
         val eventManager = mockk<EventManager>()
         val proxyServer = mockk<ProxyServer>()
-        val profileService = mockk<HyperZoneProfileService>()
+        val userService = mockk<HyperZoneUserService>()
         val player = mockk<Player>(relaxed = true)
         val hyperPlayer = mockk<VelocityHyperZonePlayer>()
         val channel = EmbeddedChannel()
         val attached = AtomicBoolean(false)
         val slowFuture = CompletableFuture<LoginHandleResult>()
         val credential = mockk<HyperZoneCredential>(relaxed = true)
-        val attachedProfile = mockk<Profile>(relaxed = true)
+        val attachedUser = User(
+            id = UUID.randomUUID(),
+        )
         every { proxyServer.eventManager } returns eventManager
-        HyperZoneProfileServiceProvider.bind(profileService)
+        HyperZoneUserServiceProvider.bind(userService)
         mockkStatic("icu.h2l.api.player.VelocityPlayerExtensionsKt")
         every { player.getChannel() } returns channel
         every { hyperPlayer.getProxyPlayerOrNull() } returns player
-        every { hyperPlayer.hasAttachedProfile() } answers { attached.get() }
-        every { profileService.getAttachedProfile(hyperPlayer) } returns null
-        every { profileService.attachVerifiedCredentialProfile(hyperPlayer) } answers { attached.set(true); attachedProfile }
+        every { hyperPlayer.hasAttachedUser() } answers { attached.get() }
+        every { userService.getAttachedUser(hyperPlayer) } returns null
+        every { userService.resolveAuthenticatedUser(hyperPlayer) } returns attachedUser
+        every { userService.attachUser(hyperPlayer, attachedUser.id) } answers {
+            attached.set(true)
+            attachedUser
+        }
         every { eventManager.fire(any<Any>()) } answers {
             val event = firstArg<Any>()
             if (event is LoginHandleRequestEvent) {
@@ -129,30 +138,31 @@ class LoginManagerTest {
             CompletableFuture.completedFuture(event)
         }
 
-        val resultFuture = LoginManager(proxyServer, profileService, timeoutMillis = 400).dispatch(player, hyperPlayer)
+        val resultFuture = LoginManager(proxyServer, userService, timeoutMillis = 400).dispatch(player, hyperPlayer)
         channel.runUntilComplete(resultFuture)
         val result = resultFuture.join()
 
         assertEquals(LoginManager.Status.SUCCESS, result.status)
         assertEquals("winner", result.winnerModuleId)
         assertTrue(slowFuture.isCancelled)
-        verify(exactly = 1) { profileService.attachVerifiedCredentialProfile(hyperPlayer) }
+        verify(exactly = 1) { userService.resolveAuthenticatedUser(hyperPlayer) }
+        verify(exactly = 1) { userService.attachUser(hyperPlayer, attachedUser.id) }
     }
 
     @Test
     fun `dispatch returns timeout for hanging claim`() {
         val eventManager = mockk<EventManager>()
         val proxyServer = mockk<ProxyServer>()
-        val profileService = mockk<HyperZoneProfileService>()
+        val userService = mockk<HyperZoneUserService>()
         val player = mockk<Player>(relaxed = true)
         val hyperPlayer = mockk<VelocityHyperZonePlayer>()
         val channel = EmbeddedChannel()
         every { proxyServer.eventManager } returns eventManager
-        HyperZoneProfileServiceProvider.bind(profileService)
+        HyperZoneUserServiceProvider.bind(userService)
         mockkStatic("icu.h2l.api.player.VelocityPlayerExtensionsKt")
         every { player.getChannel() } returns channel
         every { hyperPlayer.getProxyPlayerOrNull() } returns player
-        every { hyperPlayer.hasAttachedProfile() } returns false
+        every { hyperPlayer.hasAttachedUser() } returns false
         every { eventManager.fire(any<Any>()) } answers {
             val event = firstArg<Any>()
             if (event is LoginHandleRequestEvent) {
@@ -161,9 +171,147 @@ class LoginManagerTest {
             CompletableFuture.completedFuture(event)
         }
 
-        val result = LoginManager(proxyServer, profileService, timeoutMillis = 60).dispatch(player, hyperPlayer).join()
+        val result = LoginManager(proxyServer, userService, timeoutMillis = 60).dispatch(player, hyperPlayer).join()
 
         assertEquals(LoginManager.Status.TIMEOUT, result.status)
+    }
+
+    @Test
+    fun `failed claim does not create in-game profile`() {
+        val eventManager = mockk<EventManager>()
+        val proxyServer = mockk<ProxyServer>()
+        val userService = mockk<HyperZoneUserService>()
+        val player = mockk<Player>(relaxed = true)
+        val hyperPlayer = mockk<VelocityHyperZonePlayer>()
+        val channel = EmbeddedChannel()
+        every { proxyServer.eventManager } returns eventManager
+        HyperZoneUserServiceProvider.bind(userService)
+        mockkStatic("icu.h2l.api.player.VelocityPlayerExtensionsKt")
+        every { player.getChannel() } returns channel
+        every { hyperPlayer.getProxyPlayerOrNull() } returns player
+        every { hyperPlayer.hasAttachedUser() } returns false
+        every { eventManager.fire(any<Any>()) } answers {
+            val event = firstArg<Any>()
+            if (event is LoginHandleRequestEvent) {
+                event.claim("failed") {
+                    CompletableFuture.completedFuture(LoginHandleResult.failed("failed"))
+                }
+            }
+            CompletableFuture.completedFuture(event)
+        }
+
+        val manager = LoginManager(proxyServer, userService, timeoutMillis = 300)
+        val resultFuture = manager.dispatch(player, hyperPlayer)
+        channel.runUntilComplete(resultFuture)
+        val result = resultFuture.join()
+
+        assertEquals(LoginManager.Status.ALL_FAILED, result.status)
+        verify(exactly = 0) { userService.resolveAuthenticatedUser(hyperPlayer) }
+        verify(exactly = 0) { userService.createInGameProfile(any(), any()) }
+    }
+
+    @Test
+    fun `attach derives candidate from submitted credential`() {
+        val eventManager = mockk<EventManager>()
+        val proxyServer = mockk<ProxyServer>()
+        val userService = mockk<HyperZoneUserService>()
+        val player = mockk<Player>(relaxed = true)
+        val hyperPlayer = mockk<VelocityHyperZonePlayer>()
+        val channel = EmbeddedChannel()
+        val attached = AtomicBoolean(false)
+        val credential = mockk<HyperZoneCredential>(relaxed = true)
+        val gameUuid = UUID.randomUUID()
+        val candidate = InGameProfileCandidate(
+            channel = "test",
+            name = "Candidate",
+            uuid = gameUuid,
+        )
+        val attachedUser = User(
+            id = UUID.randomUUID(),
+        )
+        val inGameProfile = mockk<InGameProfile>(relaxed = true)
+        every { proxyServer.eventManager } returns eventManager
+        HyperZoneUserServiceProvider.bind(userService)
+        mockkStatic("icu.h2l.api.player.VelocityPlayerExtensionsKt")
+        every { player.getChannel() } returns channel
+        every { hyperPlayer.getProxyPlayerOrNull() } returns player
+        every { hyperPlayer.hasAttachedUser() } answers { attached.get() }
+        every { credential.channelId } returns "test"
+        every { credential.getRegistrationName() } returns "Candidate"
+        every { credential.getSuggestedGameUuid() } returns gameUuid
+        every { userService.getAttachedUser(hyperPlayer) } returns null
+        every { userService.resolveAuthenticatedUser(hyperPlayer) } returns attachedUser
+        every {
+            userService.findInGameProfileByUuid(gameUuid)
+        } returns null
+        every { userService.createInGameProfile(attachedUser.id, candidate) } returns inGameProfile
+        every { userService.attachUser(hyperPlayer, attachedUser.id) } answers {
+            attached.set(true)
+            attachedUser
+        }
+        every { eventManager.fire(any<Any>()) } answers {
+            val event = firstArg<Any>()
+            if (event is LoginHandleRequestEvent) {
+                event.claim("winner") {
+                    CompletableFuture.completedFuture(
+                        LoginHandleResult.success(credential = credential)
+                    )
+                }
+            }
+            CompletableFuture.completedFuture(event)
+        }
+
+        val manager = LoginManager(proxyServer, userService, timeoutMillis = 400)
+        val resultFuture = manager.dispatch(player, hyperPlayer)
+        channel.runUntilComplete(resultFuture)
+        val result = resultFuture.join()
+
+        assertEquals(LoginManager.Status.SUCCESS, result.status)
+        verify(exactly = 1) {
+            userService.createInGameProfile(attachedUser.id, candidate)
+        }
+    }
+
+    @Test
+    fun `attach reuses existing identity without name consistency check`() {
+        val eventManager = mockk<EventManager>()
+        val proxyServer = mockk<ProxyServer>()
+        val userService = mockk<HyperZoneUserService>()
+        val player = mockk<Player>(relaxed = true)
+        val hyperPlayer = mockk<VelocityHyperZonePlayer>()
+        val channel = EmbeddedChannel()
+        val userUUID = UUID.randomUUID()
+        val existing = InGameProfile(
+            id = UUID.randomUUID(),
+            userUUID = userUUID,
+            name = "OldName",
+            uuid = UUID.randomUUID(),
+        )
+        val credential = mockk<HyperZoneCredential>(relaxed = true)
+        val attachedUser = User(
+            id = userUUID,
+        )
+        every { proxyServer.eventManager } returns eventManager
+        HyperZoneUserServiceProvider.bind(userService)
+        mockkStatic("icu.h2l.api.player.VelocityPlayerExtensionsKt")
+        every { player.getChannel() } returns channel
+        every { hyperPlayer.getProxyPlayerOrNull() } returns player
+        every { credential.channelId } returns "test"
+        every { credential.getRegistrationName() } returns "NewName"
+        every { credential.getSuggestedGameUuid() } returns existing.uuid
+        every {
+            userService.findInGameProfileByUuid(existing.uuid)
+        } returns existing
+        every { userService.attachUser(hyperPlayer, userUUID) } returns attachedUser
+
+        val manager = LoginManager(proxyServer, userService, timeoutMillis = 400)
+        manager.submitCredential(hyperPlayer, credential)
+
+        val result = manager.attachUser(hyperPlayer, userUUID)
+
+        assertEquals(userUUID, result?.id)
+        verify(exactly = 0) { userService.createInGameProfile(any(), any()) }
+        verify(exactly = 1) { userService.attachUser(hyperPlayer, userUUID) }
     }
 
     private fun EmbeddedChannel.runUntilComplete(future: CompletableFuture<*>) {

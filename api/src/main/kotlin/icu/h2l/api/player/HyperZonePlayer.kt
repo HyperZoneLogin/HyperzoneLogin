@@ -23,6 +23,8 @@ package icu.h2l.api.player
 
 import com.velocitypowered.api.proxy.Player
 import com.velocitypowered.api.util.GameProfile
+import icu.h2l.api.db.InGameProfile
+import icu.h2l.api.db.User
 import icu.h2l.api.profile.HyperZoneCredential
 import icu.h2l.api.profile.HyperZoneCredentialFlowProvider
 import net.kyori.adventure.text.Component
@@ -36,28 +38,36 @@ import java.util.*
  */
 interface HyperZonePlayer {
     /**
-     * 客户端在进入登录链路时上报的原始用户名。
+     * 当前玩家已绑定的 HZL User UUID；未绑定时为 null。
      *
-     * 该值明确为“不可信身份”，不会因为后续 attach Profile 而被改写。
-     * 它只允许用于：
-     * 1. 调试日志；
-     * 2. 第一次为玩家拟定默认生成名；
-     * 3. 少量弱匹配/客户端回放场景。
-     *
-     * 严禁把它当成正式游戏身份、可信认证结果或已绑定 Profile 身份使用。
+     * 该值由核心 User 服务在 attach 成功后写入，模块不得直接修改。
+     * 一个玩家在当前登录会话中最多对应一个 HZL User。
      */
-    val clientOriginalName: String
+    val userUUID: UUID?
 
     /**
-     * 客户端在进入登录链路时上报的原始 UUID。
+     * 当前登录会话已 attach 的 HZL User 对象。
      *
-     * 该值明确为“不可信身份”，不会因为后续 attach Profile 而被改写。
-     * 它只允许用于调试、客户端回放或极弱的候选发现流程；
-     * 严禁把它作为可信认证结果或正式游戏 UUID 使用。
-     * 
-     * 如果客户端未上报 UUID（null），核心层会自动生成一个 UUID。
+     * 由核心在 attach 时写入；模块不得直接修改。
      */
-    val clientOriginalUUID: UUID?
+    val attachedUser: User?
+        get() = null
+
+    /**
+     * 当前登录会话使用的活动 InGameProfile 快照。
+     *
+     * 由核心在 attach 或切换活动身份时写入；游戏内名称/UUID 必须从这里读取。
+     */
+    val activeInGameProfile: InGameProfile?
+        get() = null
+
+    /**
+     * 仅用于日志/展示的标签，不是可信身份。
+     *
+     * 优先使用已绑定的代理玩家名，其次 HZL userUUID。
+     */
+    val logLabel: String
+        get() = getProxyPlayerOrNull()?.username ?: userUUID?.toString() ?: "<unknown>"
 
     /**
      * 当前会话完成认证的渠道 ID。
@@ -93,11 +103,11 @@ interface HyperZonePlayer {
     fun hasLoginSuccessBeenSent(): Boolean = false
 
     /**
-     * 当前玩家是否已经 attach 到一个正式游戏档案。
+     * 当前玩家是否已经 attach 到一个 HZL User。
      *
-     * 该状态由核心层 Profile 服务统一维护；认证子模块不应直接改写。
+     * 该状态由核心层 User 服务统一维护；认证子模块不应直接改写。
      */
-    fun hasAttachedProfile(): Boolean
+    fun hasAttachedUser(): Boolean
 
     /**
      * 获取当前会话已提交的全部凭证快照。
@@ -157,12 +167,12 @@ interface HyperZonePlayer {
      * 获取玩家的正式身份档案（仅含用户名与 UUID，**不含 properties**）。
      *
      * 该方法只用于需要"干净"身份信息（名字 + UUID）的内部场景，
-     * 例如：凭证绑定校验、日志记录、Profile 服务写库等。
+     * 例如：凭证绑定校验、日志记录、User 服务写库等。
      *
      * **不应在正常游戏流程中直接使用此方法向后端转发档案**，
      * 因为返回值不包含游戏属性（如皮肤）；游戏流程请使用 [getApplyGameProfile]。
      *
-     * 调用方应确保当前玩家已 attach Profile；否则实现可以直接抛错，
+     * 调用方应确保当前玩家已 attach User；否则实现可以直接抛错，
      * 以暴露"未完成 profile 链路却尝试进入游戏区"的逻辑问题。
      */
     fun getAttachedGameProfile(): GameProfile
@@ -175,8 +185,8 @@ interface HyperZonePlayer {
      * 触发属性应用事件（`ProfilePropertiesApplyEvent`）并由各功能模块
      * （如皮肤模块）填充具体的 properties。
      *
-     * 返回 null 表示当前玩家尚未 attach Profile 或属性解析失败；
-     * 调用方应确保在玩家已完成 Profile 链路后再调用此方法。
+     * 返回 null 表示当前玩家尚未 attach User 或属性解析失败；
+     * 调用方应确保在玩家已完成 User 链路后再调用此方法。
      *
      * 默认实现直接返回 [getAttachedGameProfile]（无额外属性），
      * 各运行时层（如 Velocity）应覆写以触发属性填充流程。

@@ -23,7 +23,7 @@ package icu.h2l.login.auth.floodgate.db
 
 import com.velocitypowered.api.event.Subscribe
 import icu.h2l.api.db.HyperZoneDatabaseManager
-import icu.h2l.api.db.table.ProfileTable
+import icu.h2l.api.db.table.UserTable
 import icu.h2l.api.event.db.TableSchemaAction
 import icu.h2l.api.event.db.TableSchemaEvent
 import icu.h2l.api.log.warn
@@ -33,9 +33,9 @@ import org.jetbrains.exposed.sql.SchemaUtils
 class FloodgateAuthTableManager(
     private val databaseManager: HyperZoneDatabaseManager,
     tablePrefix: String,
-    profileTable: ProfileTable,
+    userTable: UserTable,
 ) {
-    val floodgateAuthTable = FloodgateAuthTable(tablePrefix, profileTable)
+    val floodgateAuthTable = FloodgateAuthTable(tablePrefix, userTable)
 
     @Suppress("DEPRECATION")
     fun createTable() {

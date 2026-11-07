@@ -292,7 +292,7 @@ class NettyLoginSessionHandler(
                     return@thenRunAsync
                 }
 
-                val getProfile = openStartAuthEvent.gameProfile
+                val getUser = openStartAuthEvent.gameProfile
 
                 if (!openStartAuthEvent.allow) {
                     inbound.disconnect(openStartAuthEvent.disconnectMessage)
@@ -301,12 +301,12 @@ class NettyLoginSessionHandler(
 
                 val authSessionHandler =
                     createHandler(
-                        proxy, inbound, getProfile, onlineMode = onlineMode,
+                        proxy, inbound, getUser, onlineMode = onlineMode,
                         UUID.randomUUID().toString() // For LoginEvent, not important
                     )
 
                 debugOutPreTrace {
-                    "netty.doLogin selected-handler channel=${mcConnection.channel} username=${login.username} handler=${authSessionHandler.javaClass.name} gameProfile=$getProfile"
+                    "netty.doLogin selected-handler channel=${mcConnection.channel} username=${login.username} handler=${authSessionHandler.javaClass.name} gameProfile=$getUser"
                 }
 
                 mcConnection.setActiveSessionHandler(StateRegistry.LOGIN, authSessionHandler)

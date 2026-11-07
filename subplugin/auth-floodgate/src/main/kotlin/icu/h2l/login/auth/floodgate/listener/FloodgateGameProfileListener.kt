@@ -37,7 +37,7 @@ class FloodgateGameProfileListener(
     @Subscribe
     fun onVerifyInitialGameProfile(event: VerifyInitialGameProfileEvent) {
         FloodgateDebug.log {
-            "onVerifyInitialGameProfile channel=${event.connection.getNettyChannel()} profileName=${event.gameProfile.name} profileId=${event.gameProfile.id}"
+            "onVerifyInitialGameProfile channel=${event.connection.getNettyChannel()} profileName=${event.gameProfile.name} userUUID=${event.gameProfile.id}"
         }
 
         val playerIp = event.connection.remoteAddress.address.hostAddress

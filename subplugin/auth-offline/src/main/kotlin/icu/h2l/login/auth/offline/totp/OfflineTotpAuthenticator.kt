@@ -32,7 +32,7 @@ class OfflineTotpAuthenticator(
     private val pendingExpireMinutes: Int
 ) {
     data class PendingSetup(
-        val profileId: UUID,
+        val userUUID: UUID,
         val playerName: String,
         val secret: String,
         val otpAuthUrl: String,
@@ -43,33 +43,33 @@ class OfflineTotpAuthenticator(
     private val pendingSetups = ConcurrentHashMap<UUID, PendingSetup>()
     private val usedCodes = ConcurrentHashMap<String, Long>()
 
-    fun createSetup(profileId: UUID, playerName: String): PendingSetup {
+    fun createSetup(userUUID: UUID, playerName: String): PendingSetup {
         cleanupExpiredState()
         val credentials: GoogleAuthenticatorKey = authenticator.createCredentials()
         val otpAuthUrl = GoogleAuthenticatorQRGenerator.getOtpAuthURL(issuer, playerName, credentials)
         val setup = PendingSetup(
-            profileId = profileId,
+            userUUID = userUUID,
             playerName = playerName,
             secret = credentials.key,
             otpAuthUrl = otpAuthUrl,
             expireAt = System.currentTimeMillis() + pendingExpireMinutes.coerceAtLeast(1) * 60_000L
         )
-        pendingSetups[profileId] = setup
+        pendingSetups[userUUID] = setup
         return setup
     }
 
-    fun getPendingSetup(profileId: UUID): PendingSetup? {
+    fun getPendingSetup(userUUID: UUID): PendingSetup? {
         cleanupExpiredState()
-        val setup = pendingSetups[profileId] ?: return null
+        val setup = pendingSetups[userUUID] ?: return null
         return setup.takeIf { it.expireAt > System.currentTimeMillis() }
     }
 
-    fun clearPendingSetup(profileId: UUID) {
-        pendingSetups.remove(profileId)
+    fun clearPendingSetup(userUUID: UUID) {
+        pendingSetups.remove(userUUID)
     }
 
-    fun verifyPendingCode(profileId: UUID, playerName: String, code: String): Boolean {
-        val setup = getPendingSetup(profileId) ?: return false
+    fun verifyPendingCode(userUUID: UUID, playerName: String, code: String): Boolean {
+        val setup = getPendingSetup(userUUID) ?: return false
         return verifyCode(playerName, setup.secret, code)
     }
 

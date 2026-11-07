@@ -22,7 +22,7 @@
 package icu.h2l.login.auth.offline.service
 
 import icu.h2l.api.db.HyperZoneDatabaseManager
-import icu.h2l.api.db.table.ProfileTable
+import icu.h2l.api.db.table.UserTable
 import icu.h2l.login.auth.offline.api.db.OfflineAuthTable
 import icu.h2l.login.auth.offline.db.OfflineAuthRepository
 import icu.h2l.login.auth.offline.util.ExtraUuidUtils
@@ -41,7 +41,7 @@ class OfflineHyperZoneCredentialTest {
     private lateinit var credential: OfflineHyperZoneCredential
     private lateinit var pendingRegistrationId: UUID
     private lateinit var database: Database
-    private val profileId = UUID.fromString("11111111-1111-1111-1111-111111111111")
+    private val userUUID = UUID.fromString("11111111-1111-1111-1111-111111111111")
 
     @BeforeEach
     fun setUp() {
@@ -49,8 +49,8 @@ class OfflineHyperZoneCredentialTest {
             url = "jdbc:h2:mem:${UUID.randomUUID()};MODE=MySQL;DB_CLOSE_DELAY=-1",
             driver = "org.h2.Driver"
         )
-        val profileTable = ProfileTable()
-        val offlineAuthTable = OfflineAuthTable("", profileTable)
+        val userTable = UserTable()
+        val offlineAuthTable = OfflineAuthTable("", userTable)
         val databaseManager = object : HyperZoneDatabaseManager {
             override val tablePrefix: String = ""
 
@@ -59,11 +59,9 @@ class OfflineHyperZoneCredentialTest {
             }
         }
         transaction(database) {
-            SchemaUtils.create(profileTable, offlineAuthTable)
-            profileTable.insert {
-                it[profileTable.id] = profileId
-                it[profileTable.name] = "AliceProfile"
-                it[profileTable.uuid] = UUID.fromString("33333333-3333-4333-8333-333333333333")
+            SchemaUtils.create(userTable, offlineAuthTable)
+            userTable.insert {
+                it[userTable.id] = userUUID
             }
         }
         repository = OfflineAuthRepository(databaseManager, offlineAuthTable)
@@ -92,43 +90,34 @@ class OfflineHyperZoneCredentialTest {
         val renamed = credential.withNewName("Alice_Renamed")
         assertEquals("alice_renamed", pendingRegistrations.get(pendingRegistrationId)?.normalizedName)
 
-        val bindResult = renamed.bind(profileId)
+        val bindResult = renamed.bind(userUUID)
 
         assertTrue(bindResult)
-        assertEquals(profileId, repository.getByName("alice_renamed")?.profileId)
+        assertEquals(userUUID, repository.getByName("alice_renamed")?.userUUID)
     }
 
     @Test
     fun `withNewName bind consumes renamed pending registration data`() {
         val renamed = credential.withNewName("alice_new")
 
-        assertNull(renamed.getBoundProfileId())
-        assertTrue(renamed.bind(profileId))
+        assertNull(renamed.getBoundUserUUID())
+        assertTrue(renamed.bind(userUUID))
         assertNull(pendingRegistrations.get(pendingRegistrationId))
-        assertEquals(profileId, repository.getByName("alice_new")?.profileId)
+        assertEquals(userUUID, repository.getByName("alice_new")?.userUUID)
     }
 
     @Test
     fun `suggested profile create uuid follows current registration name after withNewName`() {
-        assertEquals(ExtraUuidUtils.getNormalOfflineUUID("Alice"), credential.getSuggestedProfileCreateUuid())
+        assertEquals(ExtraUuidUtils.getNormalOfflineUUID("alice"), credential.getSuggestedGameUuid())
 
         val renamed = credential.withNewName("Alice_Renamed")
 
         assertEquals(
-            ExtraUuidUtils.getNormalOfflineUUID("Alice_Renamed"),
-            renamed.getSuggestedProfileCreateUuid()
+            ExtraUuidUtils.getNormalOfflineUUID("alice_renamed"),
+            renamed.getSuggestedGameUuid()
         )
         // Original credential remains unchanged
-        assertEquals(ExtraUuidUtils.getNormalOfflineUUID("Alice"), credential.getSuggestedProfileCreateUuid())
-    }
-
-    @Test
-    fun `withReUuid returns credential with no suggested uuid`() {
-        assertNotNull(credential.getSuggestedProfileCreateUuid())
-        val reUuided = credential.withReUuid()
-        assertNull(reUuided.getSuggestedProfileCreateUuid())
-        // Original credential remains unchanged
-        assertNotNull(credential.getSuggestedProfileCreateUuid())
+        assertEquals(ExtraUuidUtils.getNormalOfflineUUID("alice"), credential.getSuggestedGameUuid())
     }
 
     @Test
@@ -142,6 +131,6 @@ class OfflineHyperZoneCredentialTest {
             passProfileCreateUuid = false
         )
 
-        assertNull(disabledCredential.getSuggestedProfileCreateUuid())
+        assertNull(disabledCredential.getSuggestedGameUuid())
     }
 }

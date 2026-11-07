@@ -23,14 +23,16 @@ package icu.h2l.login.auth.online.main
 
 import icu.h2l.api.HyperZoneApi
 import icu.h2l.api.db.HyperZoneDatabaseManager
-import icu.h2l.api.db.table.ProfileTable
+import icu.h2l.api.db.table.UserTable
 import icu.h2l.api.message.HyperZoneModuleMessageResources
 import icu.h2l.api.module.HyperSubModule
-import icu.h2l.api.profile.HyperZoneProfileServiceProvider
+import icu.h2l.api.profile.HyperZoneUserServiceProvider
 import icu.h2l.login.auth.online.config.YggdrasilConfigLoader
 import icu.h2l.login.auth.online.config.YggdrasilDebug
+import icu.h2l.login.auth.online.db.EntryDatabaseHelper
 import icu.h2l.login.auth.online.db.EntryTableManager
 import icu.h2l.login.auth.online.listener.AuthListener
+import icu.h2l.login.auth.online.listener.YggdrasilProfileLookupListener
 import icu.h2l.login.auth.online.manager.EntryConfigManager
 import icu.h2l.login.auth.online.manager.YggdrasilAuthModule
 
@@ -54,24 +56,39 @@ class YggdrasilSubModule : HyperSubModule {
         val entryTableManager = EntryTableManager(
             databaseManager = databaseManager,
             tablePrefix = databaseManager.tablePrefix,
-            profileTable = ProfileTable(databaseManager.tablePrefix)
+            userTable = UserTable(databaseManager.tablePrefix)
         )
 
         proxy.eventManager.register(api, entryTableManager)
 
         entryConfigManager.loadAllConfigs()
 
+        val userService = HyperZoneUserServiceProvider.get()
+        val entryDatabaseHelper = EntryDatabaseHelper(
+            databaseManager = databaseManager,
+            entryTableManager = entryTableManager,
+        )
+
         val yggdrasilAuthModule = YggdrasilAuthModule(
             proxy = proxy,
             entryConfigManager = entryConfigManager,
             databaseManager = databaseManager,
             entryTableManager = entryTableManager,
-            profileService = HyperZoneProfileServiceProvider.get(),
+            entryDatabaseHelper = entryDatabaseHelper,
+            userService = userService,
             playerAccessor = api.hyperZonePlayers
         )
         val authListener = AuthListener(yggdrasilAuthModule)
 
         proxy.eventManager.register(api, authListener)
+        proxy.eventManager.register(
+            api,
+            YggdrasilProfileLookupListener(
+                entryConfigManager = entryConfigManager,
+                entryDatabaseHelper = entryDatabaseHelper,
+                userService = userService,
+            )
+        )
 
         this.entryConfigManager = entryConfigManager
         this.entryTableManager = entryTableManager

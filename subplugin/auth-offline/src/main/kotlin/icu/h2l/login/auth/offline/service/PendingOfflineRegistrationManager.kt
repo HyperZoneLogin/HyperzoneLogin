@@ -25,10 +25,10 @@ import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * 管理“已注册但尚未绑定 Profile”的离线临时注册数据。
+ * 管理“已注册但尚未绑定 User”的离线临时注册数据。
  *
  * 重要：这里保存的只是待绑定阶段的临时密码等数据，
- * 正式离线认证表只能在绑定成功后再创建记录，绝不能提前写入 `profileId = null` 的库数据。
+ * 正式离线认证表只能在绑定成功后再创建记录，绝不能提前写入 `userUUID = null` 的库数据。
  */
 class PendingOfflineRegistrationManager {
     data class PendingOfflineRegistration(

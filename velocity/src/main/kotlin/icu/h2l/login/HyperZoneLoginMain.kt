@@ -37,19 +37,20 @@ import icu.h2l.api.net.HyperZoneNet
 import icu.h2l.api.player.HyperZonePlayerAccessor
 import icu.h2l.api.profile.HyperZoneCredentialFlowProvider
 import icu.h2l.api.profile.CredentialChannelRegistryProvider
-import icu.h2l.api.profile.HyperZoneProfileServiceProvider
+import icu.h2l.api.profile.HyperZoneUserServiceProvider
 import icu.h2l.api.util.ConfigCommentTranslatorProvider
 import icu.h2l.api.util.ConfigLoader
 import icu.h2l.login.config.i18n.ConfigCommentI18nService
 import icu.h2l.api.vServer.HyperZoneVServerAdapter
 import icu.h2l.login.command.BindCodeCommandRegistrar
 import icu.h2l.login.command.HyperZoneLoginCommand
-import icu.h2l.login.command.ReUuidCommand
 import icu.h2l.login.command.RenameCommand
 import icu.h2l.login.config.*
-import icu.h2l.login.database.BindingCodeRepository
 import icu.h2l.login.database.DatabaseConfig
-import icu.h2l.login.database.DatabaseHelper
+import icu.h2l.login.database.helper.BindingCodeDatabaseHelper
+import icu.h2l.login.database.helper.InGameProfileDatabaseHelper
+import icu.h2l.login.database.helper.UserDatabaseHelper
+import icu.h2l.login.database.migration.UserSchemaMigrator
 import icu.h2l.login.inject.network.VelocityNetworkModule
 import icu.h2l.login.listener.*
 import icu.h2l.login.manager.HyperChatCommandManagerImpl
@@ -60,8 +61,9 @@ import icu.h2l.login.message.MessageService
 import icu.h2l.login.module.EmbeddedModuleRegistry
 import icu.h2l.login.module.EmbeddedModuleSpec
 import icu.h2l.login.profile.CredentialChannelRegistryImpl
-import icu.h2l.login.profile.ProfileBindingCodeService
-import icu.h2l.login.profile.VelocityHyperZoneProfileService
+import icu.h2l.login.profile.InGameProfileSyncService
+import icu.h2l.login.profile.UserBindingCodeService
+import icu.h2l.login.profile.VelocityHyperZoneUserService
 import icu.h2l.login.util.isSnapshotPluginVersion
 import icu.h2l.login.util.readRuntimePluginVersion
 import icu.h2l.login.util.registerApiLogger
@@ -91,12 +93,12 @@ class HyperZoneLoginMain(
     private var slowTestCommandRegistered = false
 
     var activeVServerAdapter: HyperZoneVServerAdapter? = null
-    lateinit var databaseManager: icu.h2l.login.manager.DatabaseManager
-    lateinit var databaseHelper: DatabaseHelper
-    lateinit var profileService: VelocityHyperZoneProfileService
+    lateinit var databaseManager: icu.h2l.login.database.DatabaseManager
+    lateinit var userService: VelocityHyperZoneUserService
     lateinit var backendRuntimeProfileCompensator: BackendRuntimeProfileCompensator
     lateinit var credentialChannelRegistry: CredentialChannelRegistryImpl
-    lateinit var bindingCodeService: ProfileBindingCodeService
+    lateinit var bindingCodeService: UserBindingCodeService
+    lateinit var inGameProfileSyncService: InGameProfileSyncService
     lateinit var messageService: MessageService
     lateinit var loginManager: LoginManager
 
@@ -170,16 +172,28 @@ class HyperZoneLoginMain(
         messageService.load(coreConfig.messages)
         HyperZoneMessageServiceProvider.bind(messageService)
         connectDatabase()
-        // 创建基础表（Profile 表等）
+        // 创建基础表（User 表等）
         createBaseTables()
-        profileService = VelocityHyperZoneProfileService(databaseHelper)
-        HyperZoneProfileServiceProvider.bind(profileService)
-        loginManager = LoginManager(server, profileService)
+        val userDatabaseHelper = UserDatabaseHelper(databaseManager, databaseManager.getUserTable())
+        val inGameProfileDatabaseHelper = InGameProfileDatabaseHelper(
+            databaseManager,
+            databaseManager.getInGameProfileTable(),
+        )
+        UserSchemaMigrator(
+            manager = databaseManager,
+            userDatabaseHelper = userDatabaseHelper,
+            inGameProfileDatabaseHelper = inGameProfileDatabaseHelper,
+            tablePrefix = databaseManager.tablePrefix,
+        ).migrate()
+        userService = VelocityHyperZoneUserService(userDatabaseHelper, inGameProfileDatabaseHelper)
+        HyperZoneUserServiceProvider.bind(userService)
+        inGameProfileSyncService = InGameProfileSyncService(server, userService)
+        loginManager = LoginManager(server, userService)
         HyperZoneCredentialFlowProvider.bind(loginManager)
-        backendRuntimeProfileCompensator = BackendRuntimeProfileCompensator(profileService, logger)
-        bindingCodeService = ProfileBindingCodeService(
-            BindingCodeRepository(databaseManager, databaseManager.getBindingCodeTable()),
-            profileService,
+        backendRuntimeProfileCompensator = BackendRuntimeProfileCompensator(logger)
+        bindingCodeService = UserBindingCodeService(
+            BindingCodeDatabaseHelper(databaseManager, databaseManager.getBindingCodeTable()),
+            userService,
             loginManager,
         )
         CredentialChannelRegistryProvider.bind(credentialChannelRegistry)
@@ -227,14 +241,6 @@ class HyperZoneLoginMain(
                 brigadier = RenameCommand.brigadier()
             )
         )
-        chatCommandManager.register(
-            HyperChatCommandRegistration(
-                name = "reUUID",
-                aliases = setOf("reuuid", "reUuid"),
-                executor = ReUuidCommand(),
-                brigadier = ReUuidCommand.brigadier()
-            )
-        )
         BindCodeCommandRegistrar.register(chatCommandManager, bindingCodeService)
         syncSlowTestCommands()
 
@@ -253,7 +259,7 @@ class HyperZoneLoginMain(
             proxy.eventManager.register(plugin, BackendProfileLayerCompatListener())
             proxy.eventManager.register(plugin, BackendLoginProfileReplaceListener())
         }
-        proxy.eventManager.register(plugin, AttachedProfileInitialGameProfileListener())
+        proxy.eventManager.register(plugin, AttachedUserInitialGameProfileListener())
         proxy.eventManager.register(plugin, LoginProfileReplaceDefaultListener())
         proxy.eventManager.register(plugin, backendRuntimeProfileCompensator)
         proxy.eventManager.register(plugin, LoginVerifyListener())
@@ -490,13 +496,12 @@ class HyperZoneLoginMain(
             }
         }
         
-        databaseManager = icu.h2l.login.manager.DatabaseManager(
+        databaseManager = icu.h2l.login.database.DatabaseManager(
             config = dbConfig,
             proxy = proxy
         )
         
         databaseManager.connect()
-        databaseHelper = DatabaseHelper(databaseManager)
         
         logger.info("数据库连接完成")
     }

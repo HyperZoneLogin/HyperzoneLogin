@@ -23,11 +23,11 @@ package icu.h2l.login.profile.skin
 
 import icu.h2l.api.HyperZoneApi
 import icu.h2l.api.db.HyperZoneDatabaseManager
-import icu.h2l.api.db.table.ProfileTable
+import icu.h2l.api.db.table.UserTable
 import icu.h2l.api.log.info
 import icu.h2l.api.message.HyperZoneModuleMessageResources
 import icu.h2l.api.module.HyperSubModule
-import icu.h2l.api.profile.HyperZoneProfileServiceProvider
+import icu.h2l.api.profile.HyperZoneUserServiceProvider
 import icu.h2l.login.profile.skin.config.ProfileSkinConfigLoader
 import icu.h2l.login.profile.skin.config.ProfileSkinDebug
 import icu.h2l.login.profile.skin.db.*
@@ -53,21 +53,21 @@ class ProfileSkinSubModule : HyperSubModule {
         val cacheTable = ProfileSkinCacheTable(
             prefix = databaseManager.tablePrefix
         )
-        val profileTable = ProfileSkinProfileTable(
+        val userTable = ProfileSkinUserTable(
             prefix = databaseManager.tablePrefix,
-            profileTable = ProfileTable(databaseManager.tablePrefix),
+            userTable = UserTable(databaseManager.tablePrefix),
             cacheTable = cacheTable
         )
 
-        tableManager = ProfileSkinCacheTableManager(databaseManager, cacheTable, profileTable)
+        tableManager = ProfileSkinCacheTableManager(databaseManager, cacheTable, userTable)
         cacheRepository = ProfileSkinCacheRepository(databaseManager, cacheTable)
-        profileRepository = ProfileSkinProfileRepository(databaseManager, profileTable)
+        profileRepository = ProfileSkinProfileRepository(databaseManager, userTable)
         authenticatedListener = ProfileSkinAuthenticatedListener(proxy)
         service = ProfileSkinService(
             config,
             cacheRepository,
             profileRepository,
-            HyperZoneProfileServiceProvider.get(),
+            HyperZoneUserServiceProvider.get(),
             api.hyperZonePlayers
         )
         selfReplayService = ProfileSkinSelfReplayService(
@@ -75,7 +75,7 @@ class ProfileSkinSubModule : HyperSubModule {
             config,
             cacheRepository,
             profileRepository,
-            HyperZoneProfileServiceProvider.get()
+            HyperZoneUserServiceProvider.get()
         )
 
         tableManager.createTable()

@@ -44,9 +44,9 @@ open class FloodgateAuthRepository(
         }
     }
 
-    open fun getByProfileId(profileId: UUID): FloodgateAuthEntry? {
+    open fun getByProfileId(userUUID: UUID): FloodgateAuthEntry? {
         return databaseManager.executeTransaction {
-            table.selectAll().where { table.profileId eq profileId }
+            table.selectAll().where { table.userUUID eq userUUID }
                 .limit(1)
                 .map(::toEntry)
                 .firstOrNull()
@@ -54,43 +54,44 @@ open class FloodgateAuthRepository(
     }
 
     open fun findProfileIdByXuid(xuid: Long): UUID? {
-        return getByXuid(xuid)?.profileId
+        return getByXuid(xuid)?.userUUID
     }
 
-    open fun createOrUpdate(name: String, xuid: Long, profileId: UUID): Boolean {
-        val normalizedName = name.lowercase()
+    open fun createOrUpdate(name: String, xuid: Long, userUUID: UUID): Boolean {
+        val displayName = name.trim()
         return try {
             databaseManager.executeTransaction {
                 val byXuid = table.selectAll().where { table.xuid eq xuid }
                     .limit(1)
                     .map(::toEntry)
                     .firstOrNull()
-                val byProfileId = table.selectAll().where { table.profileId eq profileId }
+                val byProfileId = table.selectAll().where { table.userUUID eq userUUID }
                     .limit(1)
                     .map(::toEntry)
                     .firstOrNull()
 
-                if (byXuid != null && byXuid.profileId != profileId) {
-                    warn { "Floodgate 绑定冲突：XUID $xuid 已绑定到其他 Profile: ${byXuid.profileId}" }
+                if (byXuid != null && byXuid.userUUID != userUUID) {
+                    warn { "Floodgate 绑定冲突：XUID $xuid 已绑定到其他 User: ${byXuid.userUUID}" }
                     return@executeTransaction false
                 }
                 if (byProfileId != null && byProfileId.xuid != xuid) {
-                    warn { "Floodgate 绑定冲突：Profile $profileId 已绑定到其他 Floodgate XUID: ${byProfileId.xuid}" }
+                    warn { "Floodgate 绑定冲突：User $userUUID 已绑定到其他 Floodgate XUID: ${byProfileId.xuid}" }
                     return@executeTransaction false
                 }
 
                 if (byXuid == null && byProfileId == null) {
                     table.insert {
-                        it[this.name] = normalizedName
+                        it[this.name] = displayName
                         it[this.xuid] = xuid
-                        it[this.profileId] = profileId
+                        it[this.userUUID] = userUUID
+                        it[this.gameUuid] = UUID(0L, xuid)
                     }
                     return@executeTransaction true
                 }
 
                 table.update({ table.xuid eq xuid }) {
-                    it[this.name] = normalizedName
-                    it[this.profileId] = profileId
+                    it[this.name] = displayName
+                    it[this.userUUID] = userUUID
                 }
                 true
             }
@@ -100,19 +101,32 @@ open class FloodgateAuthRepository(
         }
     }
 
+    open fun updateGameUuid(xuid: Long, gameUuid: UUID): Boolean {
+        return try {
+            databaseManager.executeTransaction {
+                table.update({ table.xuid eq xuid }) {
+                    it[this.gameUuid] = gameUuid
+                } > 0
+            }
+        } catch (e: Exception) {
+            warn { "更新 Floodgate 游戏 UUID 失败: ${e.message}" }
+            false
+        }
+    }
+
     open fun updateEntryName(xuid: Long, newName: String): Boolean {
-        val normalizedName = newName.lowercase()
+        val displayName = newName.trim()
         return try {
             databaseManager.executeTransaction {
                 val existing = table.selectAll().where { table.xuid eq xuid }
                     .limit(1)
                     .map(::toEntry)
                     .firstOrNull() ?: return@executeTransaction false
-                if (existing.name == normalizedName) {
+                if (existing.name == displayName) {
                     return@executeTransaction true
                 }
                 table.update({ table.xuid eq xuid }) {
-                    it[name] = normalizedName
+                    it[name] = displayName
                 } > 0
             }
         } catch (e: Exception) {
@@ -126,7 +140,8 @@ open class FloodgateAuthRepository(
             id = row[table.id],
             name = row[table.name],
             xuid = row[table.xuid],
-            profileId = row[table.profileId],
+            userUUID = row[table.userUUID],
+            gameUuid = row[table.gameUuid],
         )
     }
 }

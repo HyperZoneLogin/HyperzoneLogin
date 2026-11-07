@@ -23,11 +23,11 @@ package icu.h2l.login.auth.offline
 
 import icu.h2l.api.HyperZoneApi
 import icu.h2l.api.db.HyperZoneDatabaseManager
-import icu.h2l.api.db.table.ProfileTable
+import icu.h2l.api.db.table.UserTable
 import icu.h2l.api.log.info
 import icu.h2l.api.message.HyperZoneModuleMessageResources
 import icu.h2l.api.module.HyperSubModule
-import icu.h2l.api.profile.HyperZoneProfileServiceProvider
+import icu.h2l.api.profile.HyperZoneUserServiceProvider
 import icu.h2l.login.auth.offline.command.OfflineAuthCommandRegistrar
 import icu.h2l.login.auth.offline.config.AuthOfflineConfigLoader
 import icu.h2l.login.auth.offline.db.OfflineAuthRepository
@@ -54,14 +54,14 @@ class OfflineSubModule : HyperSubModule {
         val dataDirectory = api.dataDirectory
         val databaseManager: HyperZoneDatabaseManager = api.databaseManager
 
-        val profileTable = ProfileTable(databaseManager.tablePrefix)
+        val userTable = UserTable(databaseManager.tablePrefix)
         HyperZoneModuleMessageResources.copyBundledLocales(dataDirectory, "auth-offline", javaClass.classLoader)
         // Load offline matching configuration for this module
         AuthOfflineConfigLoader.load(dataDirectory)
         offlineAuthTableManager = OfflineAuthTableManager(
             databaseManager = databaseManager,
             tablePrefix = databaseManager.tablePrefix,
-            profileTable = profileTable
+            userTable = userTable
         )
         offlineAuthRepository = OfflineAuthRepository(
             databaseManager = databaseManager,
@@ -87,7 +87,7 @@ class OfflineSubModule : HyperSubModule {
             repository = offlineAuthRepository,
             pendingRegistrations = pendingRegistrations,
             playerAccessor = api.hyperZonePlayers,
-            profileService = HyperZoneProfileServiceProvider.get(),
+            userService = HyperZoneUserServiceProvider.get(),
             emailSender = emailSender,
             totpAuthenticator = totpAuthenticator,
             proxy = proxy
@@ -98,6 +98,13 @@ class OfflineSubModule : HyperSubModule {
         // Register pre-login listener (handles channel init + offline UUID matching)
         proxy.eventManager.register(api, OfflinePreLoginListener())
         proxy.eventManager.register(api, OfflineSessionAuthListener(offlineAuthService))
+        proxy.eventManager.register(
+            api,
+            OfflineProfileLookupListener(
+                repository = offlineAuthRepository,
+                userService = HyperZoneUserServiceProvider.get(),
+            )
+        )
 
         OfflineAuthCommandRegistrar.registerAll(
             commandManager = api.chatCommandManager,

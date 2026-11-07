@@ -66,7 +66,7 @@ interface HyperZoneVServerAdapter {
     /**
      * 判断玩家当前是否仍物理处于等待区实现内部。
      *
-     * 这里和 [icu.h2l.api.player.HyperZonePlayer.hasAttachedProfile] 不同：
+     * 这里和 [icu.h2l.api.player.HyperZonePlayer.hasAttachedUser] 不同：
      * 后者描述的是“玩家是否已 attach 正式游戏档案”，
      * 而这里要求由具体实现返回“玩家当前是否仍在该等待区实现内部”这一运行态。
      */
@@ -103,12 +103,12 @@ interface HyperZoneVServerAdapter {
      * 当前等待区实现是否需要 attach 后的运行时 GameProfile 补偿同步。
      *
      * backend 模式在玩家已经注册进 Velocity 后，仍可能需要对在线索引做补偿；
-     * outpre 应在最终交付给 Velocity 之前自行完成最终 Profile 挂载。
+     * outpre 应在最终交付给 Velocity 之前自行完成最终 User 挂载。
      */
     fun needsBackendRuntimeProfileSync(): Boolean = false
 
     /**
-     * 当前等待区实现是否需要在代理初始登录阶段做 backend 专用的临时 Profile 替换/冲突校验。
+     * 当前等待区实现是否需要在代理初始登录阶段做 backend 专用的临时 User 替换/冲突校验。
      *
      * backend 模式依赖该流程保证进入 Velocity 后到离开等待服前一直使用可信临时身份；
      * outpre 全链路自行掌控，不应再复用这段兼容逻辑。

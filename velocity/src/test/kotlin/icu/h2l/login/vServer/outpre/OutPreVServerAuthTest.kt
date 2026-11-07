@@ -29,11 +29,12 @@ import icu.h2l.api.HyperZoneApi
 import icu.h2l.api.event.auth.LoginHandleRequestEvent
 import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.database.DatabaseConfig
-import icu.h2l.login.database.DatabaseHelper
+import icu.h2l.login.database.helper.InGameProfileDatabaseHelper
+import icu.h2l.login.database.helper.UserDatabaseHelper
 import icu.h2l.login.manager.HyperZonePlayerManager
 import icu.h2l.login.manager.LoginManager
 import icu.h2l.login.message.MessageService
-import icu.h2l.login.profile.VelocityHyperZoneProfileService
+import icu.h2l.login.profile.VelocityHyperZoneUserService
 import icu.h2l.login.vServer.outpre.handler.OutPreAuthSessionHandler
 import io.mockk.every
 import io.mockk.just
@@ -116,19 +117,22 @@ class OutPreVServerAuthTest {
             plugin = mockk<HyperZoneApi>(relaxed = true),
         ).also { main ->
             main.activeVServerAdapter = outPre
-            main.profileService = createProfileService(proxyServer)
+            main.userService = createProfileService(proxyServer)
             main.messageService = MessageService(main.dataDirectory, main.logger)
-            main.loginManager = LoginManager(proxyServer, main.profileService)
+            main.loginManager = LoginManager(proxyServer, main.userService)
                 setCoreConfig(icu.h2l.login.config.CoreConfig())
         }
     }
 
-    private fun createProfileService(proxyServer: ProxyServer): VelocityHyperZoneProfileService {
-        val databaseManager = icu.h2l.login.manager.DatabaseManager(
+    private fun createProfileService(proxyServer: ProxyServer): VelocityHyperZoneUserService {
+        val databaseManager = icu.h2l.login.database.DatabaseManager(
             config = DatabaseConfig.sqlite(path = ":memory:"),
             proxy = proxyServer,
         )
-        return VelocityHyperZoneProfileService(DatabaseHelper(databaseManager))
+        return VelocityHyperZoneUserService(
+            UserDatabaseHelper(databaseManager, databaseManager.getUserTable()),
+            InGameProfileDatabaseHelper(databaseManager, databaseManager.getInGameProfileTable()),
+        )
     }
 
     private fun createSession(isActiveStates: List<Boolean>, isOnline: Boolean = false): TestSession {
@@ -145,8 +149,6 @@ class OutPreVServerAuthTest {
 
         HyperZonePlayerManager.create(
             channel = channel,
-            userName = "BedrockUser",
-            uuid = TEST_UUID,
             isOnline = isOnline,
         )
 

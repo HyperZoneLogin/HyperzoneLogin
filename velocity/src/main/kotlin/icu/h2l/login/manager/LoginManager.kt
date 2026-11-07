@@ -23,18 +23,22 @@ package icu.h2l.login.manager
 
 import com.velocitypowered.api.proxy.Player
 import com.velocitypowered.api.proxy.ProxyServer
-import icu.h2l.api.db.Profile
+import icu.h2l.api.db.User
+import icu.h2l.api.db.InGameProfileCandidate
 import icu.h2l.api.event.area.PlayerAreaTransitionReason
 import icu.h2l.api.event.auth.LoginClaim
 import icu.h2l.api.event.auth.LoginHandleContext
 import icu.h2l.api.event.auth.LoginHandleRequestEvent
 import icu.h2l.api.event.auth.LoginHandleResult
 import icu.h2l.api.event.auth.LoginHandleSession
+import icu.h2l.api.log.warn
+import icu.h2l.api.message.HyperZoneMessagePlaceholder
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.player.getChannel
 import icu.h2l.api.profile.HyperZoneCredentialFlow
 import icu.h2l.api.profile.HyperZoneCredential
-import icu.h2l.api.profile.HyperZoneProfileService
+import icu.h2l.api.profile.HyperZoneUserService
+import icu.h2l.api.profile.InGameProfileConflictException
 import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.listener.PlayerAreaLifecycleListener
 import icu.h2l.login.message.MessageKeys
@@ -51,7 +55,7 @@ import java.util.concurrent.atomic.AtomicInteger
 
 class LoginManager(
     private val server: ProxyServer,
-    private val profileService: HyperZoneProfileService,
+    private val userService: HyperZoneUserService,
     private val timeoutMillis: Long = DEFAULT_TIMEOUT_MILLIS,
 ) : HyperZoneCredentialFlow {
     private val credentialsByChannel = ConcurrentHashMap<Channel, HyperZoneCredential>()
@@ -66,9 +70,9 @@ class LoginManager(
     override fun replaceCredential(player: HyperZonePlayer, oldChannelId: String, credential: HyperZoneCredential) {
         val channel = resolveChannel(player)
         val existing = credentialsByChannel[channel]
-            ?: throw IllegalStateException("玩家 ${player.clientOriginalName} 当前没有可替换凭证")
+            ?: throw IllegalStateException("玩家 ${player.logLabel} 当前没有可替换凭证")
         if (existing.channelId != oldChannelId) {
-            throw IllegalStateException("玩家 ${player.clientOriginalName} 当前凭证渠道与期望不一致: expected=$oldChannelId actual=${existing.channelId}")
+            throw IllegalStateException("玩家 ${player.logLabel} 当前凭证渠道与期望不一致: expected=$oldChannelId actual=${existing.channelId}")
         }
         credentialsByChannel[channel] = credential
     }
@@ -79,36 +83,94 @@ class LoginManager(
     }
 
     override fun clearCredentials(player: HyperZonePlayer) {
-        resolveChannelOrNull(player)?.let(credentialsByChannel::remove)
+        resolveChannelOrNull(player)?.let(::clearLoginSessionByChannel)
     }
 
     fun clearCredentialsByChannel(channel: Channel) {
+        clearLoginSessionByChannel(channel)
+    }
+
+    private fun clearLoginSessionByChannel(channel: Channel) {
         credentialsByChannel.remove(channel)
     }
 
     override fun overVerify(player: HyperZonePlayer) {
-        val attachedProfile = profileService.attachVerifiedCredentialProfile(player)
-        if (attachedProfile == null) {
+        if (userService.getAttachedUser(player) != null) {
+            onUserAttached(player)
+            return
+        }
+
+        val resolvedUser = userService.resolveAuthenticatedUser(player)
+        if (resolvedUser == null) {
             player.sendMessage(HyperZoneLoginMain.getInstance().messageService.render(player, MessageKeys.Player.VERIFIED_UNBOUND))
             return
         }
-        onProfileAttached(player)
+
+        val attachedUser = try {
+            attachUser(player, resolvedUser.id)
+        } catch (throwable: InGameProfileConflictException) {
+            player.sendMessage(
+                HyperZoneLoginMain.getInstance().messageService.render(
+                    player,
+                    MessageKeys.Player.INGAME_PROFILE_CONFLICT,
+                    HyperZoneMessagePlaceholder.text("reason", throwable.conflictReason),
+                )
+            )
+            throw throwable
+        }
+        if (attachedUser == null) {
+            player.sendMessage(HyperZoneLoginMain.getInstance().messageService.render(player, MessageKeys.Player.VERIFIED_UNBOUND))
+        }
     }
 
 //    和login的区别是 这个会尝试离开等待区
-    fun attachProfile(player: HyperZonePlayer, profileId: UUID): Profile? {
-        val attachedProfile = profileService.attachProfile(player, profileId) ?: return null
-        onProfileAttached(player)
-        return attachedProfile
+    /**
+     * 登录编排：从凭证内部推导游戏内身份，按 UUID 查找；不存在才创建，
+     * 已存在则直接复用，不校验本次渠道名称是否与记录一致。
+     *
+     * 本方法不读取、不修改 Credential；凭证与游戏内身份保持分离。
+     */
+    fun attachUser(player: HyperZonePlayer, userUUID: UUID): User? {
+        attachInGameProfileIfNeeded(player, userUUID)
+        return userService.attachUser(player, userUUID)?.also { onUserAttached(player) }
     }
 
-    fun onProfileAttached(player: HyperZonePlayer) {
+    /**
+     * 登录时按 UUID 查找游戏内身份；只有查不到时才构造候选并创建。
+     *
+     * 查询阶段只使用明确 UUID，不构造候选、不生成隐式键。
+     */
+    private fun attachInGameProfileIfNeeded(player: HyperZonePlayer, userUUID: UUID) {
+        val channel = resolveChannelOrNull(player) ?: return
+        val credential = credentialsByChannel[channel] ?: return
+        val name = credential.getRegistrationName()?.trim()?.takeIf { it.isNotEmpty() } ?: return
+        val uuid = credential.getSuggestedGameUuid() ?: userService.defaultGameUuid(name)
+
+        val existing = userService.findInGameProfileByUuid(uuid)
+        if (existing != null) {
+            if (existing.userUUID != userUUID) {
+                warn {
+                    "游戏内 UUID $uuid 已属于其他 User: ${existing.userUUID}，当前登录 User=$userUUID，跳过 InGameProfile 写入"
+                }
+            }
+            return
+        }
+
+        val candidate = InGameProfileCandidate(
+            channel = credential.channelId,
+            name = name,
+            uuid = uuid,
+        )
+        userService.createInGameProfile(userUUID, candidate)
+    }
+
+    fun onUserAttached(player: HyperZonePlayer) {
         val velocityPlayer = player as? VelocityHyperZonePlayer ?: return
         runCatching {
             tryLeaveWaiting(velocityPlayer)
         }.onFailure { throwable ->
             debugOutPreTrace {
-                "loginManager.onProfileAttached transition failed player=${velocityPlayer.clientOriginalName} reason=${throwable.message}"
+                "loginManager.onUserAttached transition failed player=${velocityPlayer.logLabel} reason=${throwable.message}"
             }
         }
     }
@@ -127,20 +189,20 @@ class LoginManager(
 
     private fun tryLeaveWaiting(hyperPlayer: VelocityHyperZonePlayer) {
         debugOutPreTrace {
-            "loginManager.tryLeaveWaiting player=${hyperPlayer.clientOriginalName} attachedProfile=${hyperPlayer.hasAttachedProfile()} proxyBound=${hyperPlayer.getProxyPlayerOrNull() != null}"
+            "loginManager.tryLeaveWaiting player=${hyperPlayer.logLabel} attachedUser=${hyperPlayer.hasAttachedUser()} proxyBound=${hyperPlayer.getProxyPlayerOrNull() != null}"
         }
 
-        if (!hyperPlayer.hasAttachedProfile()) {
+        if (!hyperPlayer.hasAttachedUser()) {
             return
         }
 
         val player = hyperPlayer.getProxyPlayerOrNull() ?: return
         val main = HyperZoneLoginMain.getInstance()
-        val attachedProfileId = profileService.getAttachedProfile(hyperPlayer)?.id ?: return
+        val attachedUserId = userService.getAttachedUser(hyperPlayer)?.id ?: return
 
-        val transitionOwner = readyTransitionOwners.putIfAbsent(attachedProfileId, hyperPlayer)
+        val transitionOwner = readyTransitionOwners.putIfAbsent(attachedUserId, hyperPlayer)
         if (transitionOwner != null && transitionOwner !== hyperPlayer) {
-            notifyProfileConflict(hyperPlayer, listOf(transitionOwner))
+            notifyUserConflict(hyperPlayer, listOf(transitionOwner))
             return
         }
 
@@ -152,7 +214,7 @@ class LoginManager(
                         return@mapNotNull null
                     }
 
-                    if (profileService.getAttachedProfile(otherHyperPlayer)?.id != attachedProfileId) {
+                    if (userService.getAttachedUser(otherHyperPlayer)?.id != attachedUserId) {
                         return@mapNotNull null
                     }
 
@@ -166,7 +228,7 @@ class LoginManager(
                 .toList()
 
             if (conflictingPlayers.isNotEmpty()) {
-                notifyProfileConflict(hyperPlayer, conflictingPlayers)
+                notifyUserConflict(hyperPlayer, conflictingPlayers)
                 return
             }
 
@@ -178,14 +240,14 @@ class LoginManager(
             PlayerAreaLifecycleListener.markWaitingAreaLeavePending(player, PlayerAreaTransitionReason.VERIFIED)
             main.serverAdapter?.onVerified(player)
         } finally {
-            readyTransitionOwners.remove(attachedProfileId, hyperPlayer)
+            readyTransitionOwners.remove(attachedUserId, hyperPlayer)
         }
     }
 
-    private fun notifyProfileConflict(player: VelocityHyperZonePlayer, conflictingPlayers: List<VelocityHyperZonePlayer>) {
+    private fun notifyUserConflict(player: VelocityHyperZonePlayer, conflictingPlayers: List<VelocityHyperZonePlayer>) {
         val conflictPlayerIds = conflictingPlayers.asSequence()
             .filter { it !== player }
-            .mapNotNull { it.clientOriginalUUID }
+            .mapNotNull { it.userUUID }
             .toSet()
         if (conflictPlayerIds.isEmpty()) {
             return
@@ -237,7 +299,7 @@ class LoginManager(
         hyperZonePlayer: VelocityHyperZonePlayer,
         metadata: Map<String, String> = emptyMap(),
     ): CompletableFuture<Result> {
-        if (hyperZonePlayer.hasAttachedProfile()) {
+        if (hyperZonePlayer.hasAttachedUser()) {
             return CompletableFuture.completedFuture(Result(status = Status.ALREADY_VERIFIED))
         }
 
@@ -346,7 +408,7 @@ class LoginManager(
 
                 val handledResult = result ?: LoginHandleResult.failed("claim completed without result")
                 if (handledResult.success) {
-                    if (hyperZonePlayer.hasAttachedProfile()) {
+                    if (hyperZonePlayer.hasAttachedUser()) {
                         completeOnce(Result(status = Status.SUCCESS, winnerModuleId = claim.moduleId))
                         return@execute
                     }
@@ -363,7 +425,7 @@ class LoginManager(
                                 )
                             )
                         }
-                                return@execute
+                        return@execute
                     }
 
                     val submitThrowable = runCatching {
@@ -383,19 +445,21 @@ class LoginManager(
                                 )
                             )
                         }
-                                return@execute
+                        return@execute
                     }
 
                     val verifyThrowable = runCatching {
                         overVerify(hyperZonePlayer)
                     }.exceptionOrNull()
                     if (verifyThrowable != null) {
-                        clearCredentialsByChannel(playerChannel)
+                        if (verifyThrowable !is InGameProfileConflictException) {
+                            clearCredentialsByChannel(playerChannel)
+                        }
                         failures += ModuleFailure(
                             claim.moduleId,
                             "manager overVerify failed: ${verifyThrowable.message ?: "unknown error"}"
                         )
-                    } else if (hyperZonePlayer.hasAttachedProfile()) {
+                    } else if (hyperZonePlayer.hasAttachedUser()) {
                         completeOnce(Result(status = Status.SUCCESS, winnerModuleId = claim.moduleId))
                         return@execute
                     } else {
@@ -433,7 +497,7 @@ class LoginManager(
 
     private fun resolveChannel(player: HyperZonePlayer): Channel {
         return resolveChannelOrNull(player)
-            ?: throw IllegalStateException("玩家 ${player.clientOriginalName} 当前未绑定 Proxy Player，无法定位 channel")
+            ?: throw IllegalStateException("玩家 ${player.logLabel} 当前未绑定 Proxy Player，无法定位 channel")
     }
 
     private fun resolveChannelOrNull(player: HyperZonePlayer): Channel? {
@@ -448,9 +512,9 @@ class LoginManager(
 private class VelocityLoginHandleSession(
     private val player: VelocityHyperZonePlayer
 ) : LoginHandleSession {
-    override fun originalName(): String = player.clientOriginalName
+    override fun originalName(): String = player.logLabel
 
-    override fun hasAttachedProfile(): Boolean = player.hasAttachedProfile()
+    override fun hasAttachedUser(): Boolean = player.hasAttachedUser()
 
 
     override fun sendMessage(message: net.kyori.adventure.text.Component) {

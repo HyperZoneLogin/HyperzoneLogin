@@ -21,15 +21,15 @@
 
 package icu.h2l.login.profile.skin.db
 
-import icu.h2l.api.db.table.ProfileTable
+import icu.h2l.api.db.table.UserTable
 import org.jetbrains.exposed.sql.Table
 
-class ProfileSkinProfileTable(
+class ProfileSkinUserTable(
     prefix: String,
-    profileTable: ProfileTable,
+    userTable: UserTable,
     cacheTable: ProfileSkinCacheTable
 ) : Table("${prefix}skin_profile") {
-    val profileId = uuid("profile_id").references(profileTable.id)
+    val userUUID = uuid("user_uuid").references(userTable.id)
     val skinId = uuid("skin_id").references(cacheTable.id)
     val updatedAt = long("updated_at")
 
@@ -37,5 +37,5 @@ class ProfileSkinProfileTable(
         index(false, skinId)
     }
 
-    override val primaryKey = PrimaryKey(profileId)
+    override val primaryKey = PrimaryKey(userUUID)
 }

@@ -31,58 +31,58 @@ class OfflineHyperZoneCredential(
     private val pendingRegistrations: PendingOfflineRegistrationManager,
     private val registrationName: String,
     private val normalizedName: String,
-    private val knownProfileId: UUID? = null,
+    private val knownUserUUID: UUID? = null,
     private val pendingRegistrationId: UUID? = null,
-    private val passProfileCreateUuid: Boolean = false
+    private val passProfileCreateUuid: Boolean = false,
 ) : HyperZoneCredential {
     override val channelId: String = CHANNEL_ID
     override val credentialId: String = pendingRegistrationId?.toString() ?: normalizedName
 
     override fun getRegistrationName(): String = registrationName
 
-    override fun getBoundProfileId(): UUID? {
-        return knownProfileId ?: repository.getByName(effectiveNormalizedName())?.profileId
+    override fun getBoundUserUUID(): UUID? {
+        return knownUserUUID ?: repository.getByName(effectiveNormalizedName())?.userUUID
     }
 
-    override fun getSuggestedProfileCreateUuid(): UUID? {
+    override fun getSuggestedGameUuid(): UUID? {
         if (!passProfileCreateUuid) {
             return null
         }
 
-        return ExtraUuidUtils.getNormalOfflineUUID(registrationName)
+        return ExtraUuidUtils.getNormalOfflineUUID(normalizedName)
     }
 
-    override fun validateBind(profileId: UUID): String? {
+    override fun validateBind(userUUID: UUID): String? {
         val currentName = effectiveNormalizedName()
         val entry = repository.getByName(currentName)
-        val currentProfileId = entry?.profileId
-        if (currentProfileId != null && currentProfileId != profileId) {
-            return "离线认证凭证 $currentName 已绑定到其他 Profile: $currentProfileId"
+        val currentUserUUID = entry?.userUUID
+        if (currentUserUUID != null && currentUserUUID != userUUID) {
+            return "离线认证凭证 $currentName 已绑定到其他 User: $currentUserUUID"
         }
 
-        val existingByProfile = repository.getByProfileId(profileId)
+        val existingByProfile = repository.getByProfileId(userUUID)
         if (existingByProfile != null && !existingByProfile.name.equals(currentName, ignoreCase = true)) {
-            return "目标 Profile 已绑定其他离线认证记录: ${existingByProfile.name}"
+            return "目标 User 已绑定其他离线认证记录: ${existingByProfile.name}"
         }
 
-        if (currentProfileId == null && pendingRegistrationId != null && pendingRegistrations.get(pendingRegistrationId) == null) {
+        if (currentUserUUID == null && pendingRegistrationId != null && pendingRegistrations.get(pendingRegistrationId) == null) {
             return "离线认证待绑定注册数据不存在或已失效，无法完成绑定"
         }
 
-        if (currentProfileId == null && pendingRegistrationId == null) {
+        if (currentUserUUID == null && pendingRegistrationId == null) {
             return "离线认证凭证缺少待绑定注册数据，无法完成绑定"
         }
 
         return null
     }
 
-    override fun bind(profileId: UUID): Boolean {
-        val currentProfileId = getBoundProfileId()
-        if (currentProfileId == profileId) {
+    override fun bind(userUUID: UUID): Boolean {
+        val currentUserUUID = getBoundUserUUID()
+        if (currentUserUUID == userUUID) {
             pendingRegistrationId?.let(pendingRegistrations::remove)
             return true
         }
-        if (currentProfileId != null) {
+        if (currentUserUUID != null) {
             return false
         }
 
@@ -92,7 +92,7 @@ class OfflineHyperZoneCredential(
             name = pendingRegistration.normalizedName,
             passwordHash = pendingRegistration.passwordHash,
             hashFormat = pendingRegistration.hashFormat,
-            profileId = profileId,
+            userUUID = userUUID,
             email = pendingRegistration.email
         )
         if (created) {
@@ -100,7 +100,7 @@ class OfflineHyperZoneCredential(
         }
 
         pendingRegistrations.put(pendingRegistration)
-        return repository.getByName(effectiveNormalizedName())?.profileId == profileId
+        return repository.getByName(effectiveNormalizedName())?.userUUID == userUUID
     }
 
     /**
@@ -118,35 +118,14 @@ class OfflineHyperZoneCredential(
             pendingRegistrations = pendingRegistrations,
             registrationName = newName,
             normalizedName = newNormalizedName,
-            knownProfileId = knownProfileId,
+            knownUserUUID = knownUserUUID,
             pendingRegistrationId = pendingRegistrationId,
-            passProfileCreateUuid = passProfileCreateUuid
+            passProfileCreateUuid = passProfileCreateUuid,
         )
     }
 
     override fun withRegistrationName(newRegistrationName: String): OfflineHyperZoneCredential {
         return withNewName(newRegistrationName)
-    }
-
-    /**
-     * 创建一个关闭 UUID 建议的凭证副本，用于 ReUuid 流程。
-     *
-     * 凭证不再建议特定 UUID，交由核心 ReUuid 逻辑选取新 UUID。
-     */
-    fun withReUuid(): OfflineHyperZoneCredential {
-        return OfflineHyperZoneCredential(
-            repository = repository,
-            pendingRegistrations = pendingRegistrations,
-            registrationName = registrationName,
-            normalizedName = normalizedName,
-            knownProfileId = knownProfileId,
-            pendingRegistrationId = pendingRegistrationId,
-            passProfileCreateUuid = false
-        )
-    }
-
-    override fun withReUuidRequest(): OfflineHyperZoneCredential {
-        return withReUuid()
     }
 
     @Suppress("unused")

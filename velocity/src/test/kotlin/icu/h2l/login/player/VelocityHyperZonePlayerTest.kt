@@ -29,12 +29,9 @@ import java.util.*
 class VelocityHyperZonePlayerTest {
     @Test
     fun `temporary profile is created eagerly and remains stable for the session`() {
-        val player = VelocityHyperZonePlayer(
-            clientOriginalName = "ClientName",
-            clientOriginalUUID = UUID.fromString("77777777-7777-4777-8777-777777777777"),
-            isOnlinePlayer = false,
-        )
+        val player = VelocityHyperZonePlayer(isOnlinePlayer = false)
 
+        assertNull(player.userUUID)
         val first = player.getTemporaryGameProfile()
         val second = player.getTemporaryGameProfile()
 

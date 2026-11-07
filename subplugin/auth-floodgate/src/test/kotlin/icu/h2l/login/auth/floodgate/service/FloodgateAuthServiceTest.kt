@@ -22,10 +22,10 @@
 package icu.h2l.login.auth.floodgate.service
 
 import icu.h2l.api.HyperZoneApi
-import icu.h2l.api.db.Profile
+import icu.h2l.api.db.User
 import icu.h2l.api.player.HyperZonePlayerAccessor
 import icu.h2l.api.profile.HyperZoneCredential
-import icu.h2l.api.profile.HyperZoneProfileService
+import icu.h2l.api.profile.HyperZoneUserService
 import icu.h2l.login.auth.floodgate.config.FloodgateAuthConfig
 import icu.h2l.login.auth.floodgate.credential.FloodgateHyperZoneCredential
 import icu.h2l.login.auth.floodgate.api.db.FloodgateAuthEntry
@@ -41,7 +41,7 @@ class FloodgateAuthServiceTest {
     private lateinit var api: HyperZoneApi
     private lateinit var playerAccessor: HyperZonePlayerAccessor
     private lateinit var floodgateApiHolder: FakeFloodgateApiHolder
-    private lateinit var profileService: HyperZoneProfileService
+    private lateinit var userService: HyperZoneUserService
     private lateinit var sessionHolder: FloodgateSessionHolder
     private lateinit var repository: FloodgateAuthRepository
     private lateinit var service: FloodgateAuthService
@@ -52,19 +52,20 @@ class FloodgateAuthServiceTest {
         api = mockk(relaxed = true)
         playerAccessor = mockk()
         floodgateApiHolder = FakeFloodgateApiHolder()
-        profileService = mockk()
+        userService = mockk()
         sessionHolder = FloodgateSessionHolder()
         repository = FakeFloodgateAuthRepository()
         channel = mockk()
 
         every { api.hyperZonePlayers } returns playerAccessor
+        every { userService.getUserByGameUuid(any()) } returns null
 
         service = FloodgateAuthService(
             api = api,
             floodgateApiHolder = floodgateApiHolder,
             sessionHolder = sessionHolder,
             repository = repository,
-            profileService = profileService
+            userService = userService
         )
     }
 
@@ -77,7 +78,7 @@ class FloodgateAuthServiceTest {
 
         assertSame(FloodgateAuthService.VerifyResult.NotFloodgate, result)
         assertNull(sessionHolder.get(channel))
-        verify(exactly = 0) { playerAccessor.create(any(), any(), any(), any()) }
+        verify(exactly = 0) { playerAccessor.create(any(), any()) }
     }
 
     @Test
@@ -95,7 +96,7 @@ class FloodgateAuthServiceTest {
         assertEquals("BedrockUser", remembered!!.userName)
         assertEquals(userUuid, remembered.userUUID)
         assertEquals(xuid, remembered.xuid)
-        verify(exactly = 0) { playerAccessor.create(any(), any(), any(), any()) }
+        verify(exactly = 0) { playerAccessor.create(any(), any()) }
     }
 
     @Test
@@ -110,7 +111,7 @@ class FloodgateAuthServiceTest {
             sessionHolder = disabledSessionHolder,
             repository = repository,
             config = disabledConfig,
-            profileService = profileService
+            userService = userService
         )
         floodgateApiHolder.configuredPlayerPrefix = "."
         floodgateApiHolder.trustedUuids += userUuid
@@ -121,24 +122,24 @@ class FloodgateAuthServiceTest {
         val remembered = disabledSessionHolder.get(channel)
         assertNotNull(remembered)
         assertEquals(".BedrockUser", remembered!!.userName)
-        verify(exactly = 0) { playerAccessor.create(any(), any(), any(), any()) }
+        verify(exactly = 0) { playerAccessor.create(any(), any()) }
     }
 
     @Test
     fun `complete submits floodgate credential verifies player and clears normalized session`() {
         val userUuid = UUID.fromString("33333333-3333-3333-3333-333333333333")
         val xuid = 3333333333333333L
-        val profileId = UUID.fromString("44444444-4444-4444-4444-444444444444")
-        val resolvedProfile = Profile(profileId, "BedrockUser", userUuid)
+        val userUUID = UUID.fromString("44444444-4444-4444-4444-444444444444")
+        val resolvedUser = User(userUUID)
         floodgateApiHolder.configuredPlayerPrefix = "."
         floodgateApiHolder.trustedUuids += userUuid
         // 服务现在通过凭证与 ProfileService 交互；按凭证渠道参数匹配模拟行为
-        every { profileService.canCreate(match<HyperZoneCredential> {
-            it.getRegistrationName() == "BedrockUser" && it.getSuggestedProfileCreateUuid() == userUuid
+        every { userService.canCreateUser(match<HyperZoneCredential> {
+            it.getRegistrationName() == "BedrockUser" && it.getSuggestedGameUuid() == userUuid
         }) } returns true
-        every { profileService.create(match<HyperZoneCredential> {
-            it.getRegistrationName() == "BedrockUser" && it.getSuggestedProfileCreateUuid() == userUuid
-        }) } returns resolvedProfile
+        every { userService.createUser(match<HyperZoneCredential> {
+            it.getRegistrationName() == "BedrockUser" && it.getSuggestedGameUuid() == userUuid
+        }) } returns resolvedUser
 
         val acceptResult = service.acceptInitialProfile(channel, ".BedrockUser", userUuid, xuid)
 
@@ -150,24 +151,46 @@ class FloodgateAuthServiceTest {
         assertNull(result.userMessage)
         assertNull(sessionHolder.get(channel))
         val credential = result.credential as FloodgateHyperZoneCredential
-        assertEquals(profileId, credential.getBoundProfileId())
+        assertEquals(userUUID, credential.getBoundUserUUID())
         assertTrue(credential.matches(userUuid))
-        assertEquals(profileId, result.profileIdHint)
-        assertEquals(profileId, repository.findProfileIdByXuid(xuid))
-        verify(exactly = 1) { profileService.canCreate(match<HyperZoneCredential> {
-            it.getRegistrationName() == "BedrockUser" && it.getSuggestedProfileCreateUuid() == userUuid
+        assertEquals(userUUID, result.userUUIDHint)
+        assertEquals(userUUID, repository.findProfileIdByXuid(xuid))
+        verify(exactly = 1) { userService.canCreateUser(match<HyperZoneCredential> {
+            it.getRegistrationName() == "BedrockUser" && it.getSuggestedGameUuid() == userUuid
         }) }
-        verify(exactly = 1) { profileService.create(match<HyperZoneCredential> {
-            it.getRegistrationName() == "BedrockUser" && it.getSuggestedProfileCreateUuid() == userUuid
+        verify(exactly = 1) { userService.createUser(match<HyperZoneCredential> {
+            it.getRegistrationName() == "BedrockUser" && it.getSuggestedGameUuid() == userUuid
         }) }
+    }
+
+    @Test
+    fun `complete auto binds floodgate account when uuid matches an existing in-game profile`() {
+        val userUuid = UUID.fromString("77777777-7777-7777-7777-777777777777")
+        val xuid = 7777777777777777L
+        val linkedUserUUID = UUID.fromString("88888888-8888-8888-8888-888888888888")
+        val linkedProfile = User(linkedUserUUID)
+        floodgateApiHolder.configuredPlayerPrefix = "."
+        floodgateApiHolder.trustedUuids += userUuid
+        every { userService.getUserByGameUuid(userUuid) } returns linkedProfile
+        every { userService.validateInGameProfileCandidate(linkedUserUUID, any()) } returns null
+
+        val acceptResult = service.acceptInitialProfile(channel, ".BedrockUser", userUuid, xuid)
+        val result = service.complete(channel, "BedrockUser")
+
+        assertSame(FloodgateAuthService.VerifyResult.Accepted, acceptResult)
+        assertTrue(result.handled)
+        assertTrue(result.passed)
+        assertEquals(linkedUserUUID, result.userUUIDHint)
+        assertEquals(linkedUserUUID, repository.findProfileIdByXuid(xuid))
+        verify(exactly = 0) { userService.createUser(any<HyperZoneCredential>()) }
     }
 
     @Test
     fun `complete passes null to profile resolve when floodgate uuid passthrough is disabled`() {
         val userUuid = UUID.fromString("55555555-5555-5555-5555-555555555555")
         val xuid = 5555555555555555L
-        val profileId = UUID.fromString("66666666-6666-6666-6666-666666666666")
-        val resolvedProfile = Profile(profileId, "BedrockUser", userUuid)
+        val userUUID = UUID.fromString("66666666-6666-6666-6666-666666666666")
+        val resolvedUser = User(userUUID)
         val disabledConfig = FloodgateAuthConfig().apply { passFloodgateUuidToProfileResolve = false }
         val disabledService = FloodgateAuthService(
             api = api,
@@ -175,18 +198,18 @@ class FloodgateAuthServiceTest {
             sessionHolder = sessionHolder,
             repository = repository,
             config = disabledConfig,
-            profileService = profileService
+            userService = userService
         )
 
         floodgateApiHolder.configuredPlayerPrefix = "."
         floodgateApiHolder.trustedUuids += userUuid
         // 服务现在通过凭证与 ProfileService 交互；uuid passthrough 关闭时凭证建议 UUID 应为 null
-        every { profileService.canCreate(match<HyperZoneCredential> {
-            it.getRegistrationName() == "BedrockUser" && it.getSuggestedProfileCreateUuid() == null
+        every { userService.canCreateUser(match<HyperZoneCredential> {
+            it.getRegistrationName() == "BedrockUser" && it.getSuggestedGameUuid() == null
         }) } returns true
-        every { profileService.create(match<HyperZoneCredential> {
-            it.getRegistrationName() == "BedrockUser" && it.getSuggestedProfileCreateUuid() == null
-        }) } returns resolvedProfile
+        every { userService.createUser(match<HyperZoneCredential> {
+            it.getRegistrationName() == "BedrockUser" && it.getSuggestedGameUuid() == null
+        }) } returns resolvedUser
 
         val acceptResult = disabledService.acceptInitialProfile(channel, ".BedrockUser", userUuid, xuid)
 
@@ -195,15 +218,15 @@ class FloodgateAuthServiceTest {
         assertSame(FloodgateAuthService.VerifyResult.Accepted, acceptResult)
         assertTrue(result.handled)
         assertTrue(result.passed)
-        assertEquals(profileId, repository.findProfileIdByXuid(xuid))
-        verify(exactly = 1) { profileService.canCreate(match<HyperZoneCredential> {
-            it.getSuggestedProfileCreateUuid() == null
+        assertEquals(userUUID, repository.findProfileIdByXuid(xuid))
+        verify(exactly = 1) { userService.canCreateUser(match<HyperZoneCredential> {
+            it.getSuggestedGameUuid() == null
         }) }
-        verify(exactly = 1) { profileService.create(match<HyperZoneCredential> {
-            it.getSuggestedProfileCreateUuid() == null
+        verify(exactly = 1) { userService.createUser(match<HyperZoneCredential> {
+            it.getSuggestedGameUuid() == null
         }) }
-        verify(exactly = 0) { profileService.create(match<HyperZoneCredential> {
-            it.getSuggestedProfileCreateUuid() == userUuid
+        verify(exactly = 0) { userService.createUser(match<HyperZoneCredential> {
+            it.getSuggestedGameUuid() == userUuid
         }) }
     }
 
@@ -211,10 +234,10 @@ class FloodgateAuthServiceTest {
     fun `complete reuses repository binding before creating profile`() {
         val userUuid = UUID.fromString("77777777-7777-7777-7777-777777777777")
         val xuid = 7777777777777777L
-        val profileId = UUID.fromString("88888888-8888-8888-8888-888888888888")
+        val userUUID = UUID.fromString("88888888-8888-8888-8888-888888888888")
         floodgateApiHolder.configuredPlayerPrefix = "."
         floodgateApiHolder.trustedUuids += userUuid
-        repository.createOrUpdate("oldname", xuid, profileId)
+        repository.createOrUpdate("oldname", xuid, userUUID)
 
         val acceptResult = service.acceptInitialProfile(channel, ".BedrockUser", userUuid, xuid)
 
@@ -223,10 +246,10 @@ class FloodgateAuthServiceTest {
         assertSame(FloodgateAuthService.VerifyResult.Accepted, acceptResult)
         assertTrue(result.handled)
         assertTrue(result.passed)
-        assertEquals(profileId, (result.credential as FloodgateHyperZoneCredential).getBoundProfileId())
-        assertEquals(profileId, repository.findProfileIdByXuid(xuid))
-        assertEquals("bedrockuser", repository.getByXuid(xuid)?.name)
-        verify(exactly = 0) { profileService.create(any<HyperZoneCredential>()) }
+        assertEquals(userUUID, (result.credential as FloodgateHyperZoneCredential).getBoundUserUUID())
+        assertEquals(userUUID, repository.findProfileIdByXuid(xuid))
+        assertEquals("BedrockUser", repository.getByXuid(xuid)?.name)
+        verify(exactly = 0) { userService.createUser(any<HyperZoneCredential>()) }
     }
 
     @Test
@@ -240,7 +263,7 @@ class FloodgateAuthServiceTest {
 
         assertSame(FloodgateAuthService.VerifyResult.Accepted, result)
         assertEquals("BedrockUser", sessionHolder.get(channel)?.userName)
-        verify(exactly = 0) { playerAccessor.create(any(), any(), any(), any()) }
+        verify(exactly = 0) { playerAccessor.create(any(), any()) }
     }
 
     @Test
@@ -254,7 +277,7 @@ class FloodgateAuthServiceTest {
 
         assertSame(FloodgateAuthService.VerifyResult.Accepted, result)
         assertEquals(".BedrockUser", sessionHolder.get(channel)?.userName)
-        verify(exactly = 0) { playerAccessor.create(any(), any(), any(), any()) }
+        verify(exactly = 0) { playerAccessor.create(any(), any()) }
     }
 
     @Test
@@ -287,19 +310,19 @@ class FloodgateAuthServiceTest {
             return entriesByXuid[xuid]
         }
 
-        override fun getByProfileId(profileId: UUID): FloodgateAuthEntry? {
-            return entriesByXuid.values.firstOrNull { it.profileId == profileId }
+        override fun getByProfileId(userUUID: UUID): FloodgateAuthEntry? {
+            return entriesByXuid.values.firstOrNull { it.userUUID == userUUID }
         }
 
         override fun findProfileIdByXuid(xuid: Long): UUID? {
-            return entriesByXuid[xuid]?.profileId
+            return entriesByXuid[xuid]?.userUUID
         }
 
-        override fun createOrUpdate(name: String, xuid: Long, profileId: UUID): Boolean {
-            val normalizedName = name.lowercase()
+        override fun createOrUpdate(name: String, xuid: Long, userUUID: UUID): Boolean {
+            val displayName = name.trim()
             val existingByXuid = entriesByXuid[xuid]
-            val existingByProfileId = getByProfileId(profileId)
-            if (existingByXuid != null && existingByXuid.profileId != profileId) {
+            val existingByProfileId = getByProfileId(userUUID)
+            if (existingByXuid != null && existingByXuid.userUUID != userUUID) {
                 return false
             }
             if (existingByProfileId != null && existingByProfileId.xuid != xuid) {
@@ -307,13 +330,19 @@ class FloodgateAuthServiceTest {
             }
 
             val id = existingByXuid?.id ?: existingByProfileId?.id ?: nextId++
-            entriesByXuid[xuid] = FloodgateAuthEntry(id, normalizedName, xuid, profileId)
+            entriesByXuid[xuid] = FloodgateAuthEntry(id, displayName, xuid, userUUID)
             return true
         }
 
         override fun updateEntryName(xuid: Long, newName: String): Boolean {
             val existing = entriesByXuid[xuid] ?: return false
-            entriesByXuid[xuid] = existing.copy(name = newName.lowercase())
+            entriesByXuid[xuid] = existing.copy(name = newName.trim())
+            return true
+        }
+
+        override fun updateGameUuid(xuid: Long, gameUuid: UUID): Boolean {
+            val existing = entriesByXuid[xuid] ?: return false
+            entriesByXuid[xuid] = existing.copy(gameUuid = gameUuid)
             return true
         }
     }

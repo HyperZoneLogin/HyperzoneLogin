@@ -30,19 +30,19 @@ import java.util.*
 
 class ProfileSkinProfileRepository(
     private val databaseManager: HyperZoneDatabaseManager,
-    private val profileTable: ProfileSkinProfileTable
+    private val userTable: ProfileSkinUserTable
 ) {
-    fun findSkinIdByProfileId(profileId: UUID): UUID? {
+    fun findSkinIdByProfileId(userUUID: UUID): UUID? {
         return databaseManager.executeTransaction {
-            profileTable.selectAll().where { profileTable.profileId eq profileId }
+            userTable.selectAll().where { userTable.userUUID eq userUUID }
                 .limit(1)
-                .map { row -> row[profileTable.skinId] }
+                .map { row -> row[userTable.skinId] }
                 .firstOrNull()
         }
     }
 
-    fun bindProfile(profileId: UUID, skinId: UUID): Boolean {
-        val existingSkinId = findSkinIdByProfileId(profileId)
+    fun bindProfile(userUUID: UUID, skinId: UUID): Boolean {
+        val existingSkinId = findSkinIdByProfileId(userUUID)
         if (existingSkinId == skinId) {
             return true
         }
@@ -50,17 +50,17 @@ class ProfileSkinProfileRepository(
         return try {
             if (existingSkinId == null) {
                 databaseManager.executeTransaction {
-                    profileTable.insert {
-                        it[profileTable.profileId] = profileId
-                        it[profileTable.skinId] = skinId
-                        it[profileTable.updatedAt] = System.currentTimeMillis()
+                    userTable.insert {
+                        it[userTable.userUUID] = userUUID
+                        it[userTable.skinId] = skinId
+                        it[userTable.updatedAt] = System.currentTimeMillis()
                     }
                 }
             } else {
                 databaseManager.executeTransaction {
-                    profileTable.update({ profileTable.profileId eq profileId }) {
-                        it[profileTable.skinId] = skinId
-                        it[profileTable.updatedAt] = System.currentTimeMillis()
+                    userTable.update({ userTable.userUUID eq userUUID }) {
+                        it[userTable.skinId] = skinId
+                        it[userTable.updatedAt] = System.currentTimeMillis()
                     }
                 }
             }

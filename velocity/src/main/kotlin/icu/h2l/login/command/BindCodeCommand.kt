@@ -27,10 +27,10 @@ import icu.h2l.api.command.HyperChatCommandInvocation
 import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.manager.HyperZonePlayerManager
 import icu.h2l.login.message.MessageKeys
-import icu.h2l.login.profile.ProfileBindingCodeService
+import icu.h2l.login.profile.UserBindingCodeService
 
 class BindCodeCommand(
-    private val bindingCodeService: ProfileBindingCodeService
+    private val bindingCodeService: UserBindingCodeService
 ) : HyperChatCommandExecutor {
     override fun execute(invocation: HyperChatCommandInvocation) {
         val messages = HyperZoneLoginMain.getInstance().messageService

@@ -27,9 +27,8 @@ import com.velocitypowered.api.util.GameProfile
 import com.velocitypowered.proxy.VelocityServer
 import com.velocitypowered.proxy.connection.client.ConnectedPlayer
 import com.velocitypowered.proxy.server.VelocityRegisteredServer
-import icu.h2l.api.event.profile.ProfileAttachedEvent
+import icu.h2l.api.event.profile.UserAttachedEvent
 import icu.h2l.login.HyperZoneLoginMain
-import icu.h2l.login.profile.VelocityHyperZoneProfileService
 import icu.h2l.login.util.VelocityGameProfileReflection
 import icu.h2l.login.util.buildDeliveredGameProfile
 import icu.h2l.login.util.executeOnPlayerEventLoop
@@ -38,29 +37,28 @@ import net.kyori.adventure.text.logger.slf4j.ComponentLogger
 import java.util.*
 
 class BackendRuntimeProfileCompensator(
-    private val profileService: VelocityHyperZoneProfileService,
     private val logger: ComponentLogger,
 ) {
     /**
      * backend 模式专用：在玩家已经注册进 Velocity 后，
-     * 对 attach 后的正式 Profile 做在线运行时补偿同步。
+     * 对 attach 后的正式 User 做在线运行时补偿同步。
      *
      * outpre 不应依赖该补偿；outpre 应在正式交付给 Velocity 前
      * 自己完成最终 GameProfile 挂载。
      */
     @Subscribe
-    fun onProfileAttached(event: ProfileAttachedEvent) {
+    fun onUserAttached(event: UserAttachedEvent) {
         val main = HyperZoneLoginMain.getInstance()
         if (main.serverAdapter?.needsBackendRuntimeProfileSync() != true) {
             return
         }
 
-        val attachedProfile = profileService.getAttachedProfile(event.hyperZonePlayer) ?: event.profile
+        val attachedUser = event.hyperZonePlayer.attachedUser ?: event.profile
         val proxyPlayer = event.hyperZonePlayer.getProxyPlayerOrNull()
         val connectedPlayer = proxyPlayer as? ConnectedPlayer
         if (connectedPlayer == null) {
             logger.warn(
-                "BackendRuntimeProfileCompensator 在 ProfileAttachedEvent 中未找到可用的 ConnectedPlayer: clientOriginal=${event.hyperZonePlayer.clientOriginalName}, profileId=${attachedProfile.id}"
+                "BackendRuntimeProfileCompensator 在 UserAttachedEvent 中未找到可用的 ConnectedPlayer: player=${event.hyperZonePlayer.logLabel}, userUUID=${attachedUser.id}"
             )
             return
         }
@@ -74,9 +72,14 @@ class BackendRuntimeProfileCompensator(
         val isRegisteredInProxy = VelocityGameProfileReflection.connectionsByUuid(proxyServer).values.any { it === connectedPlayer }
              VelocityGameProfileReflection.connectionsByName(proxyServer).values.any { it === connectedPlayer }
         val currentGameProfile = connectedPlayer.gameProfile
+        val activeIdentity = event.hyperZonePlayer.activeInGameProfile
+            ?: run {
+                logger.warn("BackendRuntimeProfileCompensator 找不到 User ${attachedUser.id} 的缓存活动 InGameProfile，跳过补偿同步")
+                return
+            }
         val targetGameProfile = buildDeliveredGameProfile(
             currentGameProfile = currentGameProfile,
-            attachedProfile = attachedProfile,
+            activeIdentity = activeIdentity,
             enableNameHotChange = HyperZoneLoginMain.getCoreConfig().vServer.backend.enableNameHotChange,
             enableUuidHotChange = HyperZoneLoginMain.getCoreConfig().vServer.backend.enableUuidHotChange,
         )
@@ -89,7 +92,7 @@ class BackendRuntimeProfileCompensator(
                 applyPreRegistrationProfileSwap(connectedPlayer, targetGameProfile)
             }.onFailure { throwable ->
                 logger.error(
-                    "BackendRuntimeProfileCompensator 为未注册的 ConnectedPlayer 应用 attach 后正式身份失败: player=${connectedPlayer.username}, profileId=${attachedProfile.id}, reason=${throwable.message}",
+                    "BackendRuntimeProfileCompensator 为未注册的 ConnectedPlayer 应用 attach 后正式身份失败: player=${connectedPlayer.username}, userUUID=${attachedUser.id}, reason=${throwable.message}",
                     throwable,
                 )
             }
@@ -100,7 +103,7 @@ class BackendRuntimeProfileCompensator(
             applyRuntimeProfileSwap(connectedPlayer, currentGameProfile, targetGameProfile)
         }.onFailure { throwable ->
             logger.error(
-                "BackendRuntimeProfileCompensator 应用 attach 后的正式身份失败: player=${connectedPlayer.username}, profileId=${attachedProfile.id}, reason=${throwable.message}",
+                "BackendRuntimeProfileCompensator 应用 attach 后的正式身份失败: player=${connectedPlayer.username}, userUUID=${attachedUser.id}, reason=${throwable.message}",
                 throwable,
             )
             return

@@ -38,7 +38,7 @@ class ExitVServerCommand : HyperChatCommandExecutor {
         }
 
         val hyperZonePlayer = HyperZonePlayerManager.getByPlayer(source)
-        if (!hyperZonePlayer.hasAttachedProfile()) {
+        if (!hyperZonePlayer.hasAttachedUser()) {
             messages.send(source, MessageKeys.Exit.STILL_IN_WAITING_AREA)
             return
         }

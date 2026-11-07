@@ -63,7 +63,7 @@ object EmbeddedModuleRegistry {
 
     val profileSkin = EmbeddedModuleSpec(
         configKey = "profileSkin",
-        displayName = "Profile Skin",
+        displayName = "User Skin",
         externalPluginId = "hzl-profile-skin",
         implementationClassName = "icu.h2l.login.profile.skin.ProfileSkinSubModule",
     )

@@ -19,35 +19,26 @@
  *
  */
 
-package icu.h2l.api.db.table
+package icu.h2l.api.db
 
-import org.jetbrains.exposed.sql.Table
+import java.util.*
 
 /**
- * 游戏内正式档案表定义。
+ * 玩家可最终用于进入游戏区的一条游戏内身份记录。
  *
- * 该表保存 [icu.h2l.api.db.Profile] 的核心字段，且 `name` 与 `uuid` 都必须在整库范围内唯一。
+ * 该对象与 [User] 是“一对多”关系：
+ * - [User.id] 是稳定的 HZL 账号标识；
+ * - 本对象只保存某个游戏内名称与 UUID 的组合；
+ * - 渠道来源不进入本表；同一身份可以被多个渠道共同使用。
  *
- * @param prefix 表名前缀，默认为空字符串
+ * @property id 游戏内身份记录主键
+ * @property userUUID 所属 HZL 账号
+ * @property name 游戏内显示名称
+ * @property uuid 游戏内 UUID
  */
-class ProfileTable(prefix: String = "") : Table("${prefix}profile") {
-    /**
-     * 档案主键，用于和各认证入口建立映射。
-     */
-    val id = uuid("id")
-
-    /**
-     * 玩家正式游戏名。
-     */
-    val name = varchar("name", 32).uniqueIndex()
-
-    /**
-     * 玩家正式游戏 UUID。
-     */
-    val uuid = uuid("uuid").uniqueIndex()
-
-    /**
-     * 表主键定义。
-     */
-    override val primaryKey = PrimaryKey(id)
-}
+data class InGameProfile(
+    val id: UUID,
+    val userUUID: UUID,
+    val name: String,
+    val uuid: UUID,
+)

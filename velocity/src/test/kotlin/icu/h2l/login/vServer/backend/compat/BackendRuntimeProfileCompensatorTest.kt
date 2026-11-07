@@ -22,7 +22,7 @@
 package icu.h2l.login.vServer.backend.compat
 
 import com.velocitypowered.api.util.GameProfile
-import icu.h2l.api.db.Profile
+import icu.h2l.api.db.InGameProfile
 import icu.h2l.login.util.buildAttachedIdentityGameProfile
 import icu.h2l.login.util.buildDeliveredGameProfile
 import org.junit.jupiter.api.Assertions.*
@@ -33,11 +33,11 @@ class BackendRuntimeProfileCompensatorTest {
     @Test
     fun `delivered game profile applies attached name only by default`() {
         val currentGameProfile = GameProfile(OLD_UUID, "WaitingTemp", emptyList())
-        val attachedProfile = Profile(PROFILE_ID, "FormalName", NEW_UUID)
+        val activeIdentity = InGameProfile(UUID.randomUUID(), PROFILE_ID, "FormalName", NEW_UUID)
 
         val resolved = buildDeliveredGameProfile(
             currentGameProfile = currentGameProfile,
-            attachedProfile = attachedProfile,
+            activeIdentity = activeIdentity,
             enableNameHotChange = true,
             enableUuidHotChange = false,
         )
@@ -50,11 +50,11 @@ class BackendRuntimeProfileCompensatorTest {
     @Test
     fun `delivered game profile applies both attached name and uuid when enabled`() {
         val currentGameProfile = GameProfile(OLD_UUID, "WaitingTemp", emptyList())
-        val attachedProfile = Profile(PROFILE_ID, "FormalName", NEW_UUID)
+        val activeIdentity = InGameProfile(UUID.randomUUID(), PROFILE_ID, "FormalName", NEW_UUID)
 
         val resolved = buildDeliveredGameProfile(
             currentGameProfile = currentGameProfile,
-            attachedProfile = attachedProfile,
+            activeIdentity = activeIdentity,
             enableNameHotChange = true,
             enableUuidHotChange = true,
         )
@@ -70,11 +70,11 @@ class BackendRuntimeProfileCompensatorTest {
             "TemporaryName",
             listOf(GameProfile.Property("textures", "value", "signature"))
         )
-        val attachedProfile = Profile(PROFILE_ID, "FormalName", NEW_UUID)
+        val activeIdentity = InGameProfile(UUID.randomUUID(), PROFILE_ID, "FormalName", NEW_UUID)
 
         val resolved = buildAttachedIdentityGameProfile(
             currentGameProfile = currentGameProfile,
-            attachedProfile = attachedProfile,
+            activeIdentity = activeIdentity,
         )
 
         assertEquals("FormalName", resolved.name)

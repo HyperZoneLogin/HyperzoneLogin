@@ -27,7 +27,7 @@ import icu.h2l.api.db.HyperZoneDatabaseManager
 import icu.h2l.api.net.HttpClients
 import icu.h2l.api.net.ProxySettings
 import icu.h2l.api.player.HyperZonePlayer
-import icu.h2l.api.profile.HyperZoneProfileService
+import icu.h2l.api.profile.HyperZoneUserService
 import icu.h2l.login.auth.online.config.EntryConfig
 import icu.h2l.login.auth.online.config.YggdrasilDebug
 import icu.h2l.login.auth.online.db.EntryTableManager
@@ -54,7 +54,7 @@ class YggdrasilRemoteAuthService(
     private val entryConfigManager: EntryConfigManager,
     private val databaseManager: HyperZoneDatabaseManager,
     private val entryTableManager: EntryTableManager,
-    private val profileService: HyperZoneProfileService,
+    private val userService: HyperZoneUserService,
     private val credentialService: YggdrasilCredentialService
 ) {
     /**
@@ -119,14 +119,14 @@ class YggdrasilRemoteAuthService(
     ): YggdrasilAuthResult? {
         val success = result as? YggdrasilAuthResult.Success ?: return null
         val entryProfileId = credentialService.findBoundProfileIdByAuthenticatedEntry(success)
-            ?: return YggdrasilAuthResult.Failed("第一批次验证失败：未获取到 Entry Profile")
+            ?: return YggdrasilAuthResult.Failed("第一批次验证失败：未获取到 Entry User")
 
-        if (profileService.getProfile(entryProfileId) == null) {
-            return YggdrasilAuthResult.Failed("第一批次验证失败：无法找到玩家 Profile")
+        if (userService.getUser(entryProfileId) == null) {
+            return YggdrasilAuthResult.Failed("第一批次验证失败：无法找到玩家 User")
         }
 
         YggdrasilDebug.log {
-            "[YggdrasilFlow] 第一批次已确认可信 Profile: user=${context.username} requestUuid=${context.uuid} authenticatedName=${success.profile.name} authenticatedUuid=${success.profile.id} pid=$entryProfileId"
+            "[YggdrasilFlow] 第一批次已确认可信 User: user=${context.username} requestUuid=${context.uuid} authenticatedName=${success.profile.name} authenticatedUuid=${success.profile.id} pid=$entryProfileId"
         }
         return null
     }

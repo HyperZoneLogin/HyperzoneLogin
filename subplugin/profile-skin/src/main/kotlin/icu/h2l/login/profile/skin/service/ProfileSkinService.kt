@@ -26,7 +26,7 @@ import com.google.gson.JsonParser
 import com.velocitypowered.api.event.Subscribe
 import com.velocitypowered.api.event.connection.DisconnectEvent
 import com.velocitypowered.api.util.GameProfile
-import icu.h2l.api.event.profile.ProfileAttachedEvent
+import icu.h2l.api.event.profile.UserAttachedEvent
 import icu.h2l.api.event.profile.ProfilePropertiesApplyEvent
 import icu.h2l.login.profile.skin.event.ProfileSkinPreprocessEvent
 import icu.h2l.api.event.profile.ServerLoginSuccessEvent
@@ -35,7 +35,7 @@ import icu.h2l.api.log.error
 import icu.h2l.api.log.warn
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.player.HyperZonePlayerAccessor
-import icu.h2l.api.profile.HyperZoneProfileService
+import icu.h2l.api.profile.HyperZoneUserService
 import icu.h2l.login.profile.skin.data.ProfileSkinModel
 import icu.h2l.login.profile.skin.data.ProfileSkinSource
 import icu.h2l.login.profile.skin.data.ProfileSkinTextures
@@ -146,7 +146,7 @@ class ProfileSkinService(
     private val config: ProfileSkinConfig,
     private val cacheRepository: ProfileSkinCacheRepository,
     private val profileRepository: ProfileSkinProfileRepository,
-    private val profileService: HyperZoneProfileService,
+    private val userService: HyperZoneUserService,
     private val playerAccessor: HyperZonePlayerAccessor
 ) {
     private val pendingSkinBindings = ConcurrentHashMap<HyperZonePlayer, UUID>()
@@ -192,7 +192,7 @@ class ProfileSkinService(
 
         if (upstreamTextures?.isSigned == true && !trustedSignedEntry) {
             ProfileSkinDebug.log {
-                "[ProfileSkinFlow] preprocess signed upstream not trusted: clientOriginal=${event.hyperZonePlayer.clientOriginalName}, entry=${event.entryId}, source=${describeSource(source)}"
+                "[ProfileSkinFlow] preprocess signed upstream not trusted: player=${event.hyperZonePlayer.logLabel}, entry=${event.entryId}, source=${describeSource(source)}"
             }
         }
 
@@ -201,7 +201,7 @@ class ProfileSkinService(
                 cacheRepository.findBySourceHash(sourceHash)?.let { cached ->
                     rememberPendingSkin(event.hyperZonePlayer, cached.skinId, "source cache hit")
                     ProfileSkinDebug.log {
-                        "[ProfileSkinFlow] source cache hit: skin=${cached.skinId}, clientOriginal=${event.hyperZonePlayer.clientOriginalName}, sourceHash=${shortHash(sourceHash)}, source=${describeSource(source)}"
+                        "[ProfileSkinFlow] source cache hit: skin=${cached.skinId}, player=${event.hyperZonePlayer.logLabel}, sourceHash=${shortHash(sourceHash)}, source=${describeSource(source)}"
                     }
                     event.textures = cached.textures
                     notifyProcessingReady(event.hyperZonePlayer)
@@ -229,12 +229,12 @@ class ProfileSkinService(
                 return
             }.onFailure { throwable ->
                 error(throwable) {
-                    "Profile skin restore failed for clientOriginal=${event.hyperZonePlayer.clientOriginalName}, entry=${event.entryId}: ${throwable.message}"
+                    "User skin restore failed for player=${event.hyperZonePlayer.logLabel}, entry=${event.entryId}: ${throwable.message}"
                 }
             }
         } else {
             ProfileSkinDebug.log {
-                "[ProfileSkinFlow] preprocess restore skipped: clientOriginal=${event.hyperZonePlayer.clientOriginalName}, entry=${event.entryId}, source=${describeSource(source)}, reason=${describeRestoreSkipReason(source, shouldForceRestoreSignedTextures)}"
+                "[ProfileSkinFlow] preprocess restore skipped: player=${event.hyperZonePlayer.logLabel}, entry=${event.entryId}, source=${describeSource(source)}, reason=${describeRestoreSkipReason(source, shouldForceRestoreSignedTextures)}"
             }
         }
 
@@ -243,7 +243,7 @@ class ProfileSkinService(
             val fallbackSourceHash = sanitizeFallbackSourceHash(sourceHash, shouldForceRestoreSignedTextures)
             if (shouldForceRestoreSignedTextures && fallbackTextures.isSigned) {
                 warn {
-                    "[ProfileSkinFlow] preprocess fallback uses original untrusted signed textures after restore failure: clientOriginal=${event.hyperZonePlayer.clientOriginalName}, entry=${event.entryId}, source=${describeSource(source)}, sourceHashCacheDisabled=${fallbackSourceHash == null}"
+                    "[ProfileSkinFlow] preprocess fallback uses original untrusted signed textures after restore failure: player=${event.hyperZonePlayer.logLabel}, entry=${event.entryId}, source=${describeSource(source)}, sourceHashCacheDisabled=${fallbackSourceHash == null}"
                 }
             }
             persistPreprocessedSkin(
@@ -262,26 +262,26 @@ class ProfileSkinService(
             notifyProcessingReadyWithFallback(event.hyperZonePlayer)
         } else {
             ProfileSkinDebug.log {
-                "[ProfileSkinFlow] preprocess finished without textures: clientOriginal=${event.hyperZonePlayer.clientOriginalName}, entry=${event.entryId}, source=${describeSource(source)}"
+                "[ProfileSkinFlow] preprocess finished without textures: player=${event.hyperZonePlayer.logLabel}, entry=${event.entryId}, source=${describeSource(source)}"
             }
             notifyNoSkin(event.hyperZonePlayer)
         }
     }
 
     @Subscribe
-    fun onProfileAttached(event: ProfileAttachedEvent) {
+    fun onUserAttached(event: UserAttachedEvent) {
 
         val skinId = pendingSkinBindings.remove(event.hyperZonePlayer) ?: return
         if (profileRepository.bindProfile(event.profile.id, skinId)) {
             ProfileSkinDebug.log {
-                "[ProfileSkinFlow] skin_profile linked: profile=${event.profile.id}, skin=$skinId, clientOriginal=${event.hyperZonePlayer.clientOriginalName}"
+                "[ProfileSkinFlow] skin_profile linked: profile=${event.profile.id}, skin=$skinId, player=${event.hyperZonePlayer.logLabel}"
             }
             return
         }
 
         pendingSkinBindings[event.hyperZonePlayer] = skinId
         warn {
-            "[ProfileSkinFlow] skin_profile link failed: profile=${event.profile.id}, skin=$skinId, clientOriginal=${event.hyperZonePlayer.clientOriginalName}"
+            "[ProfileSkinFlow] skin_profile link failed: profile=${event.profile.id}, skin=$skinId, player=${event.hyperZonePlayer.logLabel}"
         }
     }
 
@@ -298,18 +298,18 @@ class ProfileSkinService(
     @Subscribe
     fun onApply(event: ProfilePropertiesApplyEvent) {
 
-        val profileId = profileService.getAttachedProfile(event.hyperZonePlayer)?.id ?: run {
+        val userUUID = userService.getAttachedUser(event.hyperZonePlayer)?.id ?: run {
             ProfileSkinDebug.log {
-                "[ProfileSkinFlow] apply listener failed: no attached DB profile, clientOriginal=${event.hyperZonePlayer.clientOriginalName}, base=${describeProfile(event.baseProfile)}"
+                "[ProfileSkinFlow] apply listener failed: no attached DB profile, player=${event.hyperZonePlayer.logLabel}, base=${describeProfile(event.baseProfile)}"
             }
             event.hyperZonePlayer.sendMessage(ProfileSkinMessages.repairFailed(event.hyperZonePlayer))
             return
         }
-        val skinId = profileRepository.findSkinIdByProfileId(profileId) ?: return
+        val skinId = profileRepository.findSkinIdByProfileId(userUUID) ?: return
         val cached = cacheRepository.findBySkinId(skinId) ?: return
         val textureProperty = cached.textures.toPropertyOrNull() ?: run {
             ProfileSkinDebug.log {
-                "[ProfileSkinFlow] apply skipped incomplete textures: clientOriginal=${event.hyperZonePlayer.clientOriginalName}, skinId=$skinId, valueLength=${cached.textures.value.length}, signed=${cached.textures.isSigned}"
+                "[ProfileSkinFlow] apply skipped incomplete textures: player=${event.hyperZonePlayer.logLabel}, skinId=$skinId, valueLength=${cached.textures.value.length}, signed=${cached.textures.isSigned}"
             }
             return
         }
@@ -320,15 +320,17 @@ class ProfileSkinService(
 
     @Subscribe
     fun onServerLoginSuccess(event: ServerLoginSuccessEvent) {
+        val user = userService.getAttachedUser(event.hyperZonePlayer) ?: return
+        val activeIdentity = event.hyperZonePlayer.activeInGameProfile ?: return
 
         event.rewritePacket = true
-        event.uuid = event.hyperZonePlayer.clientOriginalUUID ?: event.currentUuid
+        event.uuid = activeIdentity.uuid
 
         // 将已缓存的皮肤纹理注入到登录成功包中，确保客户端从登录阶段就获得自身皮肤。
         // 客户端自身皮肤来自 ServerLoginSuccessPacket 的 GameProfile properties，
         // 而非 PlayerInfo；若不注入，正版客户端将看不到自身皮肤。
-        val profileId = profileService.getAttachedProfile(event.hyperZonePlayer)?.id ?: return
-        val skinId = profileRepository.findSkinIdByProfileId(profileId) ?: return
+        val userUUID = user.id
+        val skinId = profileRepository.findSkinIdByProfileId(userUUID) ?: return
         val cachedTextures = cacheRepository.findBySkinId(skinId)?.textures ?: return
         val textureProperty = cachedTextures.toPropertyOrNull() ?: return
 
@@ -550,15 +552,15 @@ class ProfileSkinService(
         reason: String
     ) {
         pendingSkinBindings[hyperZonePlayer] = skinId
-        val profileId = profileService.getAttachedProfile(hyperZonePlayer)?.id ?: return
-        if (profileRepository.bindProfile(profileId, skinId)) {
+        val userUUID = userService.getAttachedUser(hyperZonePlayer)?.id ?: return
+        if (profileRepository.bindProfile(userUUID, skinId)) {
             pendingSkinBindings.remove(hyperZonePlayer, skinId)
             ProfileSkinDebug.log {
-                "[ProfileSkinFlow] immediate skin_profile link: profile=$profileId, skin=$skinId, clientOriginal=${hyperZonePlayer.clientOriginalName}, reason=$reason"
+                "[ProfileSkinFlow] immediate skin_profile link: profile=$userUUID, skin=$skinId, player=${hyperZonePlayer.logLabel}, reason=$reason"
             }
         } else {
             warn {
-                "[ProfileSkinFlow] immediate skin_profile link failed: profile=$profileId, skin=$skinId, clientOriginal=${hyperZonePlayer.clientOriginalName}, reason=$reason"
+                "[ProfileSkinFlow] immediate skin_profile link failed: profile=$userUUID, skin=$skinId, player=${hyperZonePlayer.logLabel}, reason=$reason"
             }
         }
     }

@@ -23,7 +23,7 @@ package icu.h2l.login.auth.online.db
 
 import com.velocitypowered.api.event.Subscribe
 import icu.h2l.api.db.HyperZoneDatabaseManager
-import icu.h2l.api.db.table.ProfileTable
+import icu.h2l.api.db.table.UserTable
 import icu.h2l.api.event.db.TableSchemaAction
 import icu.h2l.api.event.db.TableSchemaEvent
 import icu.h2l.api.log.info
@@ -39,7 +39,7 @@ import org.jetbrains.exposed.sql.SchemaUtils
 class EntryTableManager(
     private val databaseManager: HyperZoneDatabaseManager,
     private val tablePrefix: String,
-    private val profileTable: ProfileTable
+    private val userTable: UserTable
 ) {
     private val entryTables = mutableMapOf<String, EntryTable>()
 
@@ -54,7 +54,7 @@ class EntryTableManager(
         val normalizedId = entryId.lowercase()
         return entryTables.getOrPut(normalizedId) {
             info { "注册入口表: $normalizedId" }
-            EntryTable(normalizedId, tablePrefix, profileTable)
+            EntryTable(normalizedId, tablePrefix, userTable)
         }
     }
 

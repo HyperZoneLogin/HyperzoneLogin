@@ -19,19 +19,22 @@
  *
  */
 
-package icu.h2l.api.db
+package icu.h2l.api.db.table
 
-import java.util.*
+import org.jetbrains.exposed.sql.Table
 
 /**
- * [icu.h2l.api.db.table.ProfileTable] 对应的数据对象。
+ * 绑定码表定义。
  *
- * @property id 档案主键标识
- * @property name 玩家正式游戏名
- * @property uuid 玩家正式游戏 UUID
+ * 一条记录表示某个 User 当前可用的一次性绑定码。
+ *
+ * @param prefix 表名前缀
+ * @param userTable HZL 账号表引用
  */
-data class Profile(
-    val id: UUID,
-    val name: String,
-    val uuid: UUID
-)
+class BindingCodeTable(prefix: String, userTable: UserTable) : Table("${prefix}binding_code") {
+    val code = varchar("code", 32)
+    val userUUID = uuid("user_uuid").references(userTable.id).uniqueIndex()
+    val createdAt = long("created_at")
+
+    override val primaryKey = PrimaryKey(code)
+}

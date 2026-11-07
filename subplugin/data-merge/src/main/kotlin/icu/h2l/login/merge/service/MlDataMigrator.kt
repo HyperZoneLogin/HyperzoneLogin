@@ -22,7 +22,8 @@
 package icu.h2l.login.merge.service
 
 import icu.h2l.api.db.HyperZoneDatabaseManager
-import icu.h2l.api.db.table.ProfileTable
+import icu.h2l.api.db.table.InGameProfileTable
+import icu.h2l.api.db.table.UserTable
 import icu.h2l.login.auth.floodgate.api.db.FloodgateAuthTable
 import icu.h2l.login.auth.online.api.db.EntryTable
 import icu.h2l.login.merge.config.MergeMlConfig
@@ -39,9 +40,9 @@ class MlDataMigrator(
     data class Report(
         var sourceProfiles: Int = 0,
         var sourceUserData: Int = 0,
-        var targetProfilesCreated: Int = 0,
-        var targetProfilesMatched: Int = 0,
-        var targetProfileFailures: Int = 0,
+        var targetUsersCreated: Int = 0,
+        var targetUsersMatched: Int = 0,
+        var targetUserFailures: Int = 0,
         var targetEntriesCreated: Int = 0,
         var targetEntriesMatched: Int = 0,
         var targetEntryConflicts: Int = 0,
@@ -64,74 +65,50 @@ class MlDataMigrator(
         MergeMlLogWriter(logPath).use { logger ->
             logger.log("开始执行 ML 迁移")
             logger.log("源库类型: ${config.source.type}")
-            logger.log("源表: user=${config.tables.userDataTable}, profile=${config.tables.inGameProfileTable}")
+            logger.log("源表: user=${config.tables.userDataTable}, profile=${config.tables.inGameUserTable}")
 
             val (sourceProfiles, sourceUsers) = sourceReader.readProfilesAndUserData()
             report.sourceProfiles = sourceProfiles.size
             report.sourceUserData = sourceUsers.size
 
-            logger.log("读取完成: InGameProfileTableV3=${sourceProfiles.size}, UserDataTableV3=${sourceUsers.size}")
+            logger.log("读取完成: InGameUserTableV3=${sourceProfiles.size}, UserDataTableV3=${sourceUsers.size}")
 
-            val profileTable = ProfileTable(databaseManager.tablePrefix)
+            val userTable = UserTable(databaseManager.tablePrefix)
+            val inGameProfileTable = InGameProfileTable(databaseManager.tablePrefix, userTable)
+            val userWriter = MergeUserWriter(userTable, inGameProfileTable)
             val profileUuidToId = mutableMapOf<UUID, UUID>()
-            val profileIdToName = mutableMapOf<UUID, String>()
+            val userUUIDToName = mutableMapOf<UUID, String>()
             val entryTables = mutableMapOf<String, EntryTable>()
-            val floodgateAuthTable = FloodgateAuthTable(databaseManager.tablePrefix, profileTable)
+            val floodgateAuthTable = FloodgateAuthTable(databaseManager.tablePrefix, userTable)
 
             databaseManager.executeTransaction {
-                SchemaUtils.create(profileTable)
+                SchemaUtils.create(userTable)
+                SchemaUtils.create(inGameProfileTable)
 
                 for (sourceProfile in sourceProfiles) {
                     val profileName = resolveProfileName(sourceProfile)
-                    val profileId = generateProfileId(profileName)
 
                     try {
-                        val existingByUuid = profileTable.selectAll()
-                            .where { profileTable.uuid eq sourceProfile.inGameUuid }
-                            .limit(1)
-                            .firstOrNull()
-
-                        val resolvedId = if (existingByUuid != null) {
-                            report.targetProfilesMatched++
-                            existingByUuid[profileTable.id]
+                        val existingUserUUID = userWriter.findProfileId(profileName, sourceProfile.inGameUuid)
+                        val resolvedUserId = if (existingUserUUID == null) {
+                            val createdUserId = userWriter.createProfile(profileName, sourceProfile.inGameUuid)
+                            report.targetUsersCreated++
+                            logger.log("[PROFILE][CREATED] id=$createdUserId name=$profileName uuid=${sourceProfile.inGameUuid}")
+                            createdUserId
                         } else {
-                            val existingByName = profileTable.selectAll()
-                                .where { profileTable.name eq profileName }
-                                .limit(1)
-                                .firstOrNull()
-
-                            if (existingByName != null) {
-                                report.targetProfilesMatched++
-                                existingByName[profileTable.id]
-                            } else {
-                                val existingById = profileTable.selectAll()
-                                    .where { profileTable.id eq profileId }
-                                    .limit(1)
-                                    .firstOrNull()
-
-                                if (existingById != null) {
-                                    report.targetProfilesMatched++
-                                    profileTable.update({ profileTable.id eq profileId }) {
-                                        it[uuid] = sourceProfile.inGameUuid
-                                    }
-                                    profileId
-                                } else {
-                                    profileTable.insert {
-                                        it[id] = profileId
-                                        it[name] = profileName
-                                        it[uuid] = sourceProfile.inGameUuid
-                                    }
-                                    report.targetProfilesCreated++
-                                    logger.log("[PROFILE][CREATED] id=$profileId name=$profileName uuid=${sourceProfile.inGameUuid}")
-                                    profileId
-                                }
+                            val existingIdentity = userWriter.findIdentity(existingUserUUID, sourceProfile.inGameUuid)
+                            if (existingIdentity == null) {
+                                userWriter.createIdentity(existingUserUUID, profileName, sourceProfile.inGameUuid)
                             }
+                            report.targetUsersMatched++
+                            logger.log("[PROFILE][MATCHED] id=$existingUserUUID name=$profileName uuid=${sourceProfile.inGameUuid}")
+                            existingUserUUID
                         }
 
-                        profileUuidToId[sourceProfile.inGameUuid] = resolvedId
-                        profileIdToName[resolvedId] = profileName
+                        profileUuidToId[sourceProfile.inGameUuid] = resolvedUserId
+                        userUUIDToName[resolvedUserId] = profileName
                     } catch (ex: Exception) {
-                        report.targetProfileFailures++
+                        report.targetUserFailures++
                         logger.log("[PROFILE][FAILED] uuid=${sourceProfile.inGameUuid} name=$profileName reason=${ex.message}")
                     }
                 }
@@ -147,8 +124,8 @@ class MlDataMigrator(
                         continue
                     }
 
-                    val profileId = profileUuidToId[profileUuid]
-                    if (profileId == null) {
+                    val userUUID = profileUuidToId[profileUuid]
+                    if (userUUID == null) {
                         report.missingProfileReference++
                         logger.log("[ENTRY][SKIP] service=${sourceUser.serviceId} onlineUuid=${sourceUser.onlineUuid} inGameProfileUuid=$profileUuid reason=profile not found")
                         continue
@@ -160,13 +137,13 @@ class MlDataMigrator(
                         // isFloodgateId: mostSignificantBits == 0
                         if (onlineUuid.mostSignificantBits != 0L) {
                             report.floodgateInvalidUuid++
-                            logger.log("[FLOODGATE][WARN] service=${sourceUser.serviceId} onlineUuid=$onlineUuid pid=$profileId reason=not_a_floodgate_uuid (mostSignificantBits != 0)")
+                            logger.log("[FLOODGATE][WARN] service=${sourceUser.serviceId} onlineUuid=$onlineUuid pid=$userUUID reason=not_a_floodgate_uuid (mostSignificantBits != 0)")
                             continue
                         }
                         // xuid = leastSignificantBits (Floodgate: new UUID(0, xuid))
                         val xuid = onlineUuid.leastSignificantBits
                         val onlineName = sourceUser.onlineName?.takeIf { it.isNotBlank() }
-                            ?: profileIdToName[profileId]
+                            ?: userUUIDToName[userUUID]
                             ?: "unknown-${xuid}"
 
                         try {
@@ -179,23 +156,23 @@ class MlDataMigrator(
                                 floodgateAuthTable.insert { stmt ->
                                     stmt[floodgateAuthTable.name] = onlineName
                                     stmt[floodgateAuthTable.xuid] = xuid
-                                    stmt[floodgateAuthTable.profileId] = profileId
+                                    stmt[floodgateAuthTable.userUUID] = userUUID
                                 }
                                 report.floodgateEntriesCreated++
-                                logger.log("[FLOODGATE][CREATED] xuid=$xuid name=$onlineName pid=$profileId")
+                                logger.log("[FLOODGATE][CREATED] xuid=$xuid name=$onlineName pid=$userUUID")
                             } else {
-                                val existingPid: UUID = existing[floodgateAuthTable.profileId]
-                                if (existingPid == profileId) {
+                                val existingPid: UUID = existing[floodgateAuthTable.userUUID]
+                                if (existingPid == userUUID) {
                                     report.floodgateEntriesMatched++
-                                    logger.log("[FLOODGATE][MATCHED] xuid=$xuid name=$onlineName pid=$profileId")
+                                    logger.log("[FLOODGATE][MATCHED] xuid=$xuid name=$onlineName pid=$userUUID")
                                 } else {
                                     report.floodgateEntryConflicts++
-                                    logger.log("[FLOODGATE][CONFLICT] xuid=$xuid name=$onlineName existedPid=$existingPid incomingPid=$profileId")
+                                    logger.log("[FLOODGATE][CONFLICT] xuid=$xuid name=$onlineName existedPid=$existingPid incomingPid=$userUUID")
                                 }
                             }
                         } catch (ex: Exception) {
                             report.floodgateEntryFailures++
-                            logger.log("[FLOODGATE][FAILED] xuid=$xuid name=$onlineName pid=$profileId reason=${ex.message}")
+                            logger.log("[FLOODGATE][FAILED] xuid=$xuid name=$onlineName pid=$userUUID reason=${ex.message}")
                         }
                         continue
                     }
@@ -203,13 +180,13 @@ class MlDataMigrator(
                     val entryId = (config.serviceIdMapping[sourceUser.serviceId] ?: "ml_${sourceUser.serviceId}")
                         .lowercase()
                     val entryTable = entryTables.getOrPut(entryId) {
-                        EntryTable(entryId, databaseManager.tablePrefix, profileTable).also {
+                        EntryTable(entryId, databaseManager.tablePrefix, userTable).also {
                             SchemaUtils.create(it)
                         }
                     }
 
                     val onlineName = sourceUser.onlineName?.takeIf { it.isNotBlank() }
-                        ?: profileIdToName[profileId]
+                        ?: userUUIDToName[userUUID]
                         ?: "unknown-${sourceUser.onlineUuid.toString().take(8)}"
 
                     try {
@@ -222,23 +199,23 @@ class MlDataMigrator(
                             entryTable.insert {
                                 it[name] = onlineName
                                 it[uuid] = sourceUser.onlineUuid
-                                it[pid] = profileId
+                                it[pid] = userUUID
                             }
                             report.targetEntriesCreated++
-                            logger.log("[ENTRY][CREATED] entry=$entryId name=$onlineName uuid=${sourceUser.onlineUuid} pid=$profileId whitelist=${sourceUser.whitelist}")
+                            logger.log("[ENTRY][CREATED] entry=$entryId name=$onlineName uuid=${sourceUser.onlineUuid} pid=$userUUID whitelist=${sourceUser.whitelist}")
                         } else {
                             val existingPid = existing[entryTable.pid]
-                            if (existingPid == profileId) {
+                            if (existingPid == userUUID) {
                                 report.targetEntriesMatched++
-                                logger.log("[ENTRY][MATCHED] entry=$entryId name=$onlineName uuid=${sourceUser.onlineUuid} pid=$profileId")
+                                logger.log("[ENTRY][MATCHED] entry=$entryId name=$onlineName uuid=${sourceUser.onlineUuid} pid=$userUUID")
                             } else {
                                 report.targetEntryConflicts++
-                                logger.log("[ENTRY][CONFLICT] entry=$entryId name=$onlineName uuid=${sourceUser.onlineUuid} existedPid=$existingPid incomingPid=$profileId")
+                                logger.log("[ENTRY][CONFLICT] entry=$entryId name=$onlineName uuid=${sourceUser.onlineUuid} existedPid=$existingPid incomingPid=$userUUID")
                             }
                         }
                     } catch (ex: Exception) {
                         report.targetEntryFailures++
-                        logger.log("[ENTRY][FAILED] entry=$entryId name=$onlineName uuid=${sourceUser.onlineUuid} pid=$profileId reason=${ex.message}")
+                        logger.log("[ENTRY][FAILED] entry=$entryId name=$onlineName uuid=${sourceUser.onlineUuid} pid=$userUUID reason=${ex.message}")
                     }
                 }
             }
@@ -246,9 +223,9 @@ class MlDataMigrator(
             logger.log("迁移完成，汇总如下")
             logger.log("sourceProfiles=${report.sourceProfiles}")
             logger.log("sourceUserData=${report.sourceUserData}")
-            logger.log("targetProfilesCreated=${report.targetProfilesCreated}")
-            logger.log("targetProfilesMatched=${report.targetProfilesMatched}")
-            logger.log("targetProfileFailures=${report.targetProfileFailures}")
+            logger.log("targetUsersCreated=${report.targetUsersCreated}")
+            logger.log("targetUsersMatched=${report.targetUsersMatched}")
+            logger.log("targetUserFailures=${report.targetUserFailures}")
             logger.log("targetEntriesCreated=${report.targetEntriesCreated}")
             logger.log("targetEntriesMatched=${report.targetEntriesMatched}")
             logger.log("targetEntryConflicts=${report.targetEntryConflicts}")
@@ -264,15 +241,11 @@ class MlDataMigrator(
         return report
     }
 
-    private fun resolveProfileName(row: MlInGameProfileRow): String {
+    private fun resolveProfileName(row: MlInGameUserRow): String {
         return row.currentUsernameOriginal
             ?.takeIf { it.isNotBlank() }
             ?: row.currentUsernameLowerCase
                 ?.takeIf { it.isNotBlank() }
             ?: "unknown-${row.inGameUuid.toString().take(8)}"
-    }
-
-    private fun generateProfileId(profileName: String): UUID {
-        return UUID.randomUUID()
     }
 }

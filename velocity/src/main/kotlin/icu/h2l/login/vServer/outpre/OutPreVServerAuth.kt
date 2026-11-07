@@ -141,7 +141,7 @@ class OutPreVServerAuth(
         trace(
             "beginInitialJoin start channel=${
                 player.getChannel().id()
-            } player=${player.username} attachedProfile=${hyperPlayer.hasAttachedProfile()}"
+            } player=${player.username} attachedUser=${hyperPlayer.hasAttachedUser()}"
         )
 
         runCatching {
@@ -187,7 +187,7 @@ class OutPreVServerAuth(
             return
         }
 
-        if (hyperPlayer.hasAttachedProfile()) {
+        if (hyperPlayer.hasAttachedUser()) {
             state.inAuthHold = false
             state.verifiedExitPending = true
             trace(
@@ -235,7 +235,7 @@ class OutPreVServerAuth(
                 "mode" to "outpre",
             )
         )
-        if (hyperPlayer.hasAttachedProfile()) {
+        if (hyperPlayer.hasAttachedUser()) {
             return
         }
 
@@ -386,7 +386,7 @@ class OutPreVServerAuth(
                 reason = "dispatch returned null"
             )
             trace(
-                "$source after-login-dispatch channel=${player.getChannel().id()} player=${player.username} attachedProfile=${hyperPlayer.hasAttachedProfile()} result=${resolved.status} winner=${resolved.winnerModuleId} failures=${resolved.failures.size} ${describeState(state)}"
+                "$source after-login-dispatch channel=${player.getChannel().id()} player=${player.username} attachedUser=${hyperPlayer.hasAttachedUser()} result=${resolved.status} winner=${resolved.winnerModuleId} failures=${resolved.failures.size} ${describeState(state)}"
             )
         }, player.getChannel().eventLoop())
         return dispatchFuture

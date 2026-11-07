@@ -25,13 +25,13 @@ import com.velocitypowered.api.proxy.Player
 import com.velocitypowered.api.proxy.ProxyServer
 import icu.h2l.api.command.HyperChatCommandInvocation
 import icu.h2l.api.db.HyperZoneDatabaseManager
-import icu.h2l.api.db.Profile
-import icu.h2l.api.db.table.ProfileTable
+import icu.h2l.api.db.User
+import icu.h2l.api.db.table.UserTable
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.player.HyperZonePlayerAccessor
 import icu.h2l.api.profile.HyperZoneCredentialFlow
 import icu.h2l.api.profile.HyperZoneCredentialFlowProvider
-import icu.h2l.api.profile.HyperZoneProfileService
+import icu.h2l.api.profile.HyperZoneUserService
 import icu.h2l.login.auth.offline.OfflineAuthMessages
 import icu.h2l.login.auth.offline.TestMessageService
 import icu.h2l.login.auth.offline.api.db.OfflineAuthTable
@@ -62,10 +62,10 @@ class LoginCommandTest {
     private lateinit var player: Player
     private lateinit var hyperZonePlayer: HyperZonePlayer
     private lateinit var credentialFlow: HyperZoneCredentialFlow
-    private lateinit var profileService: HyperZoneProfileService
+    private lateinit var userService: HyperZoneUserService
     private lateinit var command: LoginCommand
     private lateinit var invocation: HyperChatCommandInvocation
-    private lateinit var profileTable: ProfileTable
+    private lateinit var userTable: UserTable
     private lateinit var database: Database
 
     @BeforeEach
@@ -77,8 +77,8 @@ class LoginCommandTest {
             url = "jdbc:h2:mem:${UUID.randomUUID()};MODE=MySQL;DB_CLOSE_DELAY=-1",
             driver = "org.h2.Driver"
         )
-        profileTable = ProfileTable()
-        val offlineAuthTable = OfflineAuthTable("", profileTable)
+        userTable = UserTable()
+        val offlineAuthTable = OfflineAuthTable("", userTable)
         val databaseManager = object : HyperZoneDatabaseManager {
             override val tablePrefix: String = ""
 
@@ -87,7 +87,7 @@ class LoginCommandTest {
             }
         }
         transaction(database) {
-            SchemaUtils.create(profileTable, offlineAuthTable)
+            SchemaUtils.create(userTable, offlineAuthTable)
         }
 
         repository = OfflineAuthRepository(databaseManager, offlineAuthTable)
@@ -95,18 +95,19 @@ class LoginCommandTest {
         hyperZonePlayer = mockk(relaxUnitFun = true)
         credentialFlow = mockk(relaxUnitFun = true)
         HyperZoneCredentialFlowProvider.bind(credentialFlow)
-        profileService = mockk()
+        userService = mockk()
         invocation = mockk()
 
-        every { hyperZonePlayer.clientOriginalName } returns USERNAME
+        every { hyperZonePlayer.logLabel } returns USERNAME
+        every { player.username } returns USERNAME
         every { hyperZonePlayer.getSubmittedCredentials() } returns emptyList()
-        every { hyperZonePlayer.hasAttachedProfile() } returns false
+        every { hyperZonePlayer.hasAttachedUser() } returns false
 
         val service = OfflineAuthService(
             repository = repository,
             pendingRegistrations = PendingOfflineRegistrationManager(),
             playerAccessor = TestPlayerAccessor(hyperZonePlayer),
-            profileService = profileService,
+            userService = userService,
             emailSender = NoopEmailSender,
             totpAuthenticator = OfflineTotpAuthenticator("HyperZoneLogin-Test", 5),
             proxy = mockk<ProxyServer>(relaxed = true)
@@ -121,11 +122,11 @@ class LoginCommandTest {
             name = NORMALIZED_NAME,
             passwordHash = hashPassword(VALID_PASSWORD),
             hashFormat = "sha256",
-            profileId = PROFILE.id
+            userUUID = PROFILE.id
         )
 
-        every { hyperZonePlayer.hasAttachedProfile() } returns false
-        every { profileService.getAttachedProfile(hyperZonePlayer) } returns null
+        every { hyperZonePlayer.hasAttachedUser() } returns false
+        every { userService.getAttachedUser(hyperZonePlayer) } returns null
         every { invocation.source() } returns player
         every { invocation.arguments() } returns arrayOf(VALID_PASSWORD)
 
@@ -142,12 +143,13 @@ class LoginCommandTest {
             name = NORMALIZED_NAME,
             passwordHash = hashPassword(VALID_PASSWORD),
             hashFormat = "sha256",
-            profileId = PROFILE.id
+            userUUID = PROFILE.id
         )
 
-        every { hyperZonePlayer.hasAttachedProfile() } returns false
-        every { hyperZonePlayer.clientOriginalName } returns OTHER_NAME
-        every { profileService.getAttachedProfile(hyperZonePlayer) } returns null
+        every { hyperZonePlayer.hasAttachedUser() } returns false
+        every { hyperZonePlayer.logLabel } returns OTHER_NAME
+        every { player.username } returns OTHER_NAME
+        every { userService.getAttachedUser(hyperZonePlayer) } returns null
         every { invocation.source() } returns player
         every { invocation.arguments() } returns arrayOf("as", USERNAME, VALID_PASSWORD)
 
@@ -170,10 +172,8 @@ class LoginCommandTest {
 
     private fun insertProfile() {
         transaction(database) {
-            profileTable.insert {
+            userTable.insert {
                 it[id] = PROFILE.id
-                it[name] = PROFILE.name
-                it[uuid] = PROFILE.uuid
             }
         }
     }
@@ -189,8 +189,6 @@ class LoginCommandTest {
     ) : HyperZonePlayerAccessor {
         override fun create(
             channel: io.netty.channel.Channel,
-            userName: String,
-            uuid: UUID?,
             isOnline: Boolean
         ): HyperZonePlayer {
             return hyperZonePlayer
@@ -210,10 +208,8 @@ class LoginCommandTest {
         private const val OTHER_NAME = "GuestUser"
         private const val NORMALIZED_NAME = "alice"
         private const val VALID_PASSWORD = "SecurePass123"
-        private val PROFILE = Profile(
-            id = UUID.fromString("11111111-1111-1111-1111-111111111111"),
-            name = USERNAME,
-            uuid = UUID.fromString("22222222-2222-2222-2222-222222222222")
+        private val PROFILE = User(
+            id = UUID.fromString("11111111-1111-1111-1111-111111111111")
         )
 
         private fun hashPassword(password: String): String {

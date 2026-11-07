@@ -23,10 +23,10 @@ package icu.h2l.login.command
 
 import icu.h2l.api.command.HyperChatCommandManager
 import icu.h2l.api.command.HyperChatCommandRegistration
-import icu.h2l.login.profile.ProfileBindingCodeService
+import icu.h2l.login.profile.UserBindingCodeService
 
 object BindCodeCommandRegistrar {
-    fun register(commandManager: HyperChatCommandManager, bindingCodeService: ProfileBindingCodeService) {
+    fun register(commandManager: HyperChatCommandManager, bindingCodeService: UserBindingCodeService) {
         commandManager.register(
             HyperChatCommandRegistration(
                 name = "bindcode",

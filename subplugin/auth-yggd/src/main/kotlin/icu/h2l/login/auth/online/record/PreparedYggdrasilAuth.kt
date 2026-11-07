@@ -26,5 +26,5 @@ import icu.h2l.login.auth.online.credential.YggdrasilHyperZoneCredential
 data class PreparedYggdrasilAuth(
     val result: YggdrasilAuthResult,
     val credentialToSubmit: YggdrasilHyperZoneCredential? = null,
-    val shouldOverVerify: Boolean = false
+    val shouldOverVerify: Boolean = false,
 )

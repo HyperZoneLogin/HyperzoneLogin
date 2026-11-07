@@ -26,7 +26,7 @@ import icu.h2l.api.HyperZoneApi
 import icu.h2l.api.event.connection.OpenStartAuthEvent
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.player.HyperZonePlayerAccessor
-import icu.h2l.api.profile.HyperZoneProfileService
+import icu.h2l.api.profile.HyperZoneUserService
 import icu.h2l.login.auth.floodgate.db.FloodgateAuthRepository
 import icu.h2l.login.auth.floodgate.service.FloodgateApiHolder
 import icu.h2l.login.auth.floodgate.service.FloodgateAuthService
@@ -48,7 +48,7 @@ class FloodgateOpenStartAuthListenerTest {
         val apiHolder = FakeFloodgateApiHolder()
         val sessionHolder = FloodgateSessionHolder()
         val repository = mockk<FloodgateAuthRepository>(relaxed = true)
-        val profileService = mockk<HyperZoneProfileService>(relaxed = true)
+        val userService = mockk<HyperZoneUserService>(relaxed = true)
         val channel = mockk<Channel>()
         val event = OpenStartAuthEvent(
             userName = "ktese",
@@ -69,12 +69,7 @@ class FloodgateOpenStartAuthListenerTest {
         every { api.hyperZonePlayers } returns playerAccessor
         every { api.serverAdapter } returns null
         every {
-            playerAccessor.create(
-                channel,
-                "ktese",
-                UUID.fromString("00000000-0000-0000-0009-01fb2b9f0a50"),
-                any(),
-            )
+            playerAccessor.create(channel, any())
         } returns hyperPlayer
 
         val authService = FloodgateAuthService(
@@ -82,7 +77,7 @@ class FloodgateOpenStartAuthListenerTest {
             floodgateApiHolder = apiHolder,
             sessionHolder = sessionHolder,
             repository = repository,
-            profileService = profileService,
+            userService = userService,
         )
 
         FloodgateOpenStartAuthListener(authService, apiHolder).onOpenStartAuth(event)

@@ -19,27 +19,33 @@
  *
  */
 
-package icu.h2l.login.database
+package icu.h2l.login.database.helper
 
+import icu.h2l.api.db.table.BindingCodeTable
 import icu.h2l.api.log.warn
-import icu.h2l.login.manager.DatabaseManager
+import icu.h2l.login.database.DatabaseManager
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
 import java.util.*
 
-class BindingCodeRepository(
+/**
+ * 绑定码表的单表数据访问 helper。
+ *
+ * 只负责 binding_code 表的读写，不包含 User 业务判断。
+ */
+class BindingCodeDatabaseHelper(
     private val databaseManager: DatabaseManager,
     private val table: BindingCodeTable
 ) : BindingCodeStore {
-    override fun createOrReplace(code: String, profileId: UUID, createdAt: Long): Boolean {
+    override fun replace(code: String, userUUID: UUID, createdAt: Long): Boolean {
         return try {
             databaseManager.executeTransaction {
-                table.deleteWhere { table.profileId eq profileId }
+                table.deleteWhere { table.userUUID eq userUUID }
                 table.insert {
                     it[this.code] = code
-                    it[this.profileId] = profileId
+                    it[this.userUUID] = userUUID
                     it[this.createdAt] = createdAt
                 }
             }
@@ -50,9 +56,9 @@ class BindingCodeRepository(
         }
     }
 
-    override fun findCode(profileId: UUID): String? {
+    override fun findCode(userUUID: UUID): String? {
         return databaseManager.executeTransaction {
-            table.selectAll().where { table.profileId eq profileId }
+            table.selectAll().where { table.userUUID eq userUUID }
                 .limit(1)
                 .map { it[table.code] }
                 .firstOrNull()
@@ -63,7 +69,7 @@ class BindingCodeRepository(
         return databaseManager.executeTransaction {
             table.selectAll().where { table.code eq code }
                 .limit(1)
-                .map { it[table.profileId] }
+                .map { it[table.userUUID] }
                 .firstOrNull()
         }
     }

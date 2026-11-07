@@ -29,7 +29,6 @@ import com.velocitypowered.api.command.CommandSource
 import com.velocitypowered.proxy.command.VelocityCommands
 import icu.h2l.api.command.*
 import icu.h2l.login.command.BindCodeBrigadierCommands
-import icu.h2l.login.command.ReUuidCommand
 import icu.h2l.login.command.RenameCommand
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertArrayEquals
@@ -113,29 +112,6 @@ class HyperChatCommandManagerProxyFallbackTest {
         val root = builder.build()
 
         assertEquals(setOf("name", VelocityCommands.ARGS_NODE_NAME), childNames(root))
-    }
-
-    @Test
-    fun `reuuid command keeps executable root and raw arguments bridge`() {
-        val registration = HyperChatCommandRegistration(
-            name = "reUUID",
-            aliases = setOf("reuuid", "reUuid"),
-            executor = NoopExecutor,
-            brigadier = ReUuidCommand.brigadier()
-        )
-        var capturedArgs: Array<String>? = null
-        val context = newContext(registration) { _, args ->
-            capturedArgs = args
-            1
-        }
-        val dispatcher = CommandDispatcher<CommandSource>()
-        val source = mockk<CommandSource>(relaxed = true)
-
-        dispatcher.register(HyperChatCommandManagerImpl.createProxyFallbackCommandTree(registration, context))
-        dispatcher.execute("reUUID", source)
-
-        assertArrayEquals(emptyArray(), capturedArgs)
-        assertEquals(setOf(VelocityCommands.ARGS_NODE_NAME), childNames(dispatcher.root.getChild("reUUID")!!))
     }
 
     @Test

@@ -247,6 +247,12 @@ object OfflineAuthMessages {
         )
     }
 
+    fun ingameProfileConflict(reason: String): Component {
+        return render("register.ingame-profile-conflict",
+            HyperZoneMessagePlaceholder.text("reason", reason)
+        )
+    }
+
     fun emailShow(email: String): Component {
         return render("email.show",
             HyperZoneMessagePlaceholder.text("email", email)

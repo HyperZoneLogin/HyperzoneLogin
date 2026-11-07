@@ -21,7 +21,7 @@
 
 package icu.h2l.login.auth.offline.api.db
 
-import icu.h2l.api.db.table.ProfileTable
+import icu.h2l.api.db.table.UserTable
 import org.jetbrains.exposed.sql.Table
 import java.util.*
 
@@ -30,7 +30,7 @@ data class OfflineAuthEntry(
     val name: String,
     val passwordHash: String,
     val hashFormat: String,
-    val profileId: UUID,
+    val userUUID: UUID,
     val email: String?,
     val recoveryCodeHash: String?,
     val recoveryCodeExpireAt: Long?,
@@ -48,17 +48,17 @@ data class OfflineAuthEntry(
 /**
  * 离线认证正式数据表。
  *
- * 重要约束：该表只允许保存“已经完成 Profile 绑定”的正式离线认证记录，
- * 因此 [profileId] 永远不能为空。
+ * 重要约束：该表只允许保存“已经完成 User 绑定”的正式离线认证记录，
+ * 因此 [userUUID] 永远不能为空。
  * 任何待绑定阶段的临时注册数据（例如密码哈希）都必须留在临时管理器中，
- * 等绑定成功后再创建正式 entry，绝不能先写入一条 `profileId = null` 的库记录。
+ * 等绑定成功后再创建正式 entry，绝不能先写入一条 `userUUID = null` 的库记录。
  */
-class OfflineAuthTable(prefix: String, profileTable: ProfileTable) : Table("${prefix}offline_auth") {
+class OfflineAuthTable(prefix: String, userTable: UserTable) : Table("${prefix}offline_auth") {
     val id = integer("id").autoIncrement()
     val name = varchar("name", 32)
     val passwordHash = varchar("password_hash", 255)
     val hashFormat = varchar("hash_format", 32)
-    val profileId = uuid("profile_id").references(profileTable.id)
+    val userUUID = uuid("user_uuid").references(userTable.id)
     val email = varchar("email", 255).nullable()
     val recoveryCodeHash = varchar("recovery_code_hash", 255).nullable()
     val recoveryCodeExpireAt = long("recovery_code_expire_at").nullable()
@@ -74,7 +74,7 @@ class OfflineAuthTable(prefix: String, profileTable: ProfileTable) : Table("${pr
 
     init {
         uniqueIndex("${tableName}_name", name)
-        uniqueIndex("${tableName}_profile_id", profileId)
+        uniqueIndex("${tableName}_user_uuid", userUUID)
         uniqueIndex("${tableName}_email", email)
     }
 

@@ -19,35 +19,25 @@
  *
  */
 
-package icu.h2l.login.profile
+package icu.h2l.login.database.helper
 
-import icu.h2l.api.profile.HyperZoneCredential
 import java.util.*
 
-data class PendingProfileCreateContext(
-    val suggestedUuid: UUID?,
-    val hasUnboundCredentials: Boolean
-)
+/**
+ * 绑定码存储抽象。
+ *
+ * 用于隔离绑定码业务服务与具体数据库实现。
+ */
+interface BindingCodeStore {
+    /**
+     * 替换指定 User 的绑定码：删除旧记录后插入新记录。
+     */
+    fun replace(code: String, userUUID: UUID, createdAt: Long): Boolean
 
-fun resolvePendingProfileCreateContext(credentials: List<HyperZoneCredential>): PendingProfileCreateContext? {
-    val unboundCredentials = credentials.filter { it.getBoundProfileId() == null }
-    if (unboundCredentials.isEmpty()) {
-        return PendingProfileCreateContext(
-            suggestedUuid = null,
-            hasUnboundCredentials = false
-        )
-    }
+    fun findCode(userUUID: UUID): String?
 
-    val distinctSuggestions = unboundCredentials
-        .map { it.getSuggestedProfileCreateUuid() }
-        .distinct()
-    if (distinctSuggestions.size > 1) {
-        return null
-    }
+    fun findProfileId(code: String): UUID?
 
-    return PendingProfileCreateContext(
-        suggestedUuid = distinctSuggestions.singleOrNull(),
-        hasUnboundCredentials = true
-    )
+    fun consume(code: String): Boolean
 }
 

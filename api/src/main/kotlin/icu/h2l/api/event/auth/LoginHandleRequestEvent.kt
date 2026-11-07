@@ -65,7 +65,7 @@ data class LoginHandleContext(
 
 interface LoginHandleSession {
     fun originalName(): String
-    fun hasAttachedProfile(): Boolean
+    fun hasAttachedUser(): Boolean
     fun sendMessage(message: Component)
 }
 
@@ -78,15 +78,19 @@ data class LoginHandleResult(
     val success: Boolean,
     val reason: String? = null,
     val credential: HyperZoneCredential? = null,
-    val profileIdHint: UUID? = null,
+    val userUUIDHint: UUID? = null,
 ) {
     companion object {
         @JvmStatic
         fun success(
             credential: HyperZoneCredential? = null,
-            profileIdHint: UUID? = null
+            userUUIDHint: UUID? = null,
         ): LoginHandleResult =
-            LoginHandleResult(success = true, credential = credential, profileIdHint = profileIdHint)
+            LoginHandleResult(
+                success = true,
+                credential = credential,
+                userUUIDHint = userUUIDHint,
+            )
 
         @JvmStatic
         fun failed(reason: String): LoginHandleResult = LoginHandleResult(success = false, reason = reason)

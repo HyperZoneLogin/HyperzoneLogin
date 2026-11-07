@@ -22,7 +22,8 @@
 package icu.h2l.login.merge.service
 
 import icu.h2l.api.db.HyperZoneDatabaseManager
-import icu.h2l.api.db.table.ProfileTable
+import icu.h2l.api.db.table.InGameProfileTable
+import icu.h2l.api.db.table.UserTable
 import icu.h2l.login.auth.offline.api.db.OfflineAuthTable
 import icu.h2l.login.merge.config.MergeAmConfig
 import org.jetbrains.exposed.sql.SchemaUtils
@@ -41,9 +42,9 @@ class AmDataMigrator(
 ) {
     data class Report(
         var sourceRows: Int = 0,
-        var targetProfilesCreated: Int = 0,
-        var targetProfilesMatched: Int = 0,
-        var targetProfileFailures: Int = 0,
+        var targetUsersCreated: Int = 0,
+        var targetUsersMatched: Int = 0,
+        var targetUserFailures: Int = 0,
         var targetOfflineAuthCreated: Int = 0,
         var targetOfflineAuthMatched: Int = 0,
         var targetOfflineAuthUpdated: Int = 0,
@@ -73,17 +74,20 @@ class AmDataMigrator(
             report.sourceRows = sourceRows.size
             logger.log("读取完成: authme=${sourceRows.size}")
 
-            val profileTable = ProfileTable(databaseManager.tablePrefix)
-            val offlineAuthTable = OfflineAuthTable(databaseManager.tablePrefix, profileTable)
+            val userTable = UserTable(databaseManager.tablePrefix)
+            val inGameProfileTable = InGameProfileTable(databaseManager.tablePrefix, userTable)
+            val userWriter = MergeUserWriter(userTable, inGameProfileTable)
+            val offlineAuthTable = OfflineAuthTable(databaseManager.tablePrefix, userTable)
 
             databaseManager.executeTransaction {
-                SchemaUtils.create(profileTable)
+                SchemaUtils.create(userTable)
+                SchemaUtils.create(inGameProfileTable)
                 SchemaUtils.create(offlineAuthTable)
 
                 for (source in sourceRows) {
                     val username = source.username.trim()
                     if (username.isBlank()) {
-                        report.targetProfileFailures++
+                        report.targetUserFailures++
                         report.targetOfflineAuthFailures++
                         logger.log("[ROW][FAILED] username=<blank> reason=username is blank")
                         continue
@@ -91,7 +95,6 @@ class AmDataMigrator(
 
                     val profileName = resolveProfileName(source)
                     val offlineAuthName = profileName.lowercase()
-                    val generatedProfileId = generateProfileId(username)
                     val profileUuid = generateOfflinePlayerUuid(username)
 
                     val passwordMeta = parsePassword(source.password)
@@ -102,63 +105,24 @@ class AmDataMigrator(
                         continue
                     }
 
-                    val resolvedProfileId = try {
-                        val existingByUuid = profileTable.selectAll()
-                            .where { profileTable.uuid eq profileUuid }
-                            .limit(1)
-                            .firstOrNull()
-
-                        if (existingByUuid != null) {
-                            report.targetProfilesMatched++
-                            val pid = existingByUuid[profileTable.id]
-                            if (existingByUuid[profileTable.name] != profileName) {
-                                profileTable.update({ profileTable.id eq pid }) {
-                                    it[name] = profileName
-                                }
-                            }
-                            pid
+                    val resolvedUserId = try {
+                        val existingUserUUID = userWriter.findProfileId(profileName, profileUuid)
+                        if (existingUserUUID == null) {
+                            val createdUserId = userWriter.createProfile(profileName, profileUuid)
+                            report.targetUsersCreated++
+                            logger.log("[PROFILE][CREATED] id=$createdUserId name=$profileName uuid=$profileUuid username=$username")
+                            createdUserId
                         } else {
-                            val existingByName = profileTable.selectAll()
-                                .where { profileTable.name eq profileName }
-                                .limit(1)
-                                .firstOrNull()
-
-                            if (existingByName != null) {
-                                report.targetProfilesMatched++
-                                val pid = existingByName[profileTable.id]
-                                if (existingByName[profileTable.uuid] != profileUuid) {
-                                    profileTable.update({ profileTable.id eq pid }) {
-                                        it[uuid] = profileUuid
-                                    }
-                                }
-                                pid
-                            } else {
-                                val existingById = profileTable.selectAll()
-                                    .where { profileTable.id eq generatedProfileId }
-                                    .limit(1)
-                                    .firstOrNull()
-
-                                if (existingById != null) {
-                                    report.targetProfilesMatched++
-                                    profileTable.update({ profileTable.id eq generatedProfileId }) {
-                                        it[name] = profileName
-                                        it[uuid] = profileUuid
-                                    }
-                                    generatedProfileId
-                                } else {
-                                    profileTable.insert {
-                                        it[id] = generatedProfileId
-                                        it[name] = profileName
-                                        it[uuid] = profileUuid
-                                    }
-                                    report.targetProfilesCreated++
-                                    logger.log("[PROFILE][CREATED] id=$generatedProfileId name=$profileName uuid=$profileUuid username=$username")
-                                    generatedProfileId
-                                }
+                            val existingIdentity = userWriter.findIdentity(existingUserUUID, profileUuid)
+                            if (existingIdentity == null) {
+                                userWriter.createIdentity(existingUserUUID, profileName, profileUuid)
                             }
+                            report.targetUsersMatched++
+                            logger.log("[PROFILE][MATCHED] id=$existingUserUUID name=$profileName uuid=$profileUuid username=$username")
+                            existingUserUUID
                         }
                     } catch (ex: Exception) {
-                        report.targetProfileFailures++
+                        report.targetUserFailures++
                         report.targetOfflineAuthFailures++
                         logger.log("[PROFILE][FAILED] username=$username name=$profileName uuid=$profileUuid reason=${ex.message}")
                         continue
@@ -166,7 +130,7 @@ class AmDataMigrator(
 
                     try {
                         val existingByProfileId = offlineAuthTable.selectAll()
-                            .where { offlineAuthTable.profileId eq resolvedProfileId }
+                            .where { offlineAuthTable.userUUID eq resolvedUserId }
                             .limit(1)
                             .firstOrNull()
 
@@ -177,15 +141,15 @@ class AmDataMigrator(
 
                             if (same) {
                                 report.targetOfflineAuthMatched++
-                                logger.log("[AUTH][MATCHED] name=$offlineAuthName profileId=$resolvedProfileId")
+                                logger.log("[AUTH][MATCHED] name=$offlineAuthName userUUID=$resolvedUserId")
                             } else {
-                                offlineAuthTable.update({ offlineAuthTable.profileId eq resolvedProfileId }) {
+                                offlineAuthTable.update({ offlineAuthTable.userUUID eq resolvedUserId }) {
                                     it[name] = offlineAuthName
                                     it[passwordHash] = passwordMeta.passwordHash
                                     it[hashFormat] = passwordMeta.hashFormat
                                 }
                                 report.targetOfflineAuthUpdated++
-                                logger.log("[AUTH][UPDATED] name=$offlineAuthName profileId=$resolvedProfileId")
+                                logger.log("[AUTH][UPDATED] name=$offlineAuthName userUUID=$resolvedUserId")
                             }
                             continue
                         }
@@ -196,24 +160,24 @@ class AmDataMigrator(
                             .firstOrNull()
 
                         if (existingByName != null) {
-                            val existedPid = existingByName[offlineAuthTable.profileId]
-                            if (existedPid == resolvedProfileId) {
+                            val existedPid = existingByName[offlineAuthTable.userUUID]
+                            if (existedPid == resolvedUserId) {
                                 val same = existingByName[offlineAuthTable.passwordHash] == passwordMeta.passwordHash &&
                                     existingByName[offlineAuthTable.hashFormat].equals(passwordMeta.hashFormat, ignoreCase = true)
                                 if (same) {
                                     report.targetOfflineAuthMatched++
-                                    logger.log("[AUTH][MATCHED] name=$offlineAuthName profileId=$resolvedProfileId")
+                                    logger.log("[AUTH][MATCHED] name=$offlineAuthName userUUID=$resolvedUserId")
                                 } else {
-                                    offlineAuthTable.update({ offlineAuthTable.profileId eq resolvedProfileId }) {
+                                    offlineAuthTable.update({ offlineAuthTable.userUUID eq resolvedUserId }) {
                                         it[passwordHash] = passwordMeta.passwordHash
                                         it[hashFormat] = passwordMeta.hashFormat
                                     }
                                     report.targetOfflineAuthUpdated++
-                                    logger.log("[AUTH][UPDATED] name=$offlineAuthName profileId=$resolvedProfileId")
+                                    logger.log("[AUTH][UPDATED] name=$offlineAuthName userUUID=$resolvedUserId")
                                 }
                             } else {
                                 report.targetOfflineAuthConflicts++
-                                logger.log("[AUTH][CONFLICT] name=$offlineAuthName existedPid=$existedPid incomingPid=$resolvedProfileId")
+                                logger.log("[AUTH][CONFLICT] name=$offlineAuthName existedPid=$existedPid incomingPid=$resolvedUserId")
                             }
                             continue
                         }
@@ -222,22 +186,22 @@ class AmDataMigrator(
                             it[name] = offlineAuthName
                             it[passwordHash] = passwordMeta.passwordHash
                             it[hashFormat] = passwordMeta.hashFormat
-                            it[profileId] = resolvedProfileId
+                            it[userUUID] = resolvedUserId
                         }
                         report.targetOfflineAuthCreated++
-                        logger.log("[AUTH][CREATED] name=$offlineAuthName profileId=$resolvedProfileId format=${passwordMeta.hashFormat}")
+                        logger.log("[AUTH][CREATED] name=$offlineAuthName userUUID=$resolvedUserId format=${passwordMeta.hashFormat}")
                     } catch (ex: Exception) {
                         report.targetOfflineAuthFailures++
-                        logger.log("[AUTH][FAILED] name=$profileName profileId=$resolvedProfileId reason=${ex.message}")
+                        logger.log("[AUTH][FAILED] name=$profileName userUUID=$resolvedUserId reason=${ex.message}")
                     }
                 }
             }
 
             logger.log("迁移完成，汇总如下")
             logger.log("sourceRows=${report.sourceRows}")
-            logger.log("targetProfilesCreated=${report.targetProfilesCreated}")
-            logger.log("targetProfilesMatched=${report.targetProfilesMatched}")
-            logger.log("targetProfileFailures=${report.targetProfileFailures}")
+            logger.log("targetUsersCreated=${report.targetUsersCreated}")
+            logger.log("targetUsersMatched=${report.targetUsersMatched}")
+            logger.log("targetUserFailures=${report.targetUserFailures}")
             logger.log("targetOfflineAuthCreated=${report.targetOfflineAuthCreated}")
             logger.log("targetOfflineAuthMatched=${report.targetOfflineAuthMatched}")
             logger.log("targetOfflineAuthUpdated=${report.targetOfflineAuthUpdated}")
@@ -277,10 +241,6 @@ class AmDataMigrator(
 
     private fun generateOfflinePlayerUuid(username: String): UUID {
         return UUID.nameUUIDFromBytes(("OfflinePlayer:$username").toByteArray(StandardCharsets.UTF_8))
-    }
-
-    private fun generateProfileId(username: String): UUID {
-        return UUID.randomUUID()
     }
 
     companion object {

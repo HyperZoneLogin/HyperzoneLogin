@@ -31,7 +31,7 @@ import icu.h2l.api.log.info
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.player.HyperZonePlayerAccessor
 import icu.h2l.api.player.getChannel
-import icu.h2l.api.profile.HyperZoneProfileService
+import icu.h2l.api.profile.HyperZoneUserService
 import icu.h2l.login.auth.online.config.YggdrasilDebug
 import icu.h2l.login.auth.online.db.EntryDatabaseHelper
 import icu.h2l.login.auth.online.db.EntryTableManager
@@ -63,25 +63,23 @@ import java.util.concurrent.ConcurrentHashMap
 class YggdrasilAuthModule(
     private val proxy: ProxyServer,
     entryConfigManager: EntryConfigManager,
-    databaseManager: HyperZoneDatabaseManager,
+    private val databaseManager: HyperZoneDatabaseManager,
     entryTableManager: EntryTableManager,
-    profileService: HyperZoneProfileService,
+    entryDatabaseHelper: EntryDatabaseHelper,
+    userService: HyperZoneUserService,
     private val playerAccessor: HyperZonePlayerAccessor
 ) : YggdrasilAuthFlow {
     private val credentialService = YggdrasilCredentialService(
         entryConfigManager = entryConfigManager,
-        profileService = profileService,
-        entryDatabaseHelper = EntryDatabaseHelper(
-            databaseManager = databaseManager,
-            entryTableManager = entryTableManager
-        )
+        userService = userService,
+        entryDatabaseHelper = entryDatabaseHelper
     )
     private val remoteAuthService = YggdrasilRemoteAuthService(
         proxy = proxy,
         entryConfigManager = entryConfigManager,
         databaseManager = databaseManager,
         entryTableManager = entryTableManager,
-        profileService = profileService,
+        userService = userService,
         credentialService = credentialService
     )
     private val profileAuthenticatedDispatcher = YggdrasilProfileAuthenticatedDispatcher(proxy)
@@ -230,7 +228,7 @@ class YggdrasilAuthModule(
                 val failedResult = YggdrasilAuthResult.Failed(preparation.failureReason)
                 publishAuthFailure(channel, username, failedResult)
                 hyperZonePlayer.sendMessage(YggdrasilMessages.profileResolveFailed(hyperZonePlayer, preparation.failureReason))
-                info { "玩家 $username Yggdrasil 验证成功，但 Profile 解析失败：${preparation.failureReason}" }
+                info { "玩家 $username Yggdrasil 验证成功，但 User 解析失败：${preparation.failureReason}" }
                 return PreparedYggdrasilAuth(
                     result = failedResult,
                     credentialToSubmit = preparation.credentialToSubmit,
@@ -314,7 +312,7 @@ class YggdrasilAuthModule(
     ) {
         val channel = player.getChannel()
         try {
-            if (session.hasAttachedProfile()) {
+            if (session.hasAttachedUser()) {
                 completeWaitingAreaClaims(channel, LoginHandleResult.success())
                 return
             }
@@ -326,16 +324,19 @@ class YggdrasilAuthModule(
                     is YggdrasilAuthResult.NoEntriesConfigured -> "No Yggdrasil providers configured"
                     is YggdrasilAuthResult.Success -> "Yggdrasil verification not ready"
                 }
-                completeWaitingAreaClaims(channel, LoginHandleResult.failed(message))
+                completeWaitingAreaClaims(
+                    channel,
+                    LoginHandleResult.failed(message)
+                )
                 return
             }
             val preparedCredential = preparedAuth.credentialToSubmit
-            val profileIdHint = preparedCredential?.getBoundProfileId()
+            val userUUIDHint = preparedCredential?.getBoundUserUUID()
             completeWaitingAreaClaims(
                 channel,
                 LoginHandleResult.success(
                     credential = preparedCredential,
-                    profileIdHint = profileIdHint
+                    userUUIDHint = userUUIDHint,
                 )
             )
 
@@ -347,7 +348,10 @@ class YggdrasilAuthModule(
             }
         } catch (throwable: Throwable) {
             val message = throwable.message ?: "Yggdrasil credential submit failed"
-            completeWaitingAreaClaims(channel, LoginHandleResult.failed(message))
+            completeWaitingAreaClaims(
+                channel,
+                LoginHandleResult.failed(message)
+            )
         } finally {
             clearTransientStateAfterDispatch(player)
         }
@@ -400,9 +404,9 @@ class YggdrasilAuthModule(
 private class DirectHyperPlayerSession(
     val player: HyperZonePlayer
 ) : LoginHandleSession {
-    override fun originalName(): String = player.clientOriginalName
+    override fun originalName(): String = player.logLabel
 
-    override fun hasAttachedProfile(): Boolean = player.hasAttachedProfile()
+    override fun hasAttachedUser(): Boolean = player.hasAttachedUser()
 
 
     override fun sendMessage(message: Component) {

@@ -27,7 +27,7 @@ import icu.h2l.api.event.auth.AuthenticationFailureEvent
 import icu.h2l.api.player.HyperZonePlayerAccessor
 import icu.h2l.api.profile.CredentialChannelRegistryProvider
 import icu.h2l.api.profile.HyperZoneCredentialFlowProvider
-import icu.h2l.api.profile.HyperZoneProfileService
+import icu.h2l.api.profile.HyperZoneUserService
 import icu.h2l.login.auth.offline.OfflineAuthMessages
 import icu.h2l.login.auth.offline.api.db.OfflineAuthEntry
 import icu.h2l.login.auth.offline.config.AuthOfflineConfigLoader
@@ -44,7 +44,7 @@ class OfflineAuthService(
     private val repository: OfflineAuthRepository,
     private val pendingRegistrations: PendingOfflineRegistrationManager,
     private val playerAccessor: HyperZonePlayerAccessor,
-    private val profileService: HyperZoneProfileService,
+    private val userService: HyperZoneUserService,
     private val emailSender: OfflineAuthEmailSender,
     private val totpAuthenticator: OfflineTotpAuthenticator,
     private val proxy: ProxyServer
@@ -54,7 +54,7 @@ class OfflineAuthService(
     data class SessionPrepareResult(
         val passed: Boolean,
         val message: Component? = null,
-        val credential: OfflineHyperZoneCredential? = null
+        val credential: OfflineHyperZoneCredential? = null,
     )
 
     private val logger = java.util.logging.Logger.getLogger("hzl-auth-offline")
@@ -70,7 +70,7 @@ class OfflineAuthService(
         }
 
         val username = hyperZonePlayer.getSubmittedCredentials().filterIsInstance<OfflineHyperZoneCredential>()
-            .firstOrNull()?.getRegistrationName() ?: hyperZonePlayer.clientOriginalName
+            .firstOrNull()?.getRegistrationName() ?: player.username
         val normalizedName = username.lowercase()
         if (repository.getByName(normalizedName) != null) {
             return Result(false, OfflineAuthMessages.OFFLINE_PASSWORD_ALREADY_SET)
@@ -80,16 +80,16 @@ class OfflineAuthService(
             return it
         }
 
-        val attachedProfile = profileService.getAttachedProfile(hyperZonePlayer)
-        if (attachedProfile != null) {
-            return bindExistingProfile(player, hyperZonePlayer, attachedProfile, username, normalizedName, password)
+        val attachedUser = userService.getAttachedUser(hyperZonePlayer)
+        if (attachedUser != null) {
+            return bindExistingProfile(player, hyperZonePlayer, attachedUser, username, normalizedName, password)
         }
 
         // 使用凭证探针与 ProfileService 交互，避免裸露传递注册名与 UUID
         val probeCredential = offlineCredential(normalizedName = normalizedName, registrationName = username)
-        if (profileService.canCreate(probeCredential)) {
+        if (userService.canCreateUser(probeCredential)) {
             val profile = try {
-                profileService.create(probeCredential)
+                userService.createUser(probeCredential)
             } catch (throwable: IllegalStateException) {
                 return Result(false, componentFromThrowable(throwable, OfflineAuthMessages.REGISTER_FAILED))
             }
@@ -99,7 +99,7 @@ class OfflineAuthService(
                 hyperZonePlayer = hyperZonePlayer,
                 normalizedName = normalizedName,
                 password = password,
-                profileId = profile.id,
+                userUUID = profile.id,
                 successMessage = OfflineAuthMessages.REGISTER_SUCCESS,
                 failureMessage = OfflineAuthMessages.REGISTER_FAILED,
                 markVerified = true,
@@ -129,7 +129,7 @@ class OfflineAuthService(
     private fun bindExistingProfile(
         player: Player,
         hyperZonePlayer: icu.h2l.api.player.HyperZonePlayer,
-        profile: icu.h2l.api.db.Profile,
+        profile: icu.h2l.api.db.User,
         username: String,
         normalizedName: String,
         password: String
@@ -150,7 +150,7 @@ class OfflineAuthService(
             hyperZonePlayer = hyperZonePlayer,
             normalizedName = normalizedName,
             password = password,
-            profileId = profile.id,
+            userUUID = profile.id,
             successMessage = OfflineAuthMessages.REGISTER_BOUND_SUCCESS,
             failureMessage = OfflineAuthMessages.REGISTER_FAILED
         )
@@ -161,7 +161,7 @@ class OfflineAuthService(
         hyperZonePlayer: icu.h2l.api.player.HyperZonePlayer,
         normalizedName: String,
         password: String,
-        profileId: UUID,
+        userUUID: UUID,
         successMessage: Component,
         failureMessage: Component,
         markVerified: Boolean = false,
@@ -171,13 +171,13 @@ class OfflineAuthService(
             name = normalizedName,
             passwordHash = hashPassword(password),
             hashFormat = HASH_FORMAT_SHA256,
-            profileId = profileId
+            userUUID = userUUID
         )
         return if (created) {
             if (markVerified) {
                 HyperZoneCredentialFlowProvider.get().submitCredential(
                     hyperZonePlayer,
-                    offlineCredential(normalizedName, profileId = profileId)
+                    offlineCredential(normalizedName, userUUID = userUUID)
                 )
                 runCatching {
                     HyperZoneCredentialFlowProvider.get().overVerify(hyperZonePlayer)
@@ -186,7 +186,7 @@ class OfflineAuthService(
                 }
             }
             if (issueSession) {
-                issueSession(profileId, player)
+                issueSession(userUUID, player)
             }
             Result(true, successMessage)
         } else {
@@ -204,12 +204,12 @@ class OfflineAuthService(
 
     private fun loginInternal(player: Player, username: String?, password: String, totpCode: String? = null): Result {
         val hyperPlayer = playerAccessor.getByPlayer(player)
-        if (hyperPlayer.hasAttachedProfile()) {
+        if (hyperPlayer.hasAttachedUser()) {
             return Result(false, OfflineAuthMessages.ALREADY_LOGGED_IN)
         }
 
         val entry = resolveLoginEntry(player, username)
-            ?: return Result(false, missingLoginEntryMessage(hyperPlayer.clientOriginalName, username))
+            ?: return Result(false, missingLoginEntryMessage(player.username, username))
 
         val now = System.currentTimeMillis()
         val blockedUntil = entry.loginBlockedUntil
@@ -228,7 +228,7 @@ class OfflineAuthService(
             val nextFailCount = entry.loginFailCount + 1
             if (nextFailCount >= protection.maxAttempts) {
                 val blockedTo = now + protection.blockSeconds * 1000L
-                repository.updateLoginProtection(entry.profileId, 0, blockedTo)
+                repository.updateLoginProtection(entry.userUUID, 0, blockedTo)
                 publishAuthFailure(
                     player = player,
                     authType = AuthenticationFailureEvent.AuthType.OFFLINE,
@@ -238,7 +238,7 @@ class OfflineAuthService(
                 return Result(false, OfflineAuthMessages.loginBlocked(protection.blockSeconds.toLong()))
             }
 
-            repository.updateLoginProtection(entry.profileId, nextFailCount, null)
+            repository.updateLoginProtection(entry.userUUID, nextFailCount, null)
             val remainingAttempts = (protection.maxAttempts - nextFailCount).coerceAtLeast(0)
             publishAuthFailure(
                 player = player,
@@ -249,7 +249,7 @@ class OfflineAuthService(
             return Result(false, OfflineAuthMessages.wrongPasswordWithRemainingAttempts(remainingAttempts))
         }
 
-        repository.resetLoginProtection(entry.profileId)
+        repository.resetLoginProtection(entry.userUUID)
 
         if (isTotpEnabled(entry)) {
             val trimmedCode = totpCode?.trim().orEmpty()
@@ -275,14 +275,14 @@ class OfflineAuthService(
 
         HyperZoneCredentialFlowProvider.get().submitCredential(
             hyperPlayer,
-            offlineCredential(entry.name, profileId = entry.profileId)
+            offlineCredential(entry.name, userUUID = entry.userUUID)
         )
         runCatching {
             HyperZoneCredentialFlowProvider.get().overVerify(hyperPlayer)
         }.getOrElse { throwable ->
             return Result(false, componentFromThrowable(throwable, OfflineAuthMessages.ATTACHED_PROFILE_MISSING))
         }
-        issueSession(entry.profileId, player)
+        issueSession(entry.userUUID, player)
         return Result(true, OfflineAuthMessages.LOGIN_SUCCESS)
     }
 
@@ -290,7 +290,7 @@ class OfflineAuthService(
         ensureTotpFeatureEnabled()?.let { return it }
 
         val entry = resolveEntryByPlayer(player) ?: return Result(false, OfflineAuthMessages.UNREGISTERED)
-        val profileId = entry.profileId
+        val userUUID = entry.userUUID
         if (!verifyPassword(password, entry)) {
             return Result(false, OfflineAuthMessages.PASSWORD_WRONG)
         }
@@ -298,7 +298,7 @@ class OfflineAuthService(
             return Result(false, OfflineAuthMessages.TOTP_ALREADY_ENABLED)
         }
 
-        val setup = totpAuthenticator.createSetup(profileId, entry.name)
+        val setup = totpAuthenticator.createSetup(userUUID, entry.name)
         return Result(true, OfflineAuthMessages.totpSetupGenerated(setup.secret, setup.otpAuthUrl))
     }
 
@@ -306,20 +306,20 @@ class OfflineAuthService(
         ensureTotpFeatureEnabled()?.let { return it }
 
         val entry = resolveEntryByPlayer(player) ?: return Result(false, OfflineAuthMessages.UNREGISTERED)
-        val profileId = entry.profileId
+        val userUUID = entry.userUUID
         if (isTotpEnabled(entry)) {
             return Result(false, OfflineAuthMessages.TOTP_ALREADY_ENABLED)
         }
 
-        val pendingSetup = totpAuthenticator.getPendingSetup(profileId)
+        val pendingSetup = totpAuthenticator.getPendingSetup(userUUID)
             ?: return Result(false, OfflineAuthMessages.TOTP_PENDING_NOT_FOUND)
-        if (!totpAuthenticator.verifyPendingCode(profileId, entry.name, code)) {
+        if (!totpAuthenticator.verifyPendingCode(userUUID, entry.name, code)) {
             return Result(false, OfflineAuthMessages.TOTP_INVALID_CODE)
         }
 
-        return if (repository.updateTotpSecret(profileId, pendingSetup.secret)) {
-            totpAuthenticator.clearPendingSetup(profileId)
-            repository.clearSession(profileId)
+        return if (repository.updateTotpSecret(userUUID, pendingSetup.secret)) {
+            totpAuthenticator.clearPendingSetup(userUUID)
+            repository.clearSession(userUUID)
             Result(true, OfflineAuthMessages.TOTP_ENABLED)
         } else {
             Result(false, OfflineAuthMessages.TOTP_ENABLE_FAILED)
@@ -330,7 +330,7 @@ class OfflineAuthService(
         ensureTotpFeatureEnabled()?.let { return it }
 
         val entry = resolveEntryByPlayer(player) ?: return Result(false, OfflineAuthMessages.UNREGISTERED)
-        val profileId = entry.profileId
+        val userUUID = entry.userUUID
         if (!verifyPassword(password, entry)) {
             return Result(false, OfflineAuthMessages.PASSWORD_WRONG)
         }
@@ -339,8 +339,8 @@ class OfflineAuthService(
             return Result(false, OfflineAuthMessages.TOTP_INVALID_CODE)
         }
 
-        return if (repository.updateTotpSecret(profileId, null)) {
-            totpAuthenticator.clearPendingSetup(profileId)
+        return if (repository.updateTotpSecret(userUUID, null)) {
+            totpAuthenticator.clearPendingSetup(userUUID)
             Result(true, OfflineAuthMessages.TOTP_DISABLED)
         } else {
             Result(false, OfflineAuthMessages.TOTP_DISABLE_FAILED)
@@ -349,19 +349,19 @@ class OfflineAuthService(
 
     fun changePassword(player: Player, oldPassword: String, newPassword: String): Result {
         val entry = resolveEntryByPlayer(player) ?: return Result(false, OfflineAuthMessages.UNREGISTERED_SIMPLE)
-        val profileId = entry.profileId
+        val userUUID = entry.userUUID
         if (!verifyPassword(oldPassword, entry)) {
             return Result(false, OfflineAuthMessages.OLD_PASSWORD_WRONG)
         }
 
-        val username = playerAccessor.getByPlayer(player).clientOriginalName
+        val username = player.username
 
         validatePassword(username, newPassword)?.let {
             return it
         }
 
         val updated = repository.updatePassword(
-            profileId = profileId,
+            userUUID = userUUID,
             passwordHash = hashPassword(newPassword),
             hashFormat = HASH_FORMAT_SHA256
         )
@@ -374,23 +374,23 @@ class OfflineAuthService(
 
     fun logout(player: Player): Result {
         val hyperPlayer = playerAccessor.getByPlayer(player)
-        if (!hyperPlayer.hasAttachedProfile()) {
+        if (!hyperPlayer.hasAttachedUser()) {
             return Result(false, OfflineAuthMessages.NOT_LOGGED_IN)
         }
 
-        resolveEntryByPlayer(player)?.let { repository.clearSession(it.profileId) }
+        resolveEntryByPlayer(player)?.let { repository.clearSession(it.userUUID) }
         hyperPlayer.resetVerify()
         return Result(true, OfflineAuthMessages.LOGOUT_SUCCESS)
     }
 
     fun unregister(player: Player, password: String): Result {
         val entry = resolveEntryByPlayer(player) ?: return Result(false, OfflineAuthMessages.UNREGISTERED_SIMPLE)
-        val profileId = entry.profileId
+        val userUUID = entry.userUUID
         if (!verifyPassword(password, entry)) {
             return Result(false, OfflineAuthMessages.PASSWORD_WRONG)
         }
 
-        val deleted = repository.deleteByProfileId(profileId)
+        val deleted = repository.deleteByProfileId(userUUID)
         return if (deleted) {
             Result(true, OfflineAuthMessages.UNREGISTER_SUCCESS)
         } else {
@@ -407,17 +407,17 @@ class OfflineAuthService(
 
         val normalizedEmail = normalizeEmail(email) ?: return Result(false, OfflineAuthMessages.EMAIL_INVALID)
         val entry = resolveEntryByPlayer(player) ?: return Result(false, OfflineAuthMessages.UNREGISTERED)
-        val profileId = entry.profileId
+        val userUUID = entry.userUUID
         if (!verifyPassword(password, entry)) {
             return Result(false, OfflineAuthMessages.PASSWORD_WRONG)
         }
 
         val occupied = repository.getByEmail(normalizedEmail)
-        if (occupied != null && occupied.profileId != profileId) {
+        if (occupied != null && occupied.userUUID != userUUID) {
             return Result(false, OfflineAuthMessages.EMAIL_ALREADY_USED)
         }
 
-        return if (repository.updateEmail(profileId, normalizedEmail)) {
+        return if (repository.updateEmail(userUUID, normalizedEmail)) {
             Result(true, OfflineAuthMessages.EMAIL_ADDED)
         } else {
             Result(false, OfflineAuthMessages.EMAIL_BIND_FAILED)
@@ -430,7 +430,7 @@ class OfflineAuthService(
         val normalizedOldEmail = normalizeEmail(oldEmail) ?: return Result(false, OfflineAuthMessages.EMAIL_INVALID)
         val normalizedNewEmail = normalizeEmail(newEmail) ?: return Result(false, OfflineAuthMessages.EMAIL_INVALID)
         val entry = resolveEntryByPlayer(player) ?: return Result(false, OfflineAuthMessages.UNREGISTERED)
-        val profileId = entry.profileId
+        val userUUID = entry.userUUID
         if (!verifyPassword(password, entry)) {
             return Result(false, OfflineAuthMessages.PASSWORD_WRONG)
         }
@@ -440,11 +440,11 @@ class OfflineAuthService(
         }
 
         val occupied = repository.getByEmail(normalizedNewEmail)
-        if (occupied != null && occupied.profileId != profileId) {
+        if (occupied != null && occupied.userUUID != userUUID) {
             return Result(false, OfflineAuthMessages.EMAIL_ALREADY_USED)
         }
 
-        return if (repository.updateEmail(profileId, normalizedNewEmail)) {
+        return if (repository.updateEmail(userUUID, normalizedNewEmail)) {
             Result(true, OfflineAuthMessages.EMAIL_CHANGED)
         } else {
             Result(false, OfflineAuthMessages.EMAIL_CHANGE_FAILED)
@@ -471,7 +471,7 @@ class OfflineAuthService(
 
         val normalizedEmail = normalizeEmail(email) ?: return Result(false, OfflineAuthMessages.EMAIL_INVALID)
         val entry = repository.getByEmail(normalizedEmail) ?: return Result(false, OfflineAuthMessages.EMAIL_NOT_SET)
-        val profileId = entry.profileId
+        val userUUID = entry.userUUID
         val now = System.currentTimeMillis()
         val emailConfig = AuthOfflineConfigLoader.getConfig().main.email
         val cooldownMillis = emailConfig.recoveryCooldownSeconds * 1000L
@@ -483,13 +483,13 @@ class OfflineAuthService(
 
         val code = generateRecoveryCode(emailConfig.recoveryCodeLength)
         val expireAt = now + emailConfig.recoveryCodeExpireMinutes * 60_000L
-        if (!repository.startRecovery(profileId, hashPassword(code), expireAt, now)) {
+        if (!repository.startRecovery(userUUID, hashPassword(code), expireAt, now)) {
             return Result(false, OfflineAuthMessages.RECOVERY_CODE_WRITE_FAILED)
         }
 
         val deliveryResult = deliverRecoveryCode(player.username, normalizedEmail, code, expireAt)
         if (!deliveryResult.success) {
-            repository.clearRecoveryState(profileId)
+            repository.clearRecoveryState(userUUID)
             return Result(false, OfflineAuthMessages.recoverySendFailure(deliveryResult.diagnosticMessage))
         }
 
@@ -507,28 +507,28 @@ class OfflineAuthService(
         ensureEmailFeatureEnabled()?.let { return it }
 
         val entry = resolveEntryByPlayer(player) ?: return Result(false, OfflineAuthMessages.UNREGISTERED)
-        val profileId = entry.profileId
+        val userUUID = entry.userUUID
         val storedHash = entry.recoveryCodeHash ?: return Result(false, OfflineAuthMessages.RECOVERY_CODE_NOT_REQUESTED)
         val now = System.currentTimeMillis()
 
         if (entry.recoveryCodeExpireAt == null || entry.recoveryCodeExpireAt < now) {
-            repository.clearRecoveryState(profileId)
+            repository.clearRecoveryState(userUUID)
             return Result(false, OfflineAuthMessages.RECOVERY_CODE_EXPIRED)
         }
 
         val emailConfig = AuthOfflineConfigLoader.getConfig().main.email
         if (entry.recoveryVerifyTries >= emailConfig.maxCodeVerifyAttempts) {
-            repository.clearRecoveryState(profileId)
+            repository.clearRecoveryState(userUUID)
             return Result(false, OfflineAuthMessages.recoveryCodeAttemptsExceeded())
         }
 
         if (hashPassword(code) != storedHash) {
-            repository.incrementRecoveryVerifyTries(profileId)
+            repository.incrementRecoveryVerifyTries(userUUID)
             return Result(false, OfflineAuthMessages.RECOVERY_CODE_INCORRECT)
         }
 
         val verifiedUntil = now + emailConfig.resetPasswordWindowMinutes * 60_000L
-        return if (repository.markRecoveryVerified(profileId, verifiedUntil)) {
+        return if (repository.markRecoveryVerified(userUUID, verifiedUntil)) {
             Result(true, OfflineAuthMessages.RECOVERY_CODE_CORRECT)
         } else {
             Result(false, OfflineAuthMessages.RECOVERY_STATE_UPDATE_FAILED)
@@ -539,13 +539,13 @@ class OfflineAuthService(
         ensureEmailFeatureEnabled()?.let { return it }
 
         val hyperPlayer = playerAccessor.getByPlayer(player)
-        val username = hyperPlayer.clientOriginalName
+        val username = player.username
         val entry = resolveEntryByPlayer(player) ?: return Result(false, OfflineAuthMessages.UNREGISTERED)
-        val profileId = entry.profileId
+        val userUUID = entry.userUUID
         val verifiedUntil = entry.resetPasswordVerifiedUntil
         val now = System.currentTimeMillis()
         if (verifiedUntil == null || verifiedUntil < now) {
-            repository.clearRecoveryState(profileId)
+            repository.clearRecoveryState(userUUID)
             return Result(false, OfflineAuthMessages.RECOVERY_PASSWORD_WINDOW_EXPIRED)
         }
 
@@ -553,14 +553,14 @@ class OfflineAuthService(
             return it
         }
 
-        val updated = repository.updatePassword(profileId, hashPassword(newPassword), HASH_FORMAT_SHA256)
+        val updated = repository.updatePassword(userUUID, hashPassword(newPassword), HASH_FORMAT_SHA256)
         if (!updated) {
             return Result(false, OfflineAuthMessages.PASSWORD_RESET_FAILED)
         }
 
         HyperZoneCredentialFlowProvider.get().submitCredential(
             hyperPlayer,
-            offlineCredential(entry.name, profileId = profileId)
+            offlineCredential(entry.name, userUUID = userUUID)
         )
         runCatching {
             HyperZoneCredentialFlowProvider.get().overVerify(hyperPlayer)
@@ -572,7 +572,7 @@ class OfflineAuthService(
 
     fun getJoinPrompts(player: Player): List<Component> {
         val hyperPlayer = playerAccessor.getByPlayer(player)
-        if (hyperPlayer.hasAttachedProfile()) {
+        if (hyperPlayer.hasAttachedUser()) {
             return emptyList()
         }
 
@@ -581,7 +581,7 @@ class OfflineAuthService(
 
         if (entry == null) {
             val registrationName = hyperPlayer.getSubmittedCredentials().filterIsInstance<OfflineHyperZoneCredential>()
-                .firstOrNull()?.getRegistrationName() ?: hyperPlayer.clientOriginalName
+                .firstOrNull()?.getRegistrationName() ?: player.username
             val normalizedName = registrationName.lowercase()
             val hasPendingOfflineRegistration = hyperPlayer.getSubmittedCredentials()
                 .asSequence()
@@ -629,14 +629,14 @@ class OfflineAuthService(
         }
 
         val hyperPlayer = playerAccessor.getByPlayer(player)
-        if (hyperPlayer.hasAttachedProfile()) {
+        if (hyperPlayer.hasAttachedUser()) {
             return SessionPrepareResult(true)
         }
 
         val entry = resolveEntryByPlayer(player) ?: return null
-        val profileId = entry.profileId
+        val userUUID = entry.userUUID
         if (isTotpEnabled(entry) && !AuthOfflineConfigLoader.getConfig().main.totp.allowSessionBypass) {
-            repository.clearSession(profileId)
+            repository.clearSession(userUUID)
             publishAuthFailure(
                 player = player,
                 authType = AuthenticationFailureEvent.AuthType.OFFLINE,
@@ -653,7 +653,7 @@ class OfflineAuthService(
         val invalidByTime = sessionExpiresAt <= now || sessionIssuedAt > sessionExpiresAt
         val invalidByIp = sessionConfig.bindIp && !entry.sessionIp.isNullOrBlank() && entry.sessionIp != currentIp
         if (invalidByTime || invalidByIp) {
-            repository.clearSession(profileId)
+            repository.clearSession(userUUID)
             publishAuthFailure(
                 player = player,
                 authType = AuthenticationFailureEvent.AuthType.OFFLINE,
@@ -666,7 +666,7 @@ class OfflineAuthService(
         return SessionPrepareResult(
             passed = true,
             message = OfflineAuthMessages.SESSION_AUTO_LOGIN,
-            credential = offlineCredential(entry.name, profileId = profileId)
+            credential = offlineCredential(entry.name, userUUID = userUUID),
         )
     }
 
@@ -753,16 +753,16 @@ class OfflineAuthService(
 
     private fun resolveEntryByPlayer(player: Player, allowNameFallback: Boolean = true): OfflineAuthEntry? {
         val hyperPlayer = playerAccessor.getByPlayer(player)
-        val profileId = profileService.getAttachedProfile(hyperPlayer)?.id
-        if (profileId != null) {
-            repository.getByProfileId(profileId)?.let { return it }
+        val userUUID = userService.getAttachedUser(hyperPlayer)?.id
+        if (userUUID != null) {
+            repository.getByProfileId(userUUID)?.let { return it }
         }
 
         if (!allowNameFallback) {
             return null
         }
 
-        return repository.getByName(hyperPlayer.clientOriginalName.lowercase())
+        return repository.getByName(player.username.lowercase())
     }
 
     private fun createPendingOfflineCredential(
@@ -855,22 +855,22 @@ class OfflineAuthService(
         return result
     }
 
-    private fun issueSession(profileId: UUID, player: Player) {
+    private fun issueSession(userUUID: UUID, player: Player) {
         val sessionConfig = AuthOfflineConfigLoader.getConfig().main.session
-        val entry = repository.getByProfileId(profileId)
+        val entry = repository.getByProfileId(userUUID)
         if (entry != null && isTotpEnabled(entry) && !AuthOfflineConfigLoader.getConfig().main.totp.allowSessionBypass) {
-            repository.clearSession(profileId)
+            repository.clearSession(userUUID)
             return
         }
         if (!sessionConfig.enabled) {
-            repository.clearSession(profileId)
+            repository.clearSession(userUUID)
             return
         }
 
         val now = System.currentTimeMillis()
         val sessionIp = if (sessionConfig.bindIp) getPlayerRemoteAddress(player) else null
         val expiresAt = now + sessionConfig.expireMinutes.coerceAtLeast(1) * 60_000L
-        repository.issueSession(profileId, sessionIp, now, expiresAt)
+        repository.issueSession(userUUID, sessionIp, now, expiresAt)
     }
 
     private fun getPlayerRemoteAddress(player: Player): String {
@@ -919,7 +919,7 @@ class OfflineAuthService(
     private fun offlineCredential(
         normalizedName: String,
         registrationName: String = normalizedName,
-        profileId: UUID? = null,
+        userUUID: UUID? = null,
         pendingRegistrationId: UUID? = null
     ): OfflineHyperZoneCredential {
         return OfflineHyperZoneCredential(
@@ -927,7 +927,7 @@ class OfflineAuthService(
             pendingRegistrations = pendingRegistrations,
             registrationName = registrationName,
             normalizedName = normalizedName,
-            knownProfileId = profileId,
+            knownUserUUID = userUUID,
             pendingRegistrationId = pendingRegistrationId,
             passProfileCreateUuid = AuthOfflineConfigLoader.getConfig().main.passOfflineUuidToProfileResolve
         )

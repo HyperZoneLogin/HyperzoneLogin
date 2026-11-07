@@ -153,7 +153,7 @@ class BackendAuthHoldListener(
          */
         hyperPlayer.injectProxyPlayer(player)
 
-        if (hyperPlayer.hasAttachedProfile()) return
+        if (hyperPlayer.hasAttachedUser()) return
 
         val authServer = resolveAuthServer() ?: run {
             player.disconnect(messages.render(player, MessageKeys.BackendAuth.MISCONFIGURED_DISCONNECT))

@@ -27,8 +27,11 @@ import java.util.*
 /**
  * 认证子模块向登录核心提交的可信凭证。
  *
- * 注意：凭证对象本身不直接携带 profileId 字段；
- * 是否已绑定、如何绑定到 Profile，都由各认证模块自己的实现负责。
+ * 注意：凭证对象本身不直接携带 userUUID 字段；
+ * 是否已绑定、如何绑定到 User，都由各认证模块自己的实现负责。
+ *
+ * 该对象只负责证明认证结果与渠道账号绑定，不携带、不决定 InGameProfile；
+ * 游戏内身份由核心根据凭证中的认证名称/UUID 自行推导，外部模块不得提交或写入 InGameProfile。
  */
 interface HyperZoneCredential : IPropertiesHolder {
     /**
@@ -42,17 +45,17 @@ interface HyperZoneCredential : IPropertiesHolder {
     val credentialId: String
 
     /**
-     * 读取该凭证当前已经绑定到的 Profile。
+     * 读取该凭证当前已经绑定到的 User。
      *
      * 返回 null 表示该凭证尚未完成绑定。
      */
-    fun getBoundProfileId(): UUID?
+    fun getBoundUserUUID(): UUID?
 
     /**
-     * 当该凭证尚未绑定 Profile，但后续可能通过显式 create 流程建档时，
+     * 当该凭证尚未绑定 User，但后续可能通过显式 create 流程建档时，
      * 返回其建议使用的档案 UUID；返回 null 表示 create 阶段不应透传 UUID。
      */
-    fun getSuggestedProfileCreateUuid(): UUID? {
+    fun getSuggestedGameUuid(): UUID? {
         return null
     }
 
@@ -62,8 +65,8 @@ interface HyperZoneCredential : IPropertiesHolder {
      * 实现类应覆盖此方法以提供注册名，使得核心层可以通过凭证完成建档操作，
      * 而无需调用方裸露地传递玩家名称字符串。
      *
-     * 返回 null 表示该凭证不携带注册名，此时凭证不能直接用于 [HyperZoneProfileService.canCreate] /
-     * [HyperZoneProfileService.create] 的凭证重载。
+     * 返回 null 表示该凭证不携带注册名，此时凭证不能直接用于 [HyperZoneUserService.canCreate] /
+     * [HyperZoneUserService.create] 的凭证重载。
      */
     fun getRegistrationName(): String? {
         return null
@@ -79,40 +82,31 @@ interface HyperZoneCredential : IPropertiesHolder {
     }
 
     /**
-     * 返回一个用于 reUUID 流程的新凭证实例。
-     *
-     * 默认返回 null，表示该渠道不支持 reUUID。
-     */
-    fun withReUuidRequest(): HyperZoneCredential? {
-        return null
-    }
-
-    /**
      * 在真正写入绑定关系前做一次校验。
      *
      * 返回 null 表示允许绑定；否则返回拒绝原因。
      *
-     * @param profileId 待绑定的正式档案标识
+     * @param userUUID 待绑定的正式档案标识
      */
-    fun validateBind(profileId: UUID): String? {
+    fun validateBind(userUUID: UUID): String? {
         return null
     }
 
     /**
-     * 将该凭证绑定到指定 Profile。
+     * 将该凭证绑定到指定 User。
      *
      * 实现应把绑定关系写入模块自己的数据表。
      *
-     * @param profileId 要绑定到的正式档案标识
+     * @param userUUID 要绑定到的正式档案标识
      */
-    fun bind(profileId: UUID): Boolean
+    fun bind(userUUID: UUID): Boolean
 
     /**
      * 核心层确认凭证消费完成（通常是绑定并 attach 成功）后的回调。
      *
      * 默认空实现；渠道可按需落库或清理一次性状态。
      */
-    fun onConsumed(profileId: UUID) {
+    fun onConsumed(userUUID: UUID) {
         // no-op by default
     }
 }
