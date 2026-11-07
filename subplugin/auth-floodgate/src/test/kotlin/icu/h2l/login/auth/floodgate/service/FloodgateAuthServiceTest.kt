@@ -22,6 +22,7 @@
 package icu.h2l.login.auth.floodgate.service
 
 import icu.h2l.api.HyperZoneApi
+import icu.h2l.api.db.InGameProfile
 import icu.h2l.api.db.User
 import icu.h2l.api.player.HyperZonePlayerAccessor
 import icu.h2l.api.profile.HyperZoneCredential
@@ -59,6 +60,7 @@ class FloodgateAuthServiceTest {
 
         every { api.hyperZonePlayers } returns playerAccessor
         every { userService.getUserByGameUuid(any()) } returns null
+        every { userService.findInGameProfileByUuid(any()) } returns null
 
         service = FloodgateAuthService(
             api = api,
@@ -182,6 +184,34 @@ class FloodgateAuthServiceTest {
         assertTrue(result.passed)
         assertEquals(linkedUserUUID, result.userUUIDHint)
         assertEquals(linkedUserUUID, repository.findProfileIdByXuid(xuid))
+        verify(exactly = 0) { userService.createUser(any<HyperZoneCredential>()) }
+    }
+
+    @Test
+    fun `complete auto binds when identity already exists on the linked user`() {
+        val userUuid = UUID.fromString("99999999-9999-4999-8999-999999999999")
+        val xuid = 9999999999999999L
+        val linkedUserUUID = UUID.fromString("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
+        val linkedProfile = User(linkedUserUUID)
+        floodgateApiHolder.configuredPlayerPrefix = "."
+        floodgateApiHolder.trustedUuids += userUuid
+        every { userService.getUserByGameUuid(userUuid) } returns linkedProfile
+        every { userService.findInGameProfileByUuid(userUuid) } returns InGameProfile(
+            id = UUID.randomUUID(),
+            userUUID = linkedUserUUID,
+            name = "BedrockUser",
+            uuid = userUuid,
+        )
+
+        val acceptResult = service.acceptInitialProfile(channel, ".BedrockUser", userUuid, xuid)
+        val result = service.complete(channel, "BedrockUser")
+
+        assertSame(FloodgateAuthService.VerifyResult.Accepted, acceptResult)
+        assertTrue(result.handled)
+        assertTrue(result.passed)
+        assertEquals(linkedUserUUID, result.userUUIDHint)
+        assertEquals(linkedUserUUID, repository.findProfileIdByXuid(xuid))
+        verify(exactly = 0) { userService.validateInGameProfileCandidate(any(), any()) }
         verify(exactly = 0) { userService.createUser(any<HyperZoneCredential>()) }
     }
 

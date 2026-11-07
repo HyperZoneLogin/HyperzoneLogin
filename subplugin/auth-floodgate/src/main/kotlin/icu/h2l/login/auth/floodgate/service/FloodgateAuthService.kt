@@ -178,9 +178,13 @@ class FloodgateAuthService(
             channelEntry = "",
             channelAccountId = session.xuid.toString(),
         )
-        userService.validateInGameProfileCandidate(linkedProfile.id, candidate)?.let { reason ->
-            trace("auto-bind rejected xuid=${session.xuid} linkedProfile=${linkedProfile.id} reason=$reason")
-            return null
+        val resolvedUuid = candidate.uuid ?: userService.defaultGameUuid(candidate.name)
+        val existingIdentity = userService.findInGameProfileByUuid(resolvedUuid)
+        if (existingIdentity == null || existingIdentity.userUUID != linkedProfile.id) {
+            userService.validateInGameProfileCandidate(linkedProfile.id, candidate)?.let { reason ->
+                trace("auto-bind rejected xuid=${session.xuid} linkedProfile=${linkedProfile.id} reason=$reason")
+                return null
+            }
         }
         if (!repository.createOrUpdate(session.userName, session.xuid, linkedProfile.id)) {
             return null

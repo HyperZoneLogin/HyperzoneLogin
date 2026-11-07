@@ -143,11 +143,14 @@ class YggdrasilCredentialService(
                 channelEntry = success.entryId,
                 channelAccountId = success.profile.id.toString(),
             )
-            userService.validateInGameProfileCandidate(linkedUserUUID, candidate)?.let { reason ->
-                warn {
-                    "Yggdrasil 联动入口 ${success.entryId} 自动绑定到 User $linkedUserUUID 被拒绝: $reason"
+            val existingIdentity = userService.findInGameProfileByUuid(resolvedUuid)
+            if (existingIdentity == null || existingIdentity.userUUID != linkedUserUUID) {
+                userService.validateInGameProfileCandidate(linkedUserUUID, candidate)?.let { reason ->
+                    warn {
+                        "Yggdrasil 联动入口 ${success.entryId} 自动绑定到 User $linkedUserUUID 被拒绝: $reason"
+                    }
+                    return null
                 }
-                return null
             }
 
             val bound = entryDatabaseHelper.createEntry(

@@ -38,5 +38,7 @@ class YggdrasilModuleConfig {
     // 多入口联动组：组名 -> 入口 ID 列表。
     // 同组入口在 UUID 一致时自动共用同一个 HZL User 绑定。
     @Comment("config.yggdrasil.link-groups")
-    var linkGroups: MutableMap<String, MutableList<String>> = mutableMapOf()
+    var linkGroups: MutableMap<String, MutableList<String>> = mutableMapOf(
+        "offical" to mutableListOf("mojang","littleskin")
+    )
 }
