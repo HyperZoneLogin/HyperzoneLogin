@@ -46,6 +46,22 @@ interface HyperZonePlayer {
     val userUUID: UUID?
 
     /**
+     * 客户端本次连接实际使用的登录身份快照。
+     *
+     * 仅用于需要与客户端侧身份对齐的协议字段（例如登录成功包、self skin replay），
+     * 不代表 HZL User，也不得作为游戏内默认身份。
+     */
+    val loginIdentity: ClientLoginIdentity
+
+    /**
+     * 当前会话最近提交的认证凭证快照。
+     *
+     * 由核心在提交/替换凭证时写入；用于读取渠道登录信息。
+     */
+    val submittedCredential: HyperZoneCredential?
+        get() = null
+
+    /**
      * 当前登录会话已 attach 的 HZL User 对象。
      *
      * 由核心在 attach 时写入；模块不得直接修改。

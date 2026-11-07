@@ -21,6 +21,7 @@
 
 package icu.h2l.login.player
 
+import icu.h2l.api.player.ClientLoginIdentity
 import icu.h2l.api.util.RemapUtils
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
@@ -29,7 +30,13 @@ import java.util.*
 class VelocityHyperZonePlayerTest {
     @Test
     fun `temporary profile is created eagerly and remains stable for the session`() {
-        val player = VelocityHyperZonePlayer(isOnlinePlayer = false)
+        val player = VelocityHyperZonePlayer(
+            loginIdentity = ClientLoginIdentity(
+                "ClientName",
+                RemapUtils.genUUID("ClientName", RemapUtils.REMAP_PREFIX),
+            ),
+            isOnlinePlayer = false,
+        )
 
         assertNull(player.userUUID)
         val first = player.getTemporaryGameProfile()

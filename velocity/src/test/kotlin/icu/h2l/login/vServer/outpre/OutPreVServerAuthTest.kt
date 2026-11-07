@@ -149,6 +149,8 @@ class OutPreVServerAuthTest {
 
         HyperZonePlayerManager.create(
             channel = channel,
+            loginName = "BedrockUser",
+            loginUuid = TEST_UUID,
             isOnline = isOnline,
         )
 

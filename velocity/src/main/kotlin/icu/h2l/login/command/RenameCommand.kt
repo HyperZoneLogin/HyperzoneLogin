@@ -85,8 +85,7 @@ class RenameCommand : HyperChatCommandExecutor {
             return
         }
         val createBlockedReason = main.userService.getRenameBlockedReason(
-            newRegistrationName,
-            pendingContext.suggestedUuid
+            newRegistrationName
         )
         if (createBlockedReason != null) {
             messages.send(
@@ -134,8 +133,7 @@ class RenameCommand : HyperChatCommandExecutor {
             )
 
             val remainingCreateBlockedReason = main.userService.getCreateBlockedReason(
-                newRegistrationName,
-                pendingContext.suggestedUuid
+                newRegistrationName
             )
             if (hyperZonePlayer.hasAttachedUser()) {
                 messages.send(

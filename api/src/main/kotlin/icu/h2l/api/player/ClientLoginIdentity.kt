@@ -19,23 +19,23 @@
  *
  */
 
-package icu.h2l.api.db.table
+package icu.h2l.api.player
 
-import org.jetbrains.exposed.sql.Table
+import java.util.UUID
 
 /**
- * 旧版 profile 表迁移视图。
+ * 客户端本次连接开始时实际使用的登录身份快照。
  *
- * 该表对象只用于启动迁移：
- * - 检测并读取旧版 `name` / `uuid` 列；
- * - 迁移完成后这些列会被删除；
- * - 不参与新库建表，也不属于稳定 API 表结构。
+ * 该记录由核心在预登录阶段捕获，用于登录成功包、self skin replay 等
+ * 必须与客户端侧身份严格一致的协议字段。
+ *
+ * 它不是 HZL User，也不是 InGameProfile；渠道后续返回的认证名称/UUID
+ * 不得覆盖本记录。
+ *
+ * @property name 客户端登录名称
+ * @property uuid 客户端登录 UUID
  */
-class LegacyUserTable(prefix: String) : Table("${prefix}profile") {
-    val id = uuid("id")
-    val name = varchar("name", 32).nullable()
-    val uuid = uuid("uuid").nullable()
-    val activeInGameProfileId = uuid("active_in_game_profile_id").nullable()
-
-    override val primaryKey = PrimaryKey(id)
-}
+data class ClientLoginIdentity(
+    val name: String,
+    val uuid: UUID,
+)

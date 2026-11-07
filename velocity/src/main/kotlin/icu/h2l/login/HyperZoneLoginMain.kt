@@ -50,7 +50,7 @@ import icu.h2l.login.database.DatabaseConfig
 import icu.h2l.login.database.helper.BindingCodeDatabaseHelper
 import icu.h2l.login.database.helper.InGameProfileDatabaseHelper
 import icu.h2l.login.database.helper.UserDatabaseHelper
-import icu.h2l.login.database.migration.UserSchemaMigrator
+import icu.h2l.login.database.migration.LegacySchemaMigrator
 import icu.h2l.login.inject.network.VelocityNetworkModule
 import icu.h2l.login.listener.*
 import icu.h2l.login.manager.HyperChatCommandManagerImpl
@@ -172,6 +172,8 @@ class HyperZoneLoginMain(
         messageService.load(coreConfig.messages)
         HyperZoneMessageServiceProvider.bind(messageService)
         connectDatabase()
+        val legacySchemaMigrator = LegacySchemaMigrator(databaseManager, databaseManager.tablePrefix)
+        legacySchemaMigrator.migrateStructure()
         // 创建基础表（User 表等）
         createBaseTables()
         val userDatabaseHelper = UserDatabaseHelper(databaseManager, databaseManager.getUserTable())
@@ -179,12 +181,8 @@ class HyperZoneLoginMain(
             databaseManager,
             databaseManager.getInGameProfileTable(),
         )
-        UserSchemaMigrator(
-            manager = databaseManager,
-            userDatabaseHelper = userDatabaseHelper,
-            inGameProfileDatabaseHelper = inGameProfileDatabaseHelper,
-            tablePrefix = databaseManager.tablePrefix,
-        ).migrate()
+        legacySchemaMigrator.migrateLegacyUserData(userDatabaseHelper, inGameProfileDatabaseHelper)
+        legacySchemaMigrator.dropLegacyUserColumns()
         userService = VelocityHyperZoneUserService(userDatabaseHelper, inGameProfileDatabaseHelper)
         HyperZoneUserServiceProvider.bind(userService)
         inGameProfileSyncService = InGameProfileSyncService(server, userService)

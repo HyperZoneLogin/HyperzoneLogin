@@ -25,13 +25,16 @@ import com.velocitypowered.api.event.Subscribe
 import com.velocitypowered.api.event.connection.DisconnectEvent
 import com.velocitypowered.api.proxy.Player
 import icu.h2l.api.event.connection.OpenPreLoginEvent
+import icu.h2l.api.player.ClientLoginIdentity
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.player.HyperZonePlayerAccessor
 import icu.h2l.api.player.getChannel
+import icu.h2l.api.util.RemapUtils
 import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.listener.PlayerAreaLifecycleListener
 import icu.h2l.login.player.VelocityHyperZonePlayer
 import io.netty.channel.Channel
+import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
 object HyperZonePlayerManager : HyperZonePlayerAccessor {
@@ -40,11 +43,23 @@ object HyperZonePlayerManager : HyperZonePlayerAccessor {
     @Subscribe(priority = Short.MIN_VALUE)
     fun onPreLoginChannelInit(event: OpenPreLoginEvent) {
         // Run last so other listeners can finish deciding the player's online/offline mode.
-        create(event.channel, event.isOnline)
+        create(event.channel, event.userName, event.uuid, event.isOnline)
     }
 
-    override fun create(channel: Channel, isOnline: Boolean): HyperZonePlayer {
-        val createdPlayer = VelocityHyperZonePlayer(isOnline)
+    override fun create(
+        channel: Channel,
+        loginName: String,
+        loginUuid: UUID?,
+        isOnline: Boolean,
+    ): HyperZonePlayer {
+        val finalLoginUuid = loginUuid ?: run {
+            val prefix = HyperZoneLoginMain.getCoreConfig().remap.prefix
+            RemapUtils.genUUID(loginName, prefix)
+        }
+        val createdPlayer = VelocityHyperZonePlayer(
+            loginIdentity = ClientLoginIdentity(loginName, finalLoginUuid),
+            isOnlinePlayer = isOnline,
+        )
         val existing = playersByChannel.putIfAbsent(channel, createdPlayer)
         if (existing != null) {
             throw IllegalStateException("重复创建 HyperZonePlayer：channel=$channel")

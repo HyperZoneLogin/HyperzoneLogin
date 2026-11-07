@@ -29,7 +29,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 /**
  * 反向查询事件：按 HZL 账号 ID 收集各渠道已知的游戏内身份。
  *
- * 认证子模块必须监听该事件，并在自身数据表中按 `user_uuid` 反查所有记录，
+ * 认证子模块必须监听该事件，并在自身数据表中按 `profile_id` 反查所有记录，
  * 通过 [contribute] 提交候选。核心层会统一执行冲突检查后写入 InGameProfile。
  *
  * 该事件为同步等待事件，核心会在所有监听器完成后读取 [candidates]。

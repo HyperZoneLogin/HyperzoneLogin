@@ -53,7 +53,7 @@ class LoginManagerTest {
         val proxyServer = mockk<ProxyServer>()
         val userService = mockk<HyperZoneUserService>()
         val player = mockk<Player>(relaxed = true)
-        val hyperPlayer = mockk<VelocityHyperZonePlayer>()
+        val hyperPlayer = mockk<VelocityHyperZonePlayer>(relaxed = true)
         val channel = EmbeddedChannel()
         every { proxyServer.eventManager } returns eventManager
         HyperZoneUserServiceProvider.bind(userService)
@@ -76,7 +76,7 @@ class LoginManagerTest {
         val proxyServer = mockk<ProxyServer>()
         val userService = mockk<HyperZoneUserService>()
         val player = mockk<Player>(relaxed = true)
-        val hyperPlayer = mockk<VelocityHyperZonePlayer>()
+        val hyperPlayer = mockk<VelocityHyperZonePlayer>(relaxed = true)
         val channel = EmbeddedChannel()
         every { proxyServer.eventManager } returns eventManager
         HyperZoneUserServiceProvider.bind(userService)
@@ -107,7 +107,7 @@ class LoginManagerTest {
         val proxyServer = mockk<ProxyServer>()
         val userService = mockk<HyperZoneUserService>()
         val player = mockk<Player>(relaxed = true)
-        val hyperPlayer = mockk<VelocityHyperZonePlayer>()
+        val hyperPlayer = mockk<VelocityHyperZonePlayer>(relaxed = true)
         val channel = EmbeddedChannel()
         val attached = AtomicBoolean(false)
         val slowFuture = CompletableFuture<LoginHandleResult>()
@@ -155,7 +155,7 @@ class LoginManagerTest {
         val proxyServer = mockk<ProxyServer>()
         val userService = mockk<HyperZoneUserService>()
         val player = mockk<Player>(relaxed = true)
-        val hyperPlayer = mockk<VelocityHyperZonePlayer>()
+        val hyperPlayer = mockk<VelocityHyperZonePlayer>(relaxed = true)
         val channel = EmbeddedChannel()
         every { proxyServer.eventManager } returns eventManager
         HyperZoneUserServiceProvider.bind(userService)
@@ -182,7 +182,7 @@ class LoginManagerTest {
         val proxyServer = mockk<ProxyServer>()
         val userService = mockk<HyperZoneUserService>()
         val player = mockk<Player>(relaxed = true)
-        val hyperPlayer = mockk<VelocityHyperZonePlayer>()
+        val hyperPlayer = mockk<VelocityHyperZonePlayer>(relaxed = true)
         val channel = EmbeddedChannel()
         every { proxyServer.eventManager } returns eventManager
         HyperZoneUserServiceProvider.bind(userService)
@@ -216,7 +216,7 @@ class LoginManagerTest {
         val proxyServer = mockk<ProxyServer>()
         val userService = mockk<HyperZoneUserService>()
         val player = mockk<Player>(relaxed = true)
-        val hyperPlayer = mockk<VelocityHyperZonePlayer>()
+        val hyperPlayer = mockk<VelocityHyperZonePlayer>(relaxed = true)
         val channel = EmbeddedChannel()
         val attached = AtomicBoolean(false)
         val credential = mockk<HyperZoneCredential>(relaxed = true)
@@ -278,7 +278,7 @@ class LoginManagerTest {
         val proxyServer = mockk<ProxyServer>()
         val userService = mockk<HyperZoneUserService>()
         val player = mockk<Player>(relaxed = true)
-        val hyperPlayer = mockk<VelocityHyperZonePlayer>()
+        val hyperPlayer = mockk<VelocityHyperZonePlayer>(relaxed = true)
         val channel = EmbeddedChannel()
         val userUUID = UUID.randomUUID()
         val existing = InGameProfile(

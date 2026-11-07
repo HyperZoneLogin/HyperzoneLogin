@@ -31,7 +31,7 @@ import icu.h2l.login.auth.online.manager.EntryConfigManager
 /**
  * Yggdrasil 渠道反向查询监听器。
  *
- * 每个入口表都按 user_uuid 反查，返回该账号在所有入口下的记录。
+ * 每个入口表都按 profile_id 反查，返回该账号在所有入口下的记录。
  * 当入口未透传 Yggdrasil UUID 时，使用核心默认 UUID 规则还原最终游戏 UUID。
  */
 class YggdrasilProfileLookupListener(

@@ -69,7 +69,7 @@ class FloodgateOpenStartAuthListenerTest {
         every { api.hyperZonePlayers } returns playerAccessor
         every { api.serverAdapter } returns null
         every {
-            playerAccessor.create(channel, any())
+            playerAccessor.create(channel, any(), any(), any())
         } returns hyperPlayer
 
         val authService = FloodgateAuthService(

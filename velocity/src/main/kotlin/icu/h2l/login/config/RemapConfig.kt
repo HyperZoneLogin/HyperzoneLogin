@@ -29,4 +29,8 @@ class RemapConfig {
     // 未开启对应渠道UUID透传时的生成前缀，如果填OfflinePlayer则为行业标准离线生成法
     @Comment("config.remap.prefix")
     val prefix = "HyperZone"
+
+    // 新建 User 时是否始终使用 HZL 前缀生成的 UUID 作为默认游戏内身份
+    @Comment("config.remap.useHzlUuidAsDefaultIdentity")
+    val useHzlUuidAsDefaultIdentity = true
 }

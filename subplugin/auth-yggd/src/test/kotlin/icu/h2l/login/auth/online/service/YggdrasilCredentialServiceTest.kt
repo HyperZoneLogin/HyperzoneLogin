@@ -26,6 +26,7 @@ import com.velocitypowered.api.util.GameProfile
 import icu.h2l.api.db.HyperZoneDatabaseManager
 import icu.h2l.api.db.User
 import icu.h2l.api.db.table.UserTable
+import icu.h2l.api.player.ClientLoginIdentity
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.profile.HyperZoneCredential
 import icu.h2l.api.profile.HyperZoneUserService
@@ -243,6 +244,7 @@ class YggdrasilCredentialServiceTest {
     }
 
     private class RecordingHyperZonePlayer : HyperZonePlayer {
+        override val loginIdentity = ClientLoginIdentity("Recording", UUID.randomUUID())
         override val userUUID: UUID? = null
         private val submittedCredentials = mutableListOf<HyperZoneCredential>()
         private val temporaryProfile: GameProfile = GameProfile(UUID.randomUUID(), "temp", emptyList())

@@ -37,7 +37,7 @@ data class FloodgateAuthEntry(
  * Floodgate 认证数据表定义（公开 API）。
  *
  * 该表保存通过 Floodgate 接入的 Bedrock 玩家记录，
- * 以 xuid 和 user_uuid 作为唯一标识。
+ * 以 xuid 和 profile_id 作为唯一标识。
  *
  * @param prefix 表名前缀
  * @param userTable 主档案表引用

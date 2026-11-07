@@ -170,7 +170,7 @@ class AttachedUserInitialGameProfileListenerTest {
     private fun createSession(): TestSession {
         val channel = EmbeddedChannel()
         val proxyPlayer = player(channel)
-        val hyperPlayer = HyperZonePlayerManager.create(channel, true) as VelocityHyperZonePlayer
+        val hyperPlayer = HyperZonePlayerManager.create(channel, "ClientUser", TEST_UUID, true) as VelocityHyperZonePlayer
         return TestSession(channel, proxyPlayer, hyperPlayer).also(sessions::add)
     }
 

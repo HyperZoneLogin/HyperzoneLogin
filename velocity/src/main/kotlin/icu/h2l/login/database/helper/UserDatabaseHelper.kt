@@ -49,12 +49,6 @@ class UserDatabaseHelper(
         }
     }
 
-    fun getAllRows(): List<UserRow> {
-        return manager.executeTransaction {
-            table.selectAll().map(::toRow)
-        }
-    }
-
     fun insert(userUUID: UUID) {
         manager.executeTransaction {
             table.insert {

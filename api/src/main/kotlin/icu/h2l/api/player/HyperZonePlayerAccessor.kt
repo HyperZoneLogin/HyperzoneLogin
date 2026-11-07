@@ -34,8 +34,10 @@ interface HyperZonePlayerAccessor {
      *
      * 该操作应只在预登录初始化阶段执行一次；
      * 如果同一 channel 重复创建，调用方应视为流程错误。
+     *
+     * @param loginUuid 客户端本次连接实际使用的登录 UUID；null 时由核心生成
      */
-    fun create(channel: Channel, isOnline: Boolean): HyperZonePlayer
+    fun create(channel: Channel, loginName: String, loginUuid: UUID?, isOnline: Boolean): HyperZonePlayer
 
     /**
      * 根据代理层 `Player` 获取当前登录期 `HyperZonePlayer`。

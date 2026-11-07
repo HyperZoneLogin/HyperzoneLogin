@@ -26,10 +26,16 @@ HyperZoneLogin 的登录链路属于**严格状态机**，禁止使用会混淆�
 ## 2. HyperZonePlayer 的身份字段
 
 - `userUUID`：当前登录会话已绑定的 HZL User UUID；attach 成功后由核心写入，一个会话最多对应一个。
-- 模块只允许读取 `userUUID` / `hasAttachedUser()`，不得直接修改。
+- `attachedUser` / `activeInGameProfile`：attach 后的对象缓存；高频路径必须直接读取，不得回查数据库。
+- `channelLoginName` / `channelLoginUuid` 不再单独存在；统一由 `loginIdentity: ClientLoginIdentity` record 提供，仅用于协议对齐。
+- `submittedCredential`：当前会话最近提交的认证凭证快照，用于读取渠道登录信息。
+- 模块只允许读取上述身份，不得直接修改。
 - `registrationName`：当前等待区会话在“若要新建 User”时应使用的**待建档注册名**，可由 `/rename` 在等待区中显式修改。
 - `clientOriginalName` / `clientOriginalUUID` 已删除；日志/诊断统一使用 `logLabel`，它不是可信身份。
 - 禁止把临时等待区名称、渠道认证名或代理玩家名当成正式 User 身份。
+- 登录成功包（`ServerLoginSuccessEvent`）必须回写 `loginIdentity.uuid` / `loginIdentity.name`，不得写入 HZL User UUID 或活动 InGameProfile UUID；否则客户端不会认领自己的皮肤。
+- `loginIdentity` 必须在连接开始时捕获，渠道后续返回的认证名称/UUID 不得覆盖它。
+- self skin replay 也必须使用同一个 `loginIdentity` 与登录成功包保持一致。
 
 ## 3. `/rename` 的职责边界
 
@@ -70,7 +76,7 @@ HyperZoneLogin 的登录链路属于**严格状态机**，禁止使用会混淆�
 认证模块提交到核心层的 `HyperZoneCredential` 必须遵守：
 
 - `getBoundUserUUID()` 只表示当前是否已绑定；
-- 未绑定凭证如需参与严格建档，可通过 `getSuggestedGameUuid()` 显式提供建议游戏 UUID；
+- 未绑定凭证可通过 `getSuggestedGameUuid()` 提供渠道游戏 UUID，但该 UUID 只能用于附加渠道 InGameProfile，禁止作为新 User 的默认身份 UUID；
 - 如需支持等待区 rename，只能通过 `onRegistrationNameChanged(...)` 修改**临时状态**；
 - 不得在 rename 时隐式篡改正式落库绑定。
 
@@ -240,12 +246,13 @@ if (existing == null) {
 - `velocity` 的 `database` 包只允许放：
   - 数据库连接/配置；
   - 单表 database helper；
-  - 存储抽象接口；
-  - schema migrator。
+  - 存储抽象接口。
 - 所有 database helper 统一放在 `icu.h2l.login.database.helper`，并统一命名为 `XxxDatabaseHelper`。
-- schema 迁移器统一放在 `icu.h2l.login.database.migration`。
+- 旧库结构迁移必须保留，但只能放在 `icu.h2l.login.database.migration`；禁止把 legacy 表定义放进 `api` 模块。
+- 迁移器负责表名/列名升级和旧 `name/uuid` 数据迁移，不参与日常读写。
+- 表结构统一使用新命名（`hzl_user`、`user_uuid` 等），迁移器负责把旧库升级到该结构。
 - 单表 helper 统一命名为 `XxxDatabaseHelper`；数据库连接/生命周期管理类可使用 `XxxManager`；存储抽象接口可使用 `XxxStore`。
-- `database` 包内必须按职责拆分，禁止重新制造一个同时管理 `profile`、`in_game_profile`、`binding_code` 的混合 `DatabaseHelper`。
+- `database` 包内必须按职责拆分，禁止重新制造一个同时管理 `hzl_user`、`in_game_profile`、`binding_code` 的混合 `DatabaseHelper`。
 - 跨表业务编排必须放在 service 层（如 `VelocityHyperZoneUserService`），不得下沉到 database helper。
 - 模块私有表保留在各自模块的 `api/db` 包中，不得为了“集中”而让核心反向依赖模块。
 
@@ -260,7 +267,7 @@ if (existing == null) {
 - 证明当前渠道认证已通过；
 - 保存渠道内部账号标识；
 - 解析/写入渠道账号与 HZL User 的绑定关系（`getBoundUserUUID` / `bind` / `validateBind`）；
-- 为“创建 HZL User”提供注册名和建议 UUID。
+- 为“创建 HZL User”提供注册名；渠道游戏 UUID 只能用于附加 InGameProfile。
 
 禁止：
 
@@ -271,6 +278,9 @@ if (existing == null) {
 ### HZL User
 
 - `User` 只表示 HZL 账号本身，字段只允许 `id`（userUUID）与 `activeInGameProfileId`；
+- 新建 User 时，默认应使用 `defaultGameUuid(name)`（HZL 前缀离线 UUID）作为初始/默认 InGameProfile；该行为由 `remap.useHzlUuidAsDefaultIdentity` 控制且默认开启；
+- 关闭该配置时，才允许沿用渠道建议 UUID 作为初始身份；
+- 渠道名称/UUID 仍必须写入 InGameProfile，但只能作为附加身份，不得自动替换默认活动身份；
 - 禁止在 `User` 上投影 GameProfile 的 `name` / `uuid`；需要游戏内身份时必须显式读取当前活动的 `InGameProfile`；
 - 任何需要显示/转发游戏内名称或 UUID 的流程，必须明确调用 `getActiveInGameProfile(userUUID)` 或显式选择某条 `InGameProfile`。
 - attach 成功后，核心必须把 `User` 对象与活动 `InGameProfile` 显式缓存到 `HyperZonePlayer` 实例上；

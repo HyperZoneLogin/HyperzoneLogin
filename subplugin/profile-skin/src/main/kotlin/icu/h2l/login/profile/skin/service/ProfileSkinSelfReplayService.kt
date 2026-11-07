@@ -205,10 +205,9 @@ class ProfileSkinSelfReplayService(
 
         if (!forceReplay && !state.selfAddPlayerSent.compareAndSet(false, true)) return
 
-        val temporaryProfile = hyperZonePlayer.getTemporaryGameProfile()
         val replayProfile = GameProfile(
-            temporaryProfile.id,
-            temporaryProfile.name,
+            hyperZonePlayer.loginIdentity.uuid,
+            hyperZonePlayer.loginIdentity.name,
             listOf(property),
         )
 

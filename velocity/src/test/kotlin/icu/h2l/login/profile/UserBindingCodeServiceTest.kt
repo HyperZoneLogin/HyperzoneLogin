@@ -24,6 +24,7 @@ package icu.h2l.login.profile
 import com.velocitypowered.api.proxy.ProxyServer
 import icu.h2l.api.db.InGameProfile
 import icu.h2l.api.db.User
+import icu.h2l.api.player.ClientLoginIdentity
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.profile.HyperZoneCredential
 import icu.h2l.api.profile.HyperZoneUserService
@@ -192,6 +193,7 @@ class UserBindingCodeServiceTest {
     }
 
     private class FakeHyperZonePlayer : HyperZonePlayer {
+        override val loginIdentity = ClientLoginIdentity("Test", UUID.randomUUID())
         override val userUUID: UUID? = null
         override val isOnlinePlayer: Boolean = true
         val credentials = mutableListOf<HyperZoneCredential>()

@@ -104,12 +104,12 @@ class VelocityHyperZoneUserService(
     /**
      * 创建 HZL User 及其初始 InGameProfile。
      *
-     * 这里只使用凭证提供的注册名/建议 UUID 生成“新账号的首个占位身份”，
-     * 不代表后续登录使用哪一条 InGameProfile；实际渠道身份由独立候选另行记录。
+     * 初始身份始终使用 HZL 前缀生成的游戏 UUID，绝不直接采用渠道上报 UUID。
+     * 渠道提供的名称/UUID 由后续登录 attach 流程作为独立 InGameProfile 记录。
      */
     override fun createUser(credential: HyperZoneCredential): User {
         val candidate = resolveProfileCreationCandidate(credential)
-        val resolvedUuid = resolveRequestedUuid(candidate.name, candidate.uuid)
+        val resolvedUuid = candidate.uuid ?: defaultGameUuid(candidate.name)
         return createTrustedUser(candidate.copy(uuid = resolvedUuid), resolvedUuid)
     }
 
@@ -353,10 +353,16 @@ class VelocityHyperZoneUserService(
             ?: throw IllegalStateException(
                 "凭证 ${credential.channelId}:${credential.credentialId} 未提供注册名，无法创建 HZL User"
             )
+        val useGeneratedUuid = HyperZoneLoginMain.getCoreConfig().remap.useHzlUuidAsDefaultIdentity
+        val uuid = if (useGeneratedUuid) {
+            defaultGameUuid(name)
+        } else {
+            resolveRequestedUuid(name, credential.getSuggestedGameUuid())
+        }
         return InGameProfileCandidate(
             channel = credential.channelId,
             name = name,
-            uuid = credential.getSuggestedGameUuid(),
+            uuid = uuid,
         )
     }
 

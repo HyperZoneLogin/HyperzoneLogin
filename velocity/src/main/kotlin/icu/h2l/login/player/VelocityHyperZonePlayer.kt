@@ -25,7 +25,9 @@ import com.velocitypowered.api.proxy.Player
 import com.velocitypowered.api.util.GameProfile
 import icu.h2l.api.db.InGameProfile
 import icu.h2l.api.db.User
+import icu.h2l.api.player.ClientLoginIdentity
 import icu.h2l.api.player.HyperZonePlayer
+import icu.h2l.api.profile.HyperZoneCredential
 import icu.h2l.api.util.RemapUtils
 import net.kyori.adventure.text.Component
 import java.util.*
@@ -42,6 +44,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * 玩家才允许离开等待区并使用正式游戏身份进入游戏区。
  */
 class VelocityHyperZonePlayer(
+    override val loginIdentity: ClientLoginIdentity,
     override val isOnlinePlayer: Boolean,
 ) : HyperZonePlayer {
     @Volatile
@@ -49,6 +52,9 @@ class VelocityHyperZonePlayer(
 
     @Volatile
     private var cachedActiveInGameProfile: InGameProfile? = null
+
+    @Volatile
+    private var cachedSubmittedCredential: HyperZoneCredential? = null
 
     override val userUUID: UUID?
         get() = cachedUser?.id
@@ -58,6 +64,17 @@ class VelocityHyperZonePlayer(
 
     override val activeInGameProfile: InGameProfile?
         get() = cachedActiveInGameProfile
+
+    override val submittedCredential: HyperZoneCredential?
+        get() = cachedSubmittedCredential
+
+    internal fun bindSubmittedCredential(credential: HyperZoneCredential) {
+        cachedSubmittedCredential = credential
+    }
+
+    internal fun clearSubmittedCredential() {
+        cachedSubmittedCredential = null
+    }
 
     internal fun bindAttachedUser(user: User, activeIdentity: InGameProfile?) {
         cachedUser = user
@@ -73,6 +90,7 @@ class VelocityHyperZonePlayer(
     internal fun clearUserCache() {
         cachedUser = null
         cachedActiveInGameProfile = null
+        cachedSubmittedCredential = null
     }
 
     private var proxyPlayer: Player? = null

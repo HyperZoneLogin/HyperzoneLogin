@@ -65,6 +65,7 @@ class LoginManager(
 
     override fun submitCredential(player: HyperZonePlayer, credential: HyperZoneCredential) {
         submitCredentialByChannel(resolveChannel(player), credential)
+        (player as? VelocityHyperZonePlayer)?.bindSubmittedCredential(credential)
     }
 
     override fun replaceCredential(player: HyperZonePlayer, oldChannelId: String, credential: HyperZoneCredential) {
@@ -75,6 +76,7 @@ class LoginManager(
             throw IllegalStateException("玩家 ${player.logLabel} 当前凭证渠道与期望不一致: expected=$oldChannelId actual=${existing.channelId}")
         }
         credentialsByChannel[channel] = credential
+        (player as? VelocityHyperZonePlayer)?.bindSubmittedCredential(credential)
     }
 
     override fun getSubmittedCredentials(player: HyperZonePlayer): List<HyperZoneCredential> {
@@ -83,6 +85,7 @@ class LoginManager(
     }
 
     override fun clearCredentials(player: HyperZonePlayer) {
+        (player as? VelocityHyperZonePlayer)?.clearSubmittedCredential()
         resolveChannelOrNull(player)?.let(::clearLoginSessionByChannel)
     }
 
@@ -447,6 +450,8 @@ class LoginManager(
                         }
                         return@execute
                     }
+
+                    (hyperZonePlayer as? VelocityHyperZonePlayer)?.bindSubmittedCredential(credential)
 
                     val verifyThrowable = runCatching {
                         overVerify(hyperZonePlayer)

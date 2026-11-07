@@ -78,7 +78,7 @@ class FloodgateAuthServiceTest {
 
         assertSame(FloodgateAuthService.VerifyResult.NotFloodgate, result)
         assertNull(sessionHolder.get(channel))
-        verify(exactly = 0) { playerAccessor.create(any(), any()) }
+        verify(exactly = 0) { playerAccessor.create(any(), any(), any(), any()) }
     }
 
     @Test
@@ -96,7 +96,7 @@ class FloodgateAuthServiceTest {
         assertEquals("BedrockUser", remembered!!.userName)
         assertEquals(userUuid, remembered.userUUID)
         assertEquals(xuid, remembered.xuid)
-        verify(exactly = 0) { playerAccessor.create(any(), any()) }
+        verify(exactly = 0) { playerAccessor.create(any(), any(), any(), any()) }
     }
 
     @Test
@@ -122,7 +122,7 @@ class FloodgateAuthServiceTest {
         val remembered = disabledSessionHolder.get(channel)
         assertNotNull(remembered)
         assertEquals(".BedrockUser", remembered!!.userName)
-        verify(exactly = 0) { playerAccessor.create(any(), any()) }
+        verify(exactly = 0) { playerAccessor.create(any(), any(), any(), any()) }
     }
 
     @Test
@@ -263,7 +263,7 @@ class FloodgateAuthServiceTest {
 
         assertSame(FloodgateAuthService.VerifyResult.Accepted, result)
         assertEquals("BedrockUser", sessionHolder.get(channel)?.userName)
-        verify(exactly = 0) { playerAccessor.create(any(), any()) }
+        verify(exactly = 0) { playerAccessor.create(any(), any(), any(), any()) }
     }
 
     @Test
@@ -277,7 +277,7 @@ class FloodgateAuthServiceTest {
 
         assertSame(FloodgateAuthService.VerifyResult.Accepted, result)
         assertEquals(".BedrockUser", sessionHolder.get(channel)?.userName)
-        verify(exactly = 0) { playerAccessor.create(any(), any()) }
+        verify(exactly = 0) { playerAccessor.create(any(), any(), any(), any()) }
     }
 
     @Test

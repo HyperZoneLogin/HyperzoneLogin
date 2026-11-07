@@ -192,7 +192,11 @@ class ProfileSkinService(
 
         if (upstreamTextures?.isSigned == true && !trustedSignedEntry) {
             ProfileSkinDebug.log {
-                "[ProfileSkinFlow] preprocess signed upstream not trusted: player=${event.hyperZonePlayer.logLabel}, entry=${event.entryId}, source=${describeSource(source)}"
+                "[ProfileSkinFlow] preprocess signed upstream not trusted: player=${event.hyperZonePlayer.logLabel}, entry=${event.entryId}, source=${
+                    describeSource(
+                        source
+                    )
+                }"
             }
         }
 
@@ -201,7 +205,11 @@ class ProfileSkinService(
                 cacheRepository.findBySourceHash(sourceHash)?.let { cached ->
                     rememberPendingSkin(event.hyperZonePlayer, cached.skinId, "source cache hit")
                     ProfileSkinDebug.log {
-                        "[ProfileSkinFlow] source cache hit: skin=${cached.skinId}, player=${event.hyperZonePlayer.logLabel}, sourceHash=${shortHash(sourceHash)}, source=${describeSource(source)}"
+                        "[ProfileSkinFlow] source cache hit: skin=${cached.skinId}, player=${event.hyperZonePlayer.logLabel}, sourceHash=${
+                            shortHash(
+                                sourceHash
+                            )
+                        }, source=${describeSource(source)}"
                     }
                     event.textures = cached.textures
                     notifyProcessingReady(event.hyperZonePlayer)
@@ -234,7 +242,11 @@ class ProfileSkinService(
             }
         } else {
             ProfileSkinDebug.log {
-                "[ProfileSkinFlow] preprocess restore skipped: player=${event.hyperZonePlayer.logLabel}, entry=${event.entryId}, source=${describeSource(source)}, reason=${describeRestoreSkipReason(source, shouldForceRestoreSignedTextures)}"
+                "[ProfileSkinFlow] preprocess restore skipped: player=${event.hyperZonePlayer.logLabel}, entry=${event.entryId}, source=${
+                    describeSource(
+                        source
+                    )
+                }, reason=${describeRestoreSkipReason(source, shouldForceRestoreSignedTextures)}"
             }
         }
 
@@ -243,7 +255,11 @@ class ProfileSkinService(
             val fallbackSourceHash = sanitizeFallbackSourceHash(sourceHash, shouldForceRestoreSignedTextures)
             if (shouldForceRestoreSignedTextures && fallbackTextures.isSigned) {
                 warn {
-                    "[ProfileSkinFlow] preprocess fallback uses original untrusted signed textures after restore failure: player=${event.hyperZonePlayer.logLabel}, entry=${event.entryId}, source=${describeSource(source)}, sourceHashCacheDisabled=${fallbackSourceHash == null}"
+                    "[ProfileSkinFlow] preprocess fallback uses original untrusted signed textures after restore failure: player=${event.hyperZonePlayer.logLabel}, entry=${event.entryId}, source=${
+                        describeSource(
+                            source
+                        )
+                    }, sourceHashCacheDisabled=${fallbackSourceHash == null}"
                 }
             }
             persistPreprocessedSkin(
@@ -262,7 +278,11 @@ class ProfileSkinService(
             notifyProcessingReadyWithFallback(event.hyperZonePlayer)
         } else {
             ProfileSkinDebug.log {
-                "[ProfileSkinFlow] preprocess finished without textures: player=${event.hyperZonePlayer.logLabel}, entry=${event.entryId}, source=${describeSource(source)}"
+                "[ProfileSkinFlow] preprocess finished without textures: player=${event.hyperZonePlayer.logLabel}, entry=${event.entryId}, source=${
+                    describeSource(
+                        source
+                    )
+                }"
             }
             notifyNoSkin(event.hyperZonePlayer)
         }
@@ -300,7 +320,11 @@ class ProfileSkinService(
 
         val userUUID = userService.getAttachedUser(event.hyperZonePlayer)?.id ?: run {
             ProfileSkinDebug.log {
-                "[ProfileSkinFlow] apply listener failed: no attached DB profile, player=${event.hyperZonePlayer.logLabel}, base=${describeProfile(event.baseProfile)}"
+                "[ProfileSkinFlow] apply listener failed: no attached DB profile, player=${event.hyperZonePlayer.logLabel}, base=${
+                    describeProfile(
+                        event.baseProfile
+                    )
+                }"
             }
             event.hyperZonePlayer.sendMessage(ProfileSkinMessages.repairFailed(event.hyperZonePlayer))
             return
@@ -319,13 +343,14 @@ class ProfileSkinService(
     }
 
     @Subscribe
-    fun onServerLoginSuccess(event: ServerLoginSuccessEvent) {
-        val user = userService.getAttachedUser(event.hyperZonePlayer) ?: return
-        val activeIdentity = event.hyperZonePlayer.activeInGameProfile ?: return
-
+    fun onLoginReUUID(event: ServerLoginSuccessEvent) {
         event.rewritePacket = true
-        event.uuid = activeIdentity.uuid
+        event.uuid = event.hyperZonePlayer.loginIdentity.uuid
+    }
 
+//    @Subscribe
+    fun onServerLoginSuccess(event: ServerLoginSuccessEvent) {
+        val user = event.hyperZonePlayer.attachedUser ?: return
         // 将已缓存的皮肤纹理注入到登录成功包中，确保客户端从登录阶段就获得自身皮肤。
         // 客户端自身皮肤来自 ServerLoginSuccessPacket 的 GameProfile properties，
         // 而非 PlayerInfo；若不注入，正版客户端将看不到自身皮肤。
@@ -361,7 +386,11 @@ class ProfileSkinService(
             }
 
             warn {
-                "[ProfileSkinFlow] MineSkin URL restore hit remote-read failure, retrying with upload: source=${describeSource(source)}, status=${failure.statusCode}, errorBody=${failure.body}"
+                "[ProfileSkinFlow] MineSkin URL restore hit remote-read failure, retrying with upload: source=${
+                    describeSource(
+                        source
+                    )
+                }, status=${failure.statusCode}, errorBody=${failure.body}"
             }
             restoreByUpload(source)
         }.getOrThrow()
@@ -410,7 +439,11 @@ class ProfileSkinService(
             output.write("Content-Disposition: form-data; name=\"visibility\"\r\n\r\n0\r\n".toByteArray(StandardCharsets.UTF_8))
 
             output.write(separator.toByteArray(StandardCharsets.UTF_8))
-            output.write("Content-Disposition: form-data; name=\"file\"; filename=\"upload.png\"\r\n".toByteArray(StandardCharsets.UTF_8))
+            output.write(
+                "Content-Disposition: form-data; name=\"file\"; filename=\"upload.png\"\r\n".toByteArray(
+                    StandardCharsets.UTF_8
+                )
+            )
             output.write("Content-Type: image/png\r\n\r\n".toByteArray(StandardCharsets.UTF_8))
             output.write(bytes)
             output.write("\r\n".toByteArray(StandardCharsets.UTF_8))
@@ -489,7 +522,11 @@ class ProfileSkinService(
         if (profile == null) {
             return "null"
         }
-        return "id=${profile.id}, name=${profile.name}, properties=${profile.properties.size}, textures=${describeTextures(extractTextures(profile))}"
+        return "id=${profile.id}, name=${profile.name}, properties=${profile.properties.size}, textures=${
+            describeTextures(
+                extractTextures(profile)
+            )
+        }"
     }
 
     private fun describeTextures(textures: ProfileSkinTextures?): String {
@@ -572,7 +609,11 @@ class ProfileSkinService(
         reason: String
     ) {
         ProfileSkinDebug.log {
-            "[ProfileSkinFlow] skin cache ${result.action.name.lowercase()}: skin=${result.record.skinId}, reason=$reason, sourceHash=${shortHash(sourceHash)}, reusable=${result.record.sourceCacheEligible}, source=${describeSource(source)}"
+            "[ProfileSkinFlow] skin cache ${result.action.name.lowercase()}: skin=${result.record.skinId}, reason=$reason, sourceHash=${
+                shortHash(
+                    sourceHash
+                )
+            }, reusable=${result.record.sourceCacheEligible}, source=${describeSource(source)}"
         }
     }
 

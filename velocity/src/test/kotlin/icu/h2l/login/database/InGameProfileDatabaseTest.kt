@@ -22,18 +22,14 @@
 package icu.h2l.login.database
 
 import icu.h2l.api.db.InGameProfileCandidate
-import icu.h2l.api.db.table.InGameProfileTable
-import icu.h2l.api.db.table.LegacyUserTable
+import icu.h2l.api.profile.HyperZoneCredential
 import icu.h2l.api.profile.InGameProfileConflictException
 import icu.h2l.login.database.helper.InGameProfileDatabaseHelper
 import icu.h2l.login.database.helper.UserDatabaseHelper
-import icu.h2l.login.database.migration.UserSchemaMigrator
 import icu.h2l.login.database.DatabaseManager
 import icu.h2l.login.profile.VelocityHyperZoneUserService
+import io.mockk.every
 import io.mockk.mockk
-import org.jetbrains.exposed.sql.SchemaUtils
-import org.jetbrains.exposed.sql.insert
-import org.jetbrains.exposed.sql.transactions.TransactionManager
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import java.nio.file.Files
@@ -57,6 +53,35 @@ class InGameProfileDatabaseTest {
             assertEquals(profile.id, context.service.getUserByGameUuid(gameUuid)?.id)
             assertEquals(profile.id, context.service.getUserByName("Alice")?.id)
             assertEquals(1, context.service.getInGameProfiles(profile.id).size)
+        }
+    }
+
+    @Test
+    fun `new user default identity always uses hzl generated uuid`() {
+        withDatabase { context ->
+            val channelUuid = UUID.randomUUID()
+            val credential = mockk<HyperZoneCredential>(relaxed = true)
+            every { credential.channelId } returns "test"
+            every { credential.getRegistrationName() } returns "Alice"
+            every { credential.getSuggestedGameUuid() } returns channelUuid
+
+            val user = context.service.createUser(credential)
+            val active = context.service.getActiveInGameProfile(user.id)!!
+
+            assertEquals(context.service.defaultGameUuid("Alice"), active.uuid)
+            assertNotEquals(channelUuid, active.uuid)
+
+            context.service.createInGameProfile(
+                user.id,
+                InGameProfileCandidate(
+                    channel = "test",
+                    name = "Alice",
+                    uuid = channelUuid,
+                ),
+            )
+
+            assertEquals(2, context.service.getInGameProfiles(user.id).size)
+            assertEquals(active.id, context.service.getActiveInGameProfile(user.id)!!.id)
         }
     }
 
@@ -168,95 +193,7 @@ class InGameProfileDatabaseTest {
         }
     }
 
-    @Test
-    fun `legacy profile row is migrated to an active in-game profile`() {
-        withDatabase(createBaseTables = false) { context ->
-            val userUUID = insertLegacyProfile(context.manager, "LegacyUser")
-
-            context.manager.createBaseTables()
-            context.migrate()
-
-            val migrated = context.service.getUser(userUUID)
-            assertNotNull(migrated)
-            assertEquals("LegacyUser", context.service.getActiveInGameProfile(userUUID)!!.name)
-        }
-    }
-
-    @Test
-    fun `legacy migration drops obsolete profile columns and keeps names resolvable`() {
-        withDatabase(createBaseTables = false) { context ->
-            val userUUID = insertLegacyProfile(context.manager, "LegacyByName")
-            val legacyUuid = context.legacyUuid
-
-            context.manager.createBaseTables()
-            context.migrate()
-
-            val remainingColumns = context.manager.executeTransaction {
-                TransactionManager.current().connection.metadata {
-                    columns(LegacyUserTable(context.manager.tablePrefix)).values
-                        .flatten()
-                        .map { it.name.lowercase() }
-                        .toSet()
-                }
-            }
-            assertFalse("name" in remainingColumns)
-            assertFalse("uuid" in remainingColumns)
-
-            val resolved = context.service.getUserByName("LegacyByName")
-            assertNotNull(resolved)
-            assertEquals(userUUID, resolved!!.id)
-            assertEquals(legacyUuid, context.service.getActiveInGameProfile(userUUID)!!.uuid)
-            assertEquals(userUUID, context.service.getUserByGameUuid(legacyUuid)?.id)
-            val identity = context.service.getInGameProfiles(userUUID).single()
-            assertEquals("LegacyByName", identity.name)
-            assertEquals(legacyUuid, identity.uuid)
-        }
-    }
-
-    @Test
-    fun `obsolete in-game profile channel columns are dropped`() {
-        withDatabase(createBaseTables = false) { context ->
-            context.manager.executeTransaction {
-                SchemaUtils.create(LegacyInGameProfileSchema)
-            }
-
-            context.manager.createBaseTables()
-            context.migrate()
-
-            val remaining = context.manager.executeTransaction {
-                TransactionManager.current().connection.metadata {
-                    columns(InGameProfileTable(context.manager.tablePrefix)).values
-                        .flatten()
-                        .map { it.name.lowercase(Locale.ROOT) }
-                        .toSet()
-                }
-            }
-            assertFalse("channel" in remaining)
-            assertFalse("channel_entry" in remaining)
-            assertFalse("channel_account_id" in remaining)
-            assertFalse("created_at" in remaining)
-            assertFalse("updated_at" in remaining)
-            assertTrue("name" in remaining)
-            assertTrue("uuid" in remaining)
-        }
-    }
-
-    private fun insertLegacyProfile(manager: DatabaseManager, name: String): UUID {
-        val legacy = LegacyProfileSchema
-        val userUUID = UUID.randomUUID()
-        manager.executeTransaction {
-            SchemaUtils.create(legacy)
-            legacy.insert {
-                it[legacy.id] = userUUID
-                it[legacy.name] = name
-                it[legacy.uuid] = LegacyProfileFixture.uuid
-            }
-        }
-        return userUUID
-    }
-
     private fun withDatabase(
-        createBaseTables: Boolean = true,
         block: (TestContext) -> Unit,
     ) {
         val path = Files.createTempFile("hzl-ingame-profile-test", ".db")
@@ -266,9 +203,7 @@ class InGameProfileDatabaseTest {
         )
         try {
             manager.connect()
-            if (createBaseTables) {
-                manager.createBaseTables()
-            }
+            manager.createBaseTables()
 
             val userDatabaseHelper = UserDatabaseHelper(manager, manager.getUserTable())
             val inGameProfileDatabaseHelper = InGameProfileDatabaseHelper(manager, manager.getInGameProfileTable())
@@ -294,42 +229,5 @@ class InGameProfileDatabaseTest {
         val userDatabaseHelper: UserDatabaseHelper,
         val inGameProfileDatabaseHelper: InGameProfileDatabaseHelper,
         val manager: DatabaseManager,
-    ) {
-        val legacyUuid: UUID
-            get() = LegacyProfileFixture.uuid
-
-        fun migrate() {
-            UserSchemaMigrator(
-                manager = manager,
-                userDatabaseHelper = userDatabaseHelper,
-                inGameProfileDatabaseHelper = inGameProfileDatabaseHelper,
-                tablePrefix = manager.tablePrefix,
-            ).migrate()
-        }
-    }
-
-    private object LegacyProfileFixture {
-        val uuid: UUID = UUID.randomUUID()
-    }
-
-    private object LegacyInGameProfileSchema : org.jetbrains.exposed.sql.Table("in_game_profile") {
-        val id = uuid("id")
-        val userUUID = uuid("user_uuid")
-        val name = varchar("name", 32)
-        val nameLower = varchar("name_lower", 32)
-        val uuid = uuid("uuid")
-        val channel = varchar("channel", 64)
-        val channelEntry = varchar("channel_entry", 64).default("")
-        val channelAccountId = varchar("channel_account_id", 255).default("")
-        val createdAt = long("created_at")
-        val updatedAt = long("updated_at")
-        override val primaryKey = PrimaryKey(id)
-    }
-
-    private object LegacyProfileSchema : org.jetbrains.exposed.sql.Table("profile") {
-        val id = uuid("id")
-        val name = varchar("name", 32).uniqueIndex()
-        val uuid = uuid("uuid").uniqueIndex()
-        override val primaryKey = PrimaryKey(id)
-    }
+    )
 }
