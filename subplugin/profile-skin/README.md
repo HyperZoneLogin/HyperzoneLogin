@@ -90,7 +90,12 @@ proxy {
 - `currentProperties`
 - 可写字段：`rewritePacket`、`uuid`、`username`、`properties`
 
-该事件与 `ServerLoginSuccessPacket` 对齐。`profile-skin` 会在这里请求回写整包，并把其中的 UUID 改为 `clientOriginalUUID`，从而把原先核心中的皮肤修复相关副作用迁移到模块内部。
+该事件与 `ServerLoginSuccessPacket` 对齐。登录成功包的最终身份由核心根据发送时机决定：
+
+- attach 之前发送（等待区桥接流程）：使用 `loginIdentity`；
+- attach 之后发送（阻塞认证流程）：使用活动 InGameProfile。
+
+核心会把最终实际写出的 uuid/name（包含事件监听器改写后的值）记录到 `HyperZonePlayer.loginSuccessIdentity`。`profile-skin` 的 self skin replay / tab `ADD_PLAYER` 必须复用该身份，不能直接实时读取 `activeInGameProfile`：桥接流程发 success 时还没有 IGP，且 attach 后活动身份仍可能变化，而客户端本次连接的 uuid/name 已由第一次 success 固定。模块也不再自行把登录成功包改回 `loginIdentity`。
 
 ### `HyperZonePlayerProfileAttachedEvent`
 

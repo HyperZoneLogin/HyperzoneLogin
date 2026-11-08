@@ -28,23 +28,35 @@ import icu.h2l.login.vServer.outpre.OutPreVServerAuth
 import icu.h2l.login.vServer.outpre.handler.OutPreAuthSessionHandler
 
 /**
- * outpre 初次进入流程的模式会话。
+ * outpre 初始登录流程会话。
  *
- * struck 与 waiting-area bridge 都实现这份协议，
- * 但两者的 begin / verified / failure 处理逻辑完全不同。
+ * 不同模式用不同实现承载完整流程差异：
+ * - [BlockingInitialJoinSession]：阻塞认证模式，认证完成后才发送登录成功；
+ * - [BridgeWaitingAreaJoinSession]：等待区桥接模式，先发送登录成功并进入认证服，再继续认证。
+ *
+ * 会话只调用 handler 暴露的通用登录阶段原语，不把模式分支写回 handler。
  */
 internal sealed interface OutPreInitialJoinSession {
     val player: ConnectedPlayer
     val hyperPlayer: VelocityHyperZonePlayer
+    val handler: OutPreAuthSessionHandler
     val state: OutPreState
 
     fun destroy()
 
-    fun begin(owner: OutPreVServerAuth)
+    /**
+     * 客户端刚进入 outpre 初始阶段，由会话决定“先发登录成功”还是“先启动认证”。
+     */
+    fun onLoginActivated(owner: OutPreVServerAuth)
+
+    /**
+     * 客户端登录阶段已完成，且 PostLogin 已触发。
+     */
+    fun onClientLoginCompleted(owner: OutPreVServerAuth)
 
     fun onVerified(owner: OutPreVServerAuth)
 
     fun onAuthServerJoined(owner: OutPreVServerAuth)
 
-    fun release(owner: OutPreVServerAuth, handler: OutPreAuthSessionHandler, preferredTargetServerName: String?)
+    fun release(owner: OutPreVServerAuth, preferredTargetServerName: String?)
 }

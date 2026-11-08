@@ -23,6 +23,7 @@ package icu.h2l.login.vServer.outpre.session
 
 import com.velocitypowered.proxy.connection.client.ConnectedPlayer
 import icu.h2l.api.player.getChannel
+import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.manager.LoginManager
 import icu.h2l.login.player.VelocityHyperZonePlayer
 import icu.h2l.login.vServer.outpre.OutPreState
@@ -31,28 +32,38 @@ import icu.h2l.login.vServer.outpre.handler.OutPreAuthSessionHandler
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * struck 模式的初始进入会话。
+ * 阻塞认证模式的初始登录流程。
  *
- * 该模式默认不接入认证服桥接；若线上认证失败/超时，再切换成 waiting-area bridge 会话。
+ * 客户端停留在 LOGIN 阶段，先在代理侧完成 HyperZone 认证；
+ * 认证成功后才发送登录成功包并直接放行到目标服。
+ * 认证失败/超时则切换成 waiting-area bridge 会话，补发登录成功后进入认证服。
  */
-internal class StruckInitialJoinSession(
+internal class BlockingInitialJoinSession(
     override val player: ConnectedPlayer,
     override val hyperPlayer: VelocityHyperZonePlayer,
-    internal val handler: OutPreAuthSessionHandler,
+    override val handler: OutPreAuthSessionHandler,
     override val state: OutPreState,
 ) : OutPreInitialJoinSession {
     private val fallbackStarted = AtomicBoolean(false)
 
     override fun destroy() = Unit
 
-    override fun begin(owner: OutPreVServerAuth) {
+    override fun onLoginActivated(owner: OutPreVServerAuth) {
         owner.publishAuthStartEvent(player, hyperPlayer, state, "beginInitialJoin")
             .whenCompleteAsync({ result, throwable ->
                 if (throwable != null) {
                     fallbackToWaitingArea(owner, "error=${throwable.message}")
                     return@whenCompleteAsync
                 }
-                if (!player.isActive || hyperPlayer.hasAttachedUser()) {
+                if (!player.isActive) {
+                    return@whenCompleteAsync
+                }
+                if (hyperPlayer.hasAttachedUser()) {
+                    // dispatch 直接返回 ALREADY_VERIFIED 时，attach 可能早于 proxy player 绑定，
+                    // 当时 tryLeaveWaiting 无法完成迁移；这里补触发一次。
+                    if (result?.status == LoginManager.Status.ALREADY_VERIFIED) {
+                        HyperZoneLoginMain.getInstance().loginManager.onUserAttached(hyperPlayer)
+                    }
                     return@whenCompleteAsync
                 }
                 when (result?.status) {
@@ -69,22 +80,44 @@ internal class StruckInitialJoinSession(
                 }
             }, player.getChannel().eventLoop())
         owner.trace(
-            "beginInitialJoin struck-suspended channel=${player.getChannel().id()} player=${player.username} ${
+            "beginInitialJoin blocking-suspended channel=${player.getChannel().id()} player=${player.username} ${
                 owner.describeState(state)
             }"
         )
     }
 
-    override fun release(owner: OutPreVServerAuth, handler: OutPreAuthSessionHandler, preferredTargetServerName: String?) {
-        owner.closeInitialSession(player)
-        handler.onReleased(preferredTargetServerName)
+    override fun onClientLoginCompleted(owner: OutPreVServerAuth) {
+        if (!hyperPlayer.hasAttachedUser()) {
+            owner.trace(
+                "blocking.onClientLoginCompleted skipped-without-attached-user channel=${player.getChannel().id()} player=${player.username} ${
+                    owner.describeState(state)
+                }"
+            )
+            return
+        }
+        handler.finishRegisteredLogin()
+        release(owner, state.returnTargetServerName)
     }
 
     override fun onVerified(owner: OutPreVServerAuth) {
-        owner.continueVerifiedInitialJoin(player, handler, state)
+        handler.finalizeVerifiedLogin(state.returnTargetServerName)
+            .thenRunAsync({
+                handler.sendLoginSuccess()
+            }, player.getChannel().eventLoop())
+            .exceptionally { throwable ->
+                owner.trace(
+                    "blocking.onVerified finalize-failed channel=${player.getChannel().id()} player=${player.username} reason=${throwable.message}"
+                )
+                null
+            }
     }
 
     override fun onAuthServerJoined(owner: OutPreVServerAuth) = Unit
+
+    override fun release(owner: OutPreVServerAuth, preferredTargetServerName: String?) {
+        owner.closeInitialSession(player)
+        handler.onReleased(preferredTargetServerName)
+    }
 
     private fun fallbackToWaitingArea(owner: OutPreVServerAuth, reason: String) {
         if (!fallbackStarted.compareAndSet(false, true)) {
@@ -96,10 +129,16 @@ internal class StruckInitialJoinSession(
         val fallbackSession = OutPreInitialJoinSessionFactory.waitingAreaFallbackFrom(this)
         owner.replaceInitialSession(player.getChannel(), fallbackSession)
         owner.trace(
-            "outpre.struck fallback-to-waiting-area channel=${player.getChannel().id()} player=${player.username} $reason ${
+            "outpre.blocking fallback-to-waiting-area channel=${player.getChannel().id()} player=${player.username} $reason ${
                 owner.describeState(fallbackSession.state)
             }"
         )
-        fallbackSession.begin(owner)
+        // 先替换会话，再补发登录成功；
+        // 客户端完成登录阶段后，handler 会分发给当前的 BridgeWaitingAreaJoinSession。
+        if (handler.isLoginPhaseCompleted()) {
+            fallbackSession.onClientLoginCompleted(owner)
+        } else {
+            handler.sendLoginSuccess()
+        }
     }
 }

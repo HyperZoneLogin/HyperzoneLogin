@@ -23,6 +23,7 @@ package icu.h2l.login.inject.network.netty.replacer
 
 import com.velocitypowered.proxy.protocol.packet.ServerLoginSuccessPacket
 import icu.h2l.api.event.profile.ServerLoginSuccessEvent
+import icu.h2l.api.player.ClientLoginIdentity
 import icu.h2l.api.log.error
 import icu.h2l.login.HyperZoneLoginMain
 import icu.h2l.login.manager.HyperZonePlayerManager
@@ -68,6 +69,17 @@ class ServerLoginSuccessPacketReplacer(
                 msg.username = event.username
                 msg.properties = event.properties
             }
+
+            // 记录客户端最终实际收到的登录身份（包含事件监听器对 uuid/name 的改写）。
+            // 这是跨流程唯一的“登录成功包身份事实”：
+            // 阻塞流程通常是 IGP，等待区桥接流程通常是 loginIdentity；
+            // 后续 self skin replay / tab ADD_PLAYER 必须复用该值，不能重新猜。
+            hyperPlayer.markLoginSuccessIdentity(
+                ClientLoginIdentity(
+                    name = msg.username,
+                    uuid = msg.uuid,
+                )
+            )
 
             // 联动：客户端已进入 PLAY，chat session 窗口打开。
             // 需要感知该窗口的子模块（如 helper-chatsession）据此收紧兜底退役预算。

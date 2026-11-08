@@ -205,9 +205,12 @@ class ProfileSkinSelfReplayService(
 
         if (!forceReplay && !state.selfAddPlayerSent.compareAndSet(false, true)) return
 
+        // 必须与客户端实际收到的登录成功包 uuid/name 严格一致；
+        // 阻塞认证流程会在 attach 后使用活动 InGameProfile，桥接流程使用 loginIdentity。
+        val loginSuccessIdentity = hyperZonePlayer.loginSuccessIdentity
         val replayProfile = GameProfile(
-            hyperZonePlayer.loginIdentity.uuid,
-            hyperZonePlayer.loginIdentity.name,
+            loginSuccessIdentity.uuid,
+            loginSuccessIdentity.name,
             listOf(property),
         )
 

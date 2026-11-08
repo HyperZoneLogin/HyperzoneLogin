@@ -46,5 +46,27 @@ class VelocityHyperZonePlayerTest {
         assertTrue(first.name.startsWith(RemapUtils.EXPECTED_NAME_PREFIX))
         assertEquals(RemapUtils.genUUID(first.name, RemapUtils.REMAP_PREFIX), first.id)
     }
+
+    @Test
+    fun `login success identity defaults to login identity until explicitly marked`() {
+        val loginIdentity = ClientLoginIdentity(
+            "ClientName",
+            RemapUtils.genUUID("ClientName", RemapUtils.REMAP_PREFIX),
+        )
+        val player = VelocityHyperZonePlayer(
+            loginIdentity = loginIdentity,
+            isOnlinePlayer = true,
+        )
+
+        assertEquals(loginIdentity, player.loginSuccessIdentity)
+
+        val inGameIdentity = ClientLoginIdentity(
+            "InGameName",
+            UUID.fromString("88888888-8888-4888-8888-888888888888"),
+        )
+        player.markLoginSuccessIdentity(inGameIdentity)
+
+        assertEquals(inGameIdentity, player.loginSuccessIdentity)
+    }
 }
 

@@ -98,7 +98,7 @@ data class VServerConfig(
         val presentedPlayerIp: String = "",
 
         // 对在线模式玩家（Velocity 已完成 Mojang 验证）启用直通（struck）模式：
-        // 玩家连入时阻塞等待认证完成，验证通过后直接进入游戏，跳过等待区。
+        // 玩家连入时停留在登录阶段等待认证完成，验证通过后才发送登录成功并直接进入游戏，跳过等待区。
         @Comment("config.vserver.outpre.struck-online-mode")
         val struckOnlineMode: Boolean = true,
     ) {

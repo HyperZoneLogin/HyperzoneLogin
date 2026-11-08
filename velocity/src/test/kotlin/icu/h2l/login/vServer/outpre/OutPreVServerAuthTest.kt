@@ -37,6 +37,8 @@ import icu.h2l.login.manager.LoginManager
 import icu.h2l.login.message.MessageService
 import icu.h2l.login.profile.VelocityHyperZoneUserService
 import icu.h2l.login.vServer.outpre.handler.OutPreAuthSessionHandler
+import icu.h2l.login.vServer.outpre.session.BlockingInitialJoinSession
+import icu.h2l.login.vServer.outpre.session.BridgeWaitingAreaJoinSession
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
@@ -93,12 +95,37 @@ class OutPreVServerAuthTest {
         session.channel.runPendingTasks()
         assertFalse(authRequestFired)
 
+        // 等待区桥接模式：客户端完成登录阶段后才开始连接认证服。
+        outPre.getInitialSession(session.player)?.onClientLoginCompleted(outPre)
+        session.channel.runPendingTasks()
+
         bridgeCallbackSlot.captured.onJoined()
 
         assertTrue(authRequestFired)
         assertTrue(stateWasVisibleDuringAuthRequest)
         assertTrue(authServerJoinedAtAuthRequest)
         assertTrue(hasState(outPre, session.channel, statesField))
+    }
+
+    @Test
+    fun `beginInitialJoin selects blocking flow only for online players`() {
+        val eventManager = mockk<EventManager>()
+        val proxyServer = mockk<ProxyServer>()
+        every { proxyServer.eventManager } returns eventManager
+        every { eventManager.fire(any<Any>()) } answers { CompletableFuture.completedFuture(firstArg<Any>()) }
+
+        val outPre = spyk(OutPreVServerAuth(proxyServer))
+        bootstrapMain(proxyServer, outPre)
+        val handler = mockk<OutPreAuthSessionHandler>(relaxed = true)
+
+        val onlineSession = createSession(isActiveStates = listOf(true), isOnline = true)
+        val offlineSession = createSession(isActiveStates = listOf(true), isOnline = false)
+
+        outPre.beginInitialJoin(onlineSession.player, handler)
+        outPre.beginInitialJoin(offlineSession.player, handler)
+
+        assertTrue(outPre.getInitialSession(onlineSession.player) is BlockingInitialJoinSession)
+        assertTrue(outPre.getInitialSession(offlineSession.player) is BridgeWaitingAreaJoinSession)
     }
 
     @AfterEach

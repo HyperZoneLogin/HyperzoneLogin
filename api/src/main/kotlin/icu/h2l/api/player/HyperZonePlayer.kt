@@ -46,12 +46,49 @@ interface HyperZonePlayer {
     val userUUID: UUID?
 
     /**
-     * 客户端本次连接实际使用的登录身份快照。
+     * 客户端本次连接开始时实际使用的登录身份快照。
      *
-     * 仅用于需要与客户端侧身份对齐的协议字段（例如登录成功包、self skin replay），
-     * 不代表 HZL User，也不得作为游戏内默认身份。
+     * 该值只表示“客户端最初连进来时用的是谁”，在连接开始时捕获；
+     * 渠道后续返回的认证名称/UUID 不得覆盖它。
+     *
+     * 它不代表 HZL User，也不是活动 InGameProfile。
+     * 只有登录成功包在 attach 之前发送时（等待区桥接流程）才会直接使用它；
+     * 一旦登录成功包已经写出，后续皮肤 tab 回放应使用 [loginSuccessIdentity]，
+     * 不能再从这里或活动 InGameProfile 重新推导。
      */
     val loginIdentity: ClientLoginIdentity
+
+    /**
+     * 本次连接实际写入 `ServerLoginSuccessPacket` 的身份快照。
+     *
+     * 这是一个“已经发给客户端的协议事实”，不是新的身份类型：
+     * - 等待区桥接流程在 attach 之前发送 success，此时没有 IGP，身份为 [loginIdentity]；
+     * - 阻塞认证流程在 attach 之后发送 success，身份为活动 InGameProfile 的 name/uuid。
+     *
+     * 不能在皮肤 tab / self skin replay 里直接读活动 InGameProfile，原因：
+     * 1. 桥接流程发 success 时还没有 IGP，客户端认领的是 [loginIdentity]；
+     *    等 attach 后再用 IGP 回放，uuid/name 会和客户端已收到的 success 不一致。
+     * 2. 即使当前有 IGP，活动身份之后也可能切换；而客户端自己的 uuid/name
+     *    在本次连接里已经被第一次 success 固定，不能事后更换。
+     * 3. `ServerLoginSuccessEvent` 允许监听器改写最终 packet，实际写出的身份
+     *    不一定是调用点最初传入的那个。
+     *
+     * 因此核心在真正写出 success 时记录最终身份；self skin replay / tab
+     * `ADD_PLAYER` 必须复用该值，保证与客户端看到的 uuid/name 严格一致。
+     * 未显式设置时回退到 [loginIdentity]。
+     */
+    val loginSuccessIdentity: ClientLoginIdentity
+        get() = loginIdentity
+
+    /**
+     * 记录本次登录成功包实际使用的身份。
+     *
+     * 由核心在写出 `ServerLoginSuccessPacket` 时调用（包含事件监听器改写后的最终字段）；
+     * 模块不得自行改写。该值用于后续皮肤 tab / self skin replay 与登录成功包对齐。
+     */
+    fun markLoginSuccessIdentity(identity: ClientLoginIdentity) {
+        // 默认无操作；真实运行时（Velocity）会缓存该身份。
+    }
 
     /**
      * 当前会话最近提交的认证凭证快照。

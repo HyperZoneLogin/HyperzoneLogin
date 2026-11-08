@@ -41,16 +41,20 @@ import icu.h2l.login.vServer.outpre.handler.bridge.OutPreClientBridgeSessionHand
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
 import org.apache.logging.log4j.LogManager
+import java.util.concurrent.atomic.AtomicBoolean
 
 private val logger = LogManager.getLogger(BridgeWaitingAreaJoinSession::class.java)
 
 /**
- * 需要先进入认证服桥接、再开始等待区认证的模式会话。
+ * 等待区桥接模式的初始登录流程。
+ *
+ * 客户端一进入 outpre 阶段就发送登录成功，随后通过自定义 bridge 接入真实认证服；
+ * 认证完成后再恢复 Velocity 的正式登录收尾并放行到目标服。
  */
 internal class BridgeWaitingAreaJoinSession(
     override val player: ConnectedPlayer,
     override val hyperPlayer: VelocityHyperZonePlayer,
-    internal val handler: OutPreAuthSessionHandler,
+    override val handler: OutPreAuthSessionHandler,
     override val state: OutPreState,
     private val shouldPublishAuthStartAfterJoin: Boolean,
 ) : OutPreInitialJoinSession, OutPreBackendBridge.Callback {
@@ -64,12 +68,38 @@ internal class BridgeWaitingAreaJoinSession(
     @Volatile
     private var velocityServerConnection: VelocityServerConnection? = null
 
+    private val bridgeStarted = AtomicBoolean(false)
+
     override fun destroy() {
         _bridge?.disconnect()
         _bridge = null
     }
 
-    override fun begin(owner: OutPreVServerAuth) {
+    override fun onLoginActivated(owner: OutPreVServerAuth) {
+        if (hyperPlayer.hasAttachedUser()) {
+            // 已 attach 的玩家仍需完成认证服桥接；进服后直接放行。
+            state.inAuthHold = false
+            state.verifiedExitPending = true
+            owner.trace(
+                "beginInitialJoin bridge-already-attached channel=${player.getChannel().id()} player=${player.username} ${
+                    owner.describeState(state)
+                }"
+            )
+        } else {
+            owner.trace(
+                "beginInitialJoin bridge-waiting-auth-client channel=${player.getChannel().id()} player=${player.username} ${
+                    owner.describeState(state)
+                }"
+            )
+        }
+        // 等待区模式需要客户端先进入 CONFIG/PLAY 才能桥接到认证服。
+        handler.sendLoginSuccess()
+    }
+
+    override fun onClientLoginCompleted(owner: OutPreVServerAuth) {
+        if (!bridgeStarted.compareAndSet(false, true)) {
+            return
+        }
         boundOwner = owner
         val bridge = owner.createBridge(player).also { _bridge = it }
         velocityServerConnection = bridge.serverConnection
@@ -87,8 +117,7 @@ internal class BridgeWaitingAreaJoinSession(
             )
             bridge.connect().whenCompleteAsync({ _, throwable ->
                 if (throwable != null) {
-//                    报错 error
-                    error(throwable){ "OutPreBridge connect failed: ${throwable.message}" }
+                    error(throwable) { "OutPreBridge connect failed: ${throwable.message}" }
                     val messages = HyperZoneLoginMain.getInstance().messageService
                     owner.clearInitialSession(player.getChannel(), state)
                     hyperPlayer.resumeMessageDelivery()
@@ -114,7 +143,7 @@ internal class BridgeWaitingAreaJoinSession(
         boundOwner?.let { onAuthServerJoined(it) }
     }
 
-    override fun release(owner: OutPreVServerAuth, handler: OutPreAuthSessionHandler, preferredTargetServerName: String?) {
+    override fun release(owner: OutPreVServerAuth, preferredTargetServerName: String?) {
         owner.closeInitialSession(player)
         val clientHandler = handler.mcConnection.activeSessionHandler as? OutPreClientBridgeSessionHandler
             ?: throw IllegalStateException("no Required clientHandler for bridge release")
@@ -148,7 +177,7 @@ internal class BridgeWaitingAreaJoinSession(
             )
             return
         }
-        owner.continueVerifiedInitialJoin(player, handler, state)
+        finishVerifiedFlow(owner)
     }
 
     override fun onAuthServerJoined(owner: OutPreVServerAuth) {
@@ -171,7 +200,22 @@ internal class BridgeWaitingAreaJoinSession(
                     owner.describeState(state)
                 }"
             )
-            owner.continueVerifiedInitialJoin(player, handler, state)
+            finishVerifiedFlow(owner)
         }
+    }
+
+    private fun finishVerifiedFlow(owner: OutPreVServerAuth) {
+        handler.finalizeVerifiedLogin(state.returnTargetServerName)
+            .thenRunAsync({
+                // 等待区模式在桥接前已经触发过 PostLogin，这里可以立即完成 CTD finalizeLogin。
+                handler.finishRegisteredLogin()
+                release(owner, state.returnTargetServerName)
+            }, player.getChannel().eventLoop())
+            .exceptionally { throwable ->
+                owner.trace(
+                    "outpre.onVerified finalize-failed channel=${player.getChannel().id()} player=${player.username} reason=${throwable.message}"
+                )
+                null
+            }
     }
 }

@@ -29,7 +29,6 @@ import com.velocitypowered.api.util.GameProfile
 import icu.h2l.api.event.profile.UserAttachedEvent
 import icu.h2l.api.event.profile.ProfilePropertiesApplyEvent
 import icu.h2l.login.profile.skin.event.ProfileSkinPreprocessEvent
-import icu.h2l.api.event.profile.ServerLoginSuccessEvent
 import icu.h2l.login.profile.skin.config.ProfileSkinDebug
 import icu.h2l.api.log.error
 import icu.h2l.api.log.warn
@@ -340,29 +339,6 @@ class ProfileSkinService(
 
         event.properties.removeAll { it.name.equals("textures", ignoreCase = true) }
         event.properties.add(textureProperty)
-    }
-
-    @Subscribe
-    fun onLoginReUUID(event: ServerLoginSuccessEvent) {
-        event.rewritePacket = true
-        event.uuid = event.hyperZonePlayer.loginIdentity.uuid
-    }
-
-//    @Subscribe
-    fun onServerLoginSuccess(event: ServerLoginSuccessEvent) {
-        val user = event.hyperZonePlayer.attachedUser ?: return
-        // 将已缓存的皮肤纹理注入到登录成功包中，确保客户端从登录阶段就获得自身皮肤。
-        // 客户端自身皮肤来自 ServerLoginSuccessPacket 的 GameProfile properties，
-        // 而非 PlayerInfo；若不注入，正版客户端将看不到自身皮肤。
-        val userUUID = user.id
-        val skinId = profileRepository.findSkinIdByProfileId(userUUID) ?: return
-        val cachedTextures = cacheRepository.findBySkinId(skinId)?.textures ?: return
-        val textureProperty = cachedTextures.toPropertyOrNull() ?: return
-
-        val existingProperties = event.properties?.toMutableList() ?: mutableListOf()
-        existingProperties.removeAll { it.name.equals("textures", ignoreCase = true) }
-        existingProperties.add(textureProperty)
-        event.properties = existingProperties
     }
 
     private fun restoreTextures(source: ProfileSkinSource): ProfileSkinTextures {

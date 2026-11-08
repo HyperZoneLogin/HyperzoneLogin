@@ -135,7 +135,14 @@ class OutPreVServerAuth(
         )
     }
 
-    fun beginInitialJoin(player: ConnectedPlayer, handler: OutPreAuthSessionHandler) {
+    private fun shouldUseBlockingMode(hyperPlayer: VelocityHyperZonePlayer): Boolean {
+        return HyperZoneLoginMain.getCoreConfig().vServer.outpre.struckOnlineMode && hyperPlayer.isOnlinePlayer
+    }
+
+    fun beginInitialJoin(
+        player: ConnectedPlayer,
+        handler: OutPreAuthSessionHandler,
+    ) {
         val messages = HyperZoneLoginMain.getInstance().messageService
         val hyperPlayer = getHyperPlayer(player) ?: return
         trace(
@@ -155,10 +162,9 @@ class OutPreVServerAuth(
             return
         }
 
-        val outpreConfig = HyperZoneLoginMain.getCoreConfig().vServer.outpre
-        val isStruck = outpreConfig.struckOnlineMode && hyperPlayer.isOnlinePlayer
+        val blocking = shouldUseBlockingMode(hyperPlayer)
         val session = OutPreInitialJoinSessionFactory.create(
-            struck = isStruck,
+            blocking = blocking,
             player = player,
             hyperPlayer = hyperPlayer,
             handler = handler,
@@ -171,7 +177,7 @@ class OutPreVServerAuth(
         trace(
             "beginInitialJoin state-created channel=${
                 player.getChannel().id()
-            } player=${player.username} struck=$isStruck ${
+            } player=${player.username} blocking=$blocking ${
                 describeState(state)
             }"
         )
@@ -187,20 +193,7 @@ class OutPreVServerAuth(
             return
         }
 
-        if (hyperPlayer.hasAttachedUser()) {
-            state.inAuthHold = false
-            state.verifiedExitPending = true
-            trace(
-                "beginInitialJoin already-ready-after-authStart channel=${
-                    player.getChannel().id()
-                } player=${player.username} ${
-                    describeState(
-                        state
-                    )
-                }"
-            )
-        }
-        session.begin(this)
+        session.onLoginActivated(this)
     }
 
     internal fun closeInitialSession(player: ConnectedPlayer) {
@@ -390,32 +383,6 @@ class OutPreVServerAuth(
             )
         }, player.getChannel().eventLoop())
         return dispatchFuture
-    }
-
-    /**
-     * 处理“初始进入阶段已完成验证”后的后续动作：
-     * - 如果仍处于初始登录桥接期，就继续完成 outpre 释放；
-     * - 否则按已验证玩家直接转发到目标服。
-     */
-    internal fun continueVerifiedInitialJoin(
-        player: Player,
-        handler: OutPreAuthSessionHandler,
-        state: OutPreState
-    ) {
-        trace(
-            "outpre.onVerified completing-initial-flow channel=${
-                player.getChannel().id()
-            } player=${player.username} target=${state.returnTargetServerName} ${
-                describeState(
-                    state
-                )
-            }"
-        )
-        if (state.initialFlowPending) {
-            handler.completeAfterVerification(state.returnTargetServerName)
-        } else {
-            connectVerifiedPlayerToResolvedTarget(player, state)
-        }
     }
 
     // ---- 目标服转发 ----

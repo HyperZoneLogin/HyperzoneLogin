@@ -27,18 +27,18 @@ import icu.h2l.login.vServer.outpre.OutPreState
 import icu.h2l.login.vServer.outpre.handler.OutPreAuthSessionHandler
 
 /**
- * 根据 struck / waiting-area bridge 模式创建对应的初始进入会话。
+ * 根据阻塞认证 / 等待区桥接模式创建对应的初始登录流程会话。
  */
 internal object OutPreInitialJoinSessionFactory {
     fun create(
-        struck: Boolean,
+        blocking: Boolean,
         player: ConnectedPlayer,
         hyperPlayer: VelocityHyperZonePlayer,
         handler: OutPreAuthSessionHandler,
         authTargetLabel: String,
     ): OutPreInitialJoinSession {
-        return if (struck) {
-            StruckInitialJoinSession(
+        return if (blocking) {
+            BlockingInitialJoinSession(
                 player = player,
                 hyperPlayer = hyperPlayer,
                 handler = handler,
@@ -66,7 +66,7 @@ internal object OutPreInitialJoinSessionFactory {
     }
 
     fun waitingAreaFallbackFrom(
-        session: StruckInitialJoinSession
+        session: BlockingInitialJoinSession
     ): BridgeWaitingAreaJoinSession {
         session.state.inAuthHold = true
         session.state.hasConnectedToAuthServerOnce = false

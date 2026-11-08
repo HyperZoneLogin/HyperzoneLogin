@@ -33,9 +33,34 @@ HyperZoneLogin 的登录链路属于**严格状态机**，禁止使用会混淆�
 - `registrationName`：当前等待区会话在“若要新建 User”时应使用的**待建档注册名**，可由 `/rename` 在等待区中显式修改。
 - `clientOriginalName` / `clientOriginalUUID` 已删除；日志/诊断统一使用 `logLabel`，它不是可信身份。
 - 禁止把临时等待区名称、渠道认证名或代理玩家名当成正式 User 身份。
-- 登录成功包（`ServerLoginSuccessEvent`）必须回写 `loginIdentity.uuid` / `loginIdentity.name`，不得写入 HZL User UUID 或活动 InGameProfile UUID；否则客户端不会认领自己的皮肤。
 - `loginIdentity` 必须在连接开始时捕获，渠道后续返回的认证名称/UUID 不得覆盖它。
-- self skin replay 也必须使用同一个 `loginIdentity` 与登录成功包保持一致。
+- 登录成功包与皮肤 tab 回放必须使用同一个身份来源，规则见 2.1。
+
+### 2.1 登录成功包与皮肤 tab 的身份一致性
+
+登录成功包和后续 self skin replay / tab `ADD_PLAYER` **必须使用完全相同的 uuid/name**。客户端在本次连接中的自身身份由第一次 `ServerLoginSuccessPacket` 固定，之后不能更换。
+
+身份来源由 success 的发送时机决定：
+
+| 流程 | success 发送时机 | success 身份 | tab / self replay 必须使用 |
+|------|------------------|--------------|-----------------------------|
+| 阻塞认证流程 | attach 之后 | 活动 InGameProfile 的 name/uuid | 同一个 InGameProfile |
+| 等待区桥接流程 | attach 之前 | `loginIdentity` | 同一个 `loginIdentity` |
+| 认证失败回落等待区 | 补发 success 时仍未 attach | `loginIdentity` | 同一个 `loginIdentity` |
+
+强制规则：
+
+- 核心在真正写出 `ServerLoginSuccessPacket` 时，必须把最终实际使用的 `name` / `uuid` 记录到 `HyperZonePlayer.loginSuccessIdentity`；记录点必须位于 `ServerLoginSuccessEvent` 监听器改写之后，保证记录的是客户端最终收到的值。
+- self skin replay / tab `ADD_PLAYER` 必须使用 `loginSuccessIdentity`，不得固定使用 `loginIdentity`，也不得固定使用活动 InGameProfile。
+- 禁止在 success 已经写出后，再把 `loginSuccessIdentity` 改成新 attach 的活动 InGameProfile；客户端 uuid/name 已经被之前的 success 固定。
+- `loginSuccessIdentity` 是“本次连接实际发出的协议身份快照”，不是新的身份类型：
+  - 阻塞流程下它等于活动 InGameProfile；
+  - 桥接流程下它等于 `loginIdentity`。
+- 不能在 tab 回放时直接实时读取 `activeInGameProfile`，原因：
+  1. 桥接流程发 success 时还没有 IGP，客户端认领的是 `loginIdentity`；
+  2. attach 后活动身份仍可能切换，而本次连接的客户端 uuid/name 不能事后更换；
+  3. `ServerLoginSuccessEvent` 允许监听器改写 packet，最终身份不一定等于调用点最初传入的值。
+- properties 同样必须与本次 success 使用的档案一致：阻塞流程使用完成 `ProfilePropertiesApplyEvent` 后的 IGP 属性；桥接流程使用发送 success 时已有的属性。
 
 ## 3. `/rename` 的职责边界
 

@@ -25,7 +25,7 @@ package icu.h2l.login.vServer.outpre
  * outpre 初始进入阶段的共享状态。
  *
  * 这份状态只描述“玩家当前是否还在初始认证/桥接窗口内”，
- * 不关心 struck 还是 waiting-area bridge 由谁驱动；两种模式会话都会复用它。
+ * 不关心阻塞认证还是等待区桥接由谁驱动；两种模式会话都会复用它。
  */
 internal data class OutPreState(
     var authTargetLabel: String,

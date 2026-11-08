@@ -56,6 +56,26 @@ class VelocityHyperZonePlayer(
     @Volatile
     private var cachedSubmittedCredential: HyperZoneCredential? = null
 
+    /**
+     * 本次连接实际写入登录成功包的身份快照。
+     *
+     * 它是“客户端已经收到的协议事实”：
+     * - 阻塞认证流程在 attach 后发送 success，会记录为活动 InGameProfile；
+     * - 等待区桥接流程在 attach 前发送 success，未设置时回退到 [loginIdentity]。
+     *
+     * 不能直接用 activeInGameProfile 替代：桥接流程发送 success 时还没有 IGP，
+     * 且 attach 后活动身份仍可能变化，而客户端在本次连接中的 uuid/name 已经固定。
+     */
+    @Volatile
+    private var cachedLoginSuccessIdentity: ClientLoginIdentity? = null
+
+    override val loginSuccessIdentity: ClientLoginIdentity
+        get() = cachedLoginSuccessIdentity ?: loginIdentity
+
+    override fun markLoginSuccessIdentity(identity: ClientLoginIdentity) {
+        cachedLoginSuccessIdentity = identity
+    }
+
     override val userUUID: UUID?
         get() = cachedUser?.id
 

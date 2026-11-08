@@ -44,7 +44,7 @@ import com.velocitypowered.proxy.protocol.packet.LoginAcknowledgedPacket
 import com.velocitypowered.proxy.protocol.packet.ServerLoginSuccessPacket
 import com.velocitypowered.proxy.protocol.packet.ServerboundCookieResponsePacket
 import com.velocitypowered.proxy.protocol.packet.SetCompressionPacket
-import icu.h2l.login.HyperZoneLoginMain
+import icu.h2l.api.player.ClientLoginIdentity
 import icu.h2l.login.compat.VelocityLoginCompatibilityProvider
 import icu.h2l.login.inject.network.NettyReflectionHelper
 import icu.h2l.login.inject.network.NettyReflectionHelper.reflectedCleanup
@@ -53,11 +53,7 @@ import icu.h2l.login.inject.network.NettyReflectionHelper.reflectedTeardown
 import icu.h2l.login.manager.HyperZonePlayerManager
 import icu.h2l.login.player.ProfilePropertiesApplySupport
 import icu.h2l.login.reflect.VelocityInternalAccess
-import icu.h2l.login.util.buildAttachedIdentityGameProfile
-import icu.h2l.login.util.debugOutPreTrace
-import icu.h2l.login.util.describeGameProfileBrief
-import icu.h2l.login.util.hasSemanticGameProfileDifference
-import icu.h2l.login.util.setConnectedPlayerGameProfile
+import icu.h2l.login.util.*
 import icu.h2l.login.vServer.outpre.OutPreVServerAuth
 import io.netty.buffer.ByteBuf
 import io.netty.channel.EventLoop
@@ -73,9 +69,13 @@ private val logger: Logger = LogManager.getLogger(AuthSessionHandler::class.java
 /**
  * outpre 模式的登录完成处理器。入口点。
  *
- * 第一阶段只完成"客户端可进入代理 + 认证服桥接"；
- * 真正的 Velocity 注册 / GameProfileRequest / Login / PostLogin
- * 会在认证完成后再继续执行。
+ * 只承载两种流程共用的登录阶段原语：
+ * - 登录成功包发送；
+ * - 认证后的档案 / 权限 / LoginEvent / 注册收尾；
+ * - PostLogin 与初始会话切换。
+ *
+ * “先认证再发登录成功”还是“先发登录成功再桥接认证服”由
+ * [icu.h2l.login.vServer.outpre.session.OutPreInitialJoinSession] 的具体实现决定。
  */
 open class OutPreAuthSessionHandlerLogic(
     internal val server: VelocityServer,
@@ -98,53 +98,83 @@ open class OutPreAuthSessionHandlerLogic(
     internal var supportConfig: Boolean = false
     protected val eventLoop: EventLoop = mcConnection.eventLoop()
 
+    private var loginSuccessSent = false
+    private var loginPhaseCompleted = false
+    private var loginFinalized = false
+    private var registeredLogin = false
+
     internal fun onReleased(preferredTargetServerName: String?) {
         loginState = State.RELEASED
         connectToReleasedTarget(connectedPlayer, preferredTargetServerName)
     }
 
-    protected fun startTemporaryLoginPhase(player: ConnectedPlayer) {
-        debugOutPreTrace {
-            "outpre.handler.startTemporaryLoginPhase channel=${mcConnection.channel.id()} player=${player.username} onlineMode=$onlineMode profile=${
-                describeGameProfileBrief(
-                    player.gameProfile
-                )
-            }"
-        }
+    /**
+     * 登录阶段中与登录成功包无关的准备工作：
+     * 压缩阈值、IdentifiedKey 校验、连接关联。
+     */
+    protected fun prepareLoginConnection(player: ConnectedPlayer) {
         val threshold = server.configuration.compressionThreshold
         if (threshold >= 0 && mcConnection.protocolVersion.noLessThan(ProtocolVersion.MINECRAFT_1_8)) {
             mcConnection.write(SetCompressionPacket(threshold))
             mcConnection.setCompressionThreshold(threshold)
         }
 
-//        就用我们自己的往回发，别管，这样皮肤兼容性好
-//        val playerUniqueId: UUID = player.uniqueId
-        val playerUniqueId: UUID = UUID.randomUUID()
-//        if (server.configuration.playerInfoForwardingMode == PlayerInfoForwarding.NONE) {
-//            playerUniqueId = UuidUtils.generateOfflinePlayerUuid(player.username)
-//        }
-
-        validateIdentifiedKey(player, playerUniqueId)
+        validateIdentifiedKey(player, player.uniqueId)
         mcConnection.setAssociation(player)
+    }
 
-//        发送登入成功
-//        net.minecraft.network.protocol.login.ClientboundLoginFinishedPacket
+    /**
+     * 发送登录成功包。具体由哪个登录流程会话决定何时调用：
+     * - 等待区桥接流程：客户端一进入 outpre 阶段就发送；
+     * - 阻塞认证流程：认证完成后再发送。
+     *
+     * 重复调用是安全的，只会真正发送一次。
+     */
+    internal fun sendLoginSuccess() {
+        if (loginSuccessSent) {
+            return
+        }
+        loginSuccessSent = true
+        loginState = State.SUCCESS_SENT
+        writeLoginSuccessPacket()
+
+        // 1.20.2 以下没有 LoginAcknowledged，直接进入 PLAY + PostLogin。
+        if (inbound.protocolVersion.lessThan(ProtocolVersion.MINECRAFT_1_20_2)) {
+            loginState = State.BRIDGING
+            enterPostLoginPhase(false)
+        }
+    }
+
+    internal fun isLoginPhaseCompleted(): Boolean = loginPhaseCompleted
+
+    /**
+     * net.minecraft.network.protocol.login.ClientboundLoginFinishedPacket
+     */
+    private fun writeLoginSuccessPacket() {
+        debugOutPreTrace {
+            "outpre.handler.writeLoginSuccess channel=${mcConnection.channel.id()} player=${connectedPlayer.username} state=$loginState profile=${
+                describeGameProfileBrief(
+                    connectedPlayer.gameProfile
+                )
+            }"
+        }
+        // 这里不能直接读取 activeInGameProfile：
+        // - 等待区桥接流程在 attach 之前就发送 success，此刻没有 IGP，客户端认领的是 loginIdentity；
+        // - attach 后活动身份还可能切换，而客户端本次连接的 uuid/name 已经被第一次 success 固定。
+        // loginSuccessIdentity 记录的是“本次连接实际写出的身份”，由具体流程在发送前决定，
+        // 之后皮肤 tab / self skin replay 必须复用它。
+        val hyperPlayer = HyperZonePlayerManager.getByPlayerOrNull(connectedPlayer)
+        val loginSuccessIdentity = hyperPlayer?.loginSuccessIdentity
+            ?: ClientLoginIdentity(connectedPlayer.username, connectedPlayer.uniqueId)
         val success = ServerLoginSuccessPacket()
-        success.username = player.username
-        success.properties = player.gameProfileProperties
-        success.uuid = playerUniqueId
+        success.username = loginSuccessIdentity.name
+        success.properties = connectedPlayer.gameProfileProperties
+        success.uuid = loginSuccessIdentity.uuid
 //        26_2兼容
         if (inbound.getProtocolVersion().noLessThan(ProtocolVersion.MINECRAFT_26_2)) {
             success.setSessionId(UUID.randomUUID()) // use random uuid for now
         }
         mcConnection.write(success)
-
-        loginState = State.SUCCESS_SENT
-//        版本判断
-        if (inbound.protocolVersion.lessThan(ProtocolVersion.MINECRAFT_1_20_2)) {
-            loginState = State.BRIDGING
-            fireAndConnect(false)
-        }
     }
 
     private fun validateIdentifiedKey(player: ConnectedPlayer, playerUniqueId: UUID) {
@@ -172,15 +202,20 @@ open class OutPreAuthSessionHandlerLogic(
         }
     }
 
-    fun completeAfterVerification(preferredTargetServerName: String?) {
-        if (loginState != State.BRIDGING) {
-            debugOutPreTrace {
-                "outpre.handler.completeAfterVerification ignored channel=${mcConnection.channel.id()} state=$loginState preferredTarget=$preferredTargetServerName"
-            }
-            return
+    /**
+     * 认证完成后统一收尾：GameProfileRequest / 皮肤属性 / 权限 / LoginEvent / 注册。
+     *
+     * 只负责“档案与登录事件”，不决定何时发送登录成功或何时放行；
+     * 这些由具体登录流程会话决定。
+     */
+    internal fun finalizeVerifiedLogin(preferredTargetServerName: String?): CompletableFuture<Void> {
+        if (loginFinalized) {
+            return CompletableFuture.completedFuture(null)
         }
+        loginFinalized = true
         loginState = State.FINALIZING
 
+        val completion = CompletableFuture<Void>()
         val hyperPlayer = HyperZonePlayerManager.getByPlayerOrNull(connectedPlayer) ?: run {
             connectedPlayer.disconnect0(
                 Component.text(
@@ -188,11 +223,12 @@ open class OutPreAuthSessionHandlerLogic(
                     NamedTextColor.RED
                 ), false
             )
-            return
+            completion.completeExceptionally(IllegalStateException("missing HyperZonePlayer"))
+            return completion
         }
 
         debugOutPreTrace {
-            "outpre.handler.completeAfterVerification start channel=${mcConnection.channel.id()} player=${connectedPlayer.username} preferredTarget=$preferredTargetServerName attachedUser=${hyperPlayer.hasAttachedUser()} credentials=${
+            "outpre.handler.finalizeVerifiedLogin start channel=${mcConnection.channel.id()} player=${connectedPlayer.username} preferredTarget=$preferredTargetServerName attachedUser=${hyperPlayer.hasAttachedUser()} credentials=${
                 hyperPlayer.getSubmittedCredentials().map { it.javaClass.simpleName }
             }"
         }
@@ -206,8 +242,22 @@ open class OutPreAuthSessionHandlerLogic(
                         NamedTextColor.RED
                     ), false
                 )
-                return
+                completion.completeExceptionally(IllegalStateException("attached user identity missing"))
+                return completion
             }
+
+        // 只有“登录成功包尚未发出”时才改用活动 InGameProfile 作为客户端身份。
+        // 等待区桥接流程的 success 已经在 attach 前以 loginIdentity 发出；
+        // 客户端自身的 uuid/name 在本次连接里已经固定，这里不能事后改成 IGP，
+        // 否则 self skin replay / tab ADD_PLAYER 会和客户端已收到的 success 不一致。
+        if (!loginSuccessSent) {
+            hyperPlayer.markLoginSuccessIdentity(
+                ClientLoginIdentity(
+                    name = activeIdentity.name,
+                    uuid = activeIdentity.uuid,
+                )
+            )
+        }
 
         val finalCandidateProfile = buildAttachedIdentityGameProfile(
             currentGameProfile = connectedPlayer.gameProfile,
@@ -215,7 +265,7 @@ open class OutPreAuthSessionHandlerLogic(
         )
 
         val finalProfileEvent = GameProfileRequestEvent(inbound, finalCandidateProfile, onlineMode)
-        server.eventManager.fire(finalProfileEvent).thenComposeAsync({ profileEvent ->
+        val finalization = server.eventManager.fire(finalProfileEvent).thenComposeAsync({ profileEvent ->
             if (mcConnection.isClosed) {
                 return@thenComposeAsync CompletableFuture.completedFuture(null)
             }
@@ -273,22 +323,14 @@ open class OutPreAuthSessionHandlerLogic(
                                 return@thenComposeAsync CompletableFuture.completedFuture(null)
                             }
 
-//                            这里register的特别晚，可以忽略
                             VelocityLoginCompatibilityProvider.current.registerConnection(server, connectedPlayer).thenAcceptAsync({ registered ->
+                                registeredLogin = registered
                                 if (!registered) {
-//                                player.disconnect0(
-//                                    Component.translatable("velocity.error.already-connected-proxy"),
-//                                    false
-//                                )
-//                                return@thenAcceptAsync
                                     debugOutPreTrace {
                                         "register connection failed for player {${connectedPlayer.username},maybe using Ambassador"
                                     }
-                                } else {
-                                    VelocityLoginCompatibilityProvider.current.completeRegisteredLogin(server, connectedPlayer)
                                 }
-
-                                continueReleasedFlow(connectedPlayer, preferredTargetServerName)
+                                completion.complete(null)
                             }, eventLoop)
                         }, eventLoop)
                     }, eventLoop)
@@ -296,17 +338,29 @@ open class OutPreAuthSessionHandlerLogic(
         }, eventLoop).exceptionally { ex ->
             logger.error("Exception while finalizing outpre flow for {}", connectedPlayer, ex)
             connectedPlayer.disconnect0(Component.text("OutPre finalization failed", NamedTextColor.RED), false)
+            completion.completeExceptionally(ex)
             null
         }
+
+        finalization.whenComplete { _, throwable ->
+            if (!completion.isDone) {
+                completion.completeExceptionally(
+                    IllegalStateException("outpre finalization ended without completion: ${throwable?.message ?: "connection closed or login rejected"}")
+                )
+            }
+        }
+        return completion
     }
 
-
-    private fun continueReleasedFlow(player: ConnectedPlayer, preferredTargetServerName: String?) {
-        debugOutPreTrace {
-            "outpre.handler.continueReleasedFlow channel=${mcConnection.channel.id()} player=${player.username} preferredTarget=$preferredTargetServerName"
+    /**
+     * CTD 的 finalizeLogin 需要等 PostLogin 之后执行；由具体登录流程在正确的时机调用。
+     */
+    internal fun finishRegisteredLogin() {
+        if (!registeredLogin) {
+            return
         }
-        outPre.getInitialSession(player)?.release(outPre, this as OutPreAuthSessionHandler, preferredTargetServerName)
-            ?: throw IllegalStateException("no session for player ${player.username} during release flow")
+        registeredLogin = false
+        VelocityLoginCompatibilityProvider.current.completeRegisteredLogin(server, connectedPlayer)
     }
 
     private fun connectToReleasedTarget(
@@ -328,10 +382,16 @@ open class OutPreAuthSessionHandlerLogic(
         }, eventLoop)
     }
 
-    fun fireAndConnect(supportConfig: Boolean) {
+    /**
+     * 客户端完成登录阶段（1.20.2+ 收到 LoginAcknowledged，或旧版本直接进入 PLAY）后的统一收尾：
+     * 切换会话 handler、触发 PostLogin，然后交给当前登录流程会话继续。
+     */
+    private fun enterPostLoginPhase(supportConfig: Boolean) {
         debugOutPreTrace {
-            "fireAndConnect channel=${mcConnection.channel.id()} player=${connectedPlayer.username} supportConfig=$supportConfig"
+            "outpre.handler.enterPostLoginPhase channel=${mcConnection.channel.id()} player=${connectedPlayer.username} supportConfig=$supportConfig"
         }
+        this.supportConfig = supportConfig
+
 //        这里必须配置，否则会因为事件触发其他操作，导致包解析失败
         if (supportConfig) {
             mcConnection.setActiveSessionHandler(
@@ -347,19 +407,32 @@ open class OutPreAuthSessionHandlerLogic(
         server.eventManager.fire(
             PostLoginEvent(connectedPlayer)
         ).thenRunAsync({
-            connectBackend(supportConfig)
+            if (mcConnection.isClosed) {
+                return@thenRunAsync
+            }
+            loginPhaseCompleted = true
+            val session = outPre.getInitialSession(connectedPlayer)
+            if (session == null) {
+                logger.error("No outpre initial join session for {} after login phase", connectedPlayer)
+                return@thenRunAsync
+            }
+            session.onClientLoginCompleted(outPre)
         }, eventLoop).exceptionally { ex ->
             logger.error("Exception while continuing outpre flow for {}", connectedPlayer, ex)
             null
         }
     }
 
-    fun connectBackend(supportConfig: Boolean) {
-        debugOutPreTrace {
-            "connectBackend channel=${mcConnection.channel.id()} player=${connectedPlayer.username} supportConfig=$supportConfig"
+    /**
+     * 处理 1.20.2+ 客户端的 LoginAcknowledged。
+     */
+    internal fun completeLoginAcknowledged() {
+        if (!loginSuccessSent || loginPhaseCompleted) {
+            inbound.disconnect(Component.translatable("multiplayer.disconnect.invalid_player_data"))
+            return
         }
-        this.supportConfig = supportConfig
-        outPre.beginInitialJoin(connectedPlayer, this as OutPreAuthSessionHandler)
+        loginState = State.BRIDGING
+        enterPostLoginPhase(true)
     }
 
     protected enum class State {
@@ -413,18 +486,16 @@ class OutPreAuthSessionHandler(
             logger.info("{} entered outpre pre-registration flow", connectedPlayer)
         }
 
-        startTemporaryLoginPhase(connectedPlayer)
+        prepareLoginConnection(connectedPlayer)
+        if (mcConnection.isClosed) {
+            return
+        }
+        outPre.beginInitialJoin(connectedPlayer, this)
     }
 
     override fun handle(packet: LoginAcknowledgedPacket): Boolean {
-        if (loginState != State.SUCCESS_SENT) {
-            inbound.disconnect(Component.translatable("multiplayer.disconnect.invalid_player_data"))
-            return true
-        }
-
-        loginState = State.BRIDGING
 //        大于 1_20_2 批准了才会进入下一阶段
-        fireAndConnect(true)
+        completeLoginAcknowledged()
         return true
     }
 
