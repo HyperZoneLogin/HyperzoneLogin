@@ -28,6 +28,8 @@ import icu.h2l.api.player.ClientLoginIdentity
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.profile.HyperZoneCredential
 import icu.h2l.api.profile.HyperZoneUserService
+import icu.h2l.api.util.IPropertiesHolder
+import icu.h2l.api.util.PropertiesHolder
 import icu.h2l.login.message.MessageService
 import io.mockk.every
 import io.mockk.mockk
@@ -100,7 +102,7 @@ class UserUnbindServiceTest {
 
     private class FakeCredential(
         private val unsupported: Boolean = false,
-    ) : HyperZoneCredential {
+    ) : HyperZoneCredential, IPropertiesHolder by PropertiesHolder() {
         override val channelId: String = "test"
         override val credentialId: String = "credential"
         var unboundUserUUID: UUID? = null

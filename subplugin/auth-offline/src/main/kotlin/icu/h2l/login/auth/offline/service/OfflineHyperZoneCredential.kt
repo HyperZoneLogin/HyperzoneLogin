@@ -22,6 +22,8 @@
 package icu.h2l.login.auth.offline.service
 
 import icu.h2l.api.profile.HyperZoneCredential
+import icu.h2l.api.util.IPropertiesHolder
+import icu.h2l.api.util.PropertiesHolder
 import icu.h2l.login.auth.offline.db.OfflineAuthRepository
 import icu.h2l.login.auth.offline.util.ExtraUuidUtils
 import java.util.*
@@ -34,7 +36,7 @@ class OfflineHyperZoneCredential(
     private val knownUserUUID: UUID? = null,
     private val pendingRegistrationId: UUID? = null,
     private val passProfileCreateUuid: Boolean = false,
-) : HyperZoneCredential {
+) : HyperZoneCredential, IPropertiesHolder by PropertiesHolder() {
     override val channelId: String = CHANNEL_ID
     override val credentialId: String = pendingRegistrationId?.toString() ?: normalizedName
 
