@@ -40,7 +40,7 @@ import java.nio.file.Files
 /**
  * 内置 HzLimbo 后端模块。
  *
- * 与 backend-nanolimbo 不同，本模块直接复用 Velocity 的网络栈（compileOnly velocity-proxy），
+ * 本模块直接复用 Velocity 的网络栈（compileOnly velocity-proxy），
  * 只实现 limbo 特有的连接状态机与固定数据下发；不做 infoForwarding。
  *
  * 配置见 `backend-hzlimbo.conf`。监听地址的解析规则：

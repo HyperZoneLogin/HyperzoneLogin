@@ -419,7 +419,7 @@ val printVersionInfo = tasks.register("printVersionInfo") {
 
 tasks.named("assemble") {
     dependsOn(collectPluginJars)
-    // 构建时自动生成 split 分发（主插件 + 各可选模块，含 backend-nanolimbo）。
+    // 构建时自动生成 split 分发（主插件 + 各可选模块）。
     dependsOn(collectSplitPluginJars)
 }
 
