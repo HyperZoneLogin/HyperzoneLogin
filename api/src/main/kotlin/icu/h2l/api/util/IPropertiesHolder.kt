@@ -22,11 +22,10 @@
 package icu.h2l.api.util
 
 interface IPropertiesHolder {
-    val properties: HashMap<String, String>
-        get() = HashMap()
+    val properties: MutableMap<String, String>
 
-    fun getProperty(key: String): String {
-        return properties[key] as String
+    fun getProperty(key: String): String? {
+        return properties[key]
     }
 
     fun setProperty(key: String, value: String) {

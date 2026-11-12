@@ -28,6 +28,8 @@ import icu.h2l.api.player.ClientLoginIdentity
 import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.profile.HyperZoneCredential
 import icu.h2l.api.profile.HyperZoneUserService
+import icu.h2l.api.util.IPropertiesHolder
+import icu.h2l.api.util.PropertiesHolder
 import icu.h2l.login.database.helper.BindingCodeStore
 import icu.h2l.login.manager.LoginManager
 import io.mockk.mockk
@@ -262,7 +264,7 @@ class UserBindingCodeServiceTest {
         override fun getAttachedGameProfile() = error("not used")
     }
 
-    private class FakeCredential : HyperZoneCredential {
+    private class FakeCredential : HyperZoneCredential, IPropertiesHolder by PropertiesHolder() {
         override val channelId: String = "test"
         override val credentialId: String = "cred"
 

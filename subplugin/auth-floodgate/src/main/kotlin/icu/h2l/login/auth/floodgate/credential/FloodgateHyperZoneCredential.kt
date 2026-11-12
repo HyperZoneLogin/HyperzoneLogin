@@ -22,6 +22,8 @@
 package icu.h2l.login.auth.floodgate.credential
 
 import icu.h2l.api.profile.HyperZoneCredential
+import icu.h2l.api.util.IPropertiesHolder
+import icu.h2l.api.util.PropertiesHolder
 import icu.h2l.login.auth.floodgate.db.FloodgateAuthRepository
 import java.util.*
 
@@ -32,7 +34,7 @@ class FloodgateHyperZoneCredential(
     private val xuid: Long,
     private val suggestedProfileCreateUuid: UUID?,
     private val knownUserUUID: UUID? = null,
-) : HyperZoneCredential {
+) : HyperZoneCredential, IPropertiesHolder by PropertiesHolder() {
     override val channelId: String = CHANNEL_ID
     override val credentialId: String = trustedUuid.toString()
 

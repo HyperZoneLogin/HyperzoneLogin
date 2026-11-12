@@ -22,6 +22,8 @@
 package icu.h2l.login.auth.online.credential
 
 import icu.h2l.api.profile.HyperZoneCredential
+import icu.h2l.api.util.IPropertiesHolder
+import icu.h2l.api.util.PropertiesHolder
 import icu.h2l.login.auth.online.db.EntryDatabaseHelper
 import java.util.*
 
@@ -32,12 +34,12 @@ class YggdrasilHyperZoneCredential(
     private val authenticatedUUID: UUID,
     private val suggestedProfileCreateUuid: UUID?,
     private val knownUserUUID: UUID? = null,
-) : HyperZoneCredential {
+) : HyperZoneCredential, IPropertiesHolder by PropertiesHolder() {
     override val channelId: String = CHANNEL_ID
     override val credentialId: String = "$entryId:$authenticatedUUID"
 
     init {
-        setProperty(YGGDRASIL_ENTRY_ID_PROPERTY, entryId.lowercase(Locale.getDefault()))
+        setProperty(YGGDRASIL_ENTRY_ID_PROPERTY, entryId)
     }
 
     override fun getRegistrationName(): String = authenticatedName
