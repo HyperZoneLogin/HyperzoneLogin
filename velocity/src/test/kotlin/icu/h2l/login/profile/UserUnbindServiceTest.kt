@@ -105,6 +105,7 @@ class UserUnbindServiceTest {
     ) : HyperZoneCredential, IPropertiesHolder by PropertiesHolder() {
         override val channelId: String = "test"
         override val credentialId: String = "credential"
+        override val sourceId: String = channelId
         var unboundUserUUID: UUID? = null
 
         override fun getBoundUserUUID(): UUID? = null

@@ -37,6 +37,7 @@ class YggdrasilHyperZoneCredential(
 ) : HyperZoneCredential, IPropertiesHolder by PropertiesHolder() {
     override val channelId: String = CHANNEL_ID
     override val credentialId: String = "$entryId:$authenticatedUUID"
+    override val sourceId: String = "$channelId:${entryId}"
 
     init {
         setProperty(YGGDRASIL_ENTRY_ID_PROPERTY, entryId)

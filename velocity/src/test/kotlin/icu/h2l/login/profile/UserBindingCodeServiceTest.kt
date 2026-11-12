@@ -267,6 +267,7 @@ class UserBindingCodeServiceTest {
     private class FakeCredential : HyperZoneCredential, IPropertiesHolder by PropertiesHolder() {
         override val channelId: String = "test"
         override val credentialId: String = "cred"
+        override val sourceId: String = channelId
 
         override fun getBoundUserUUID(): UUID? = null
 

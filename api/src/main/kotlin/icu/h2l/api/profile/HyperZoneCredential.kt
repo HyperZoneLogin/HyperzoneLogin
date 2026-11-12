@@ -45,6 +45,11 @@ interface HyperZoneCredential : IPropertiesHolder {
     val credentialId: String
 
     /**
+     * 认证来源唯一标识，用于向外部消费者区分上游来源
+     */
+    val sourceId: String
+
+    /**
      * 读取该凭证当前已经绑定到的 User。
      *
      * 返回 null 表示该凭证尚未完成绑定。

@@ -39,6 +39,7 @@ class OfflineHyperZoneCredential(
 ) : HyperZoneCredential, IPropertiesHolder by PropertiesHolder() {
     override val channelId: String = CHANNEL_ID
     override val credentialId: String = pendingRegistrationId?.toString() ?: normalizedName
+    override val sourceId: String = channelId
 
     override fun getRegistrationName(): String = registrationName
 
