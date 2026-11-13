@@ -35,7 +35,7 @@ import java.util.*
  */
 interface HyperZoneCredential : IPropertiesHolder {
     /**
-     * 认证渠道唯一标识，由子模块负责稳定定义。
+     * 认证渠道唯一标识，可用于区分不同上游。
      */
     val channelId: String
 

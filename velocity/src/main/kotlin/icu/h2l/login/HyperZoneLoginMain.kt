@@ -290,15 +290,6 @@ class HyperZoneLoginMain(
 
     fun registerModule(module: HyperSubModule, api: HyperZoneApi) {
         try {
-            module.credentialChannelIds.forEach { channelId ->
-                val ability = credentialChannelRegistry.registerChannel(channelId)
-                logger.info(
-                    "凭证渠道已注册: {} (模块: {}) [canRegister={}]",
-                    channelId,
-                    module.javaClass.simpleName,
-                    ability.canRegister
-                )
-            }
             module.register(api)
             logger.info("模块加载成功: ${module.javaClass.name}")
         } catch (e: Exception) {
