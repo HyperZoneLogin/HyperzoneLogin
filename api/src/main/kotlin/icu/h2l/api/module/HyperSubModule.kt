@@ -28,17 +28,6 @@ import icu.h2l.api.HyperZoneApi
  */
 interface HyperSubModule {
     /**
-     * 该子模块将向核心层提交的凭证渠道 ID 集合（对应 [icu.h2l.api.profile.HyperZoneCredential.channelId]）。
-     *
-     * 核心层在调用 [register] 之前会自动将这些渠道 ID 写入
-     * [icu.h2l.api.profile.CredentialChannelRegistry]，以便后续对子模块行为进行定向控制。
-     *
-     * 不提交凭证的子模块（如 data-merge、safe）可使用默认空集合。
-     */
-    val credentialChannelIds: Set<String>
-        get() = emptySet()
-
-    /**
      * 将当前子模块注册到指定的 [HyperZoneApi] 运行时中。
      */
     fun register(api: HyperZoneApi)

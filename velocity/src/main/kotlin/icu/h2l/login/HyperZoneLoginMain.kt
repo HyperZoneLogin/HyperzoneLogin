@@ -169,7 +169,7 @@ class HyperZoneLoginMain(
         // ── 第二步：根据 start.conf 中的 language 初始化配置注释 i18n 服务 ──────────
         ConfigCommentTranslatorProvider.bind(ConfigCommentI18nService(dataDirectory, logger, startConfig.language))
         loadCoreConfig()
-        credentialChannelRegistry = CredentialChannelRegistryImpl(coreConfig.auth)
+        credentialChannelRegistry = CredentialChannelRegistryImpl()
         messageService = MessageService(dataDirectory, logger)
         messageService.load(coreConfig.messages)
         HyperZoneMessageServiceProvider.bind(messageService)
@@ -290,15 +290,6 @@ class HyperZoneLoginMain(
 
     fun registerModule(module: HyperSubModule, api: HyperZoneApi) {
         try {
-            module.credentialChannelIds.forEach { channelId ->
-                val ability = credentialChannelRegistry.registerChannel(channelId)
-                logger.info(
-                    "凭证渠道已注册: {} (模块: {}) [canRegister={}]",
-                    channelId,
-                    module.javaClass.simpleName,
-                    ability.canRegister
-                )
-            }
             module.register(api)
             logger.info("模块加载成功: ${module.javaClass.name}")
         } catch (e: Exception) {

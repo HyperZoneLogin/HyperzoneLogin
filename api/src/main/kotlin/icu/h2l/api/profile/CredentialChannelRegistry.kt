@@ -25,19 +25,18 @@ package icu.h2l.api.profile
  * 凭证渠道注册表。
  *
  * 子模块在注册时需向此注册表声明自己将使用的凭证渠道 ID（即 [HyperZoneCredential.channelId]）。
- * 核心层可通过此注册表了解系统中存在哪些认证渠道，并支持后续的定向行为控制。
+ * 核心层可通过此注册表了解系统中存在哪些认证渠道。
  */
 interface CredentialChannelRegistry {
 
     /**
-     * 注册一个凭证渠道 ID，并返回该渠道当前的能力描述。
+     * 注册一个凭证渠道 ID。
      *
-     * 同一渠道 ID 可被重复注册（幂等），不会报错，但每次调用均会返回最新能力。
+     * 同一渠道 ID 可被重复注册（幂等），不会报错。
      *
      * @param channelId 凭证渠道唯一标识，与 [HyperZoneCredential.channelId] 对应
-     * @return 由核心层根据当前配置计算出的 [CredentialChannelAbility]
      */
-    fun registerChannel(channelId: String): CredentialChannelAbility
+    fun registerChannel(channelId: String)
 
     /**
      * 判断指定凭证渠道 ID 是否已注册。
@@ -48,13 +47,6 @@ interface CredentialChannelRegistry {
      * 返回当前已注册的所有凭证渠道 ID 的快照（不可变集合）。
      */
     fun getRegisteredChannelIds(): Set<String>
-
-    /**
-     * 获取指定渠道的能力描述。
-     *
-     * @return 若该渠道已注册则返回对应 [CredentialChannelAbility]，否则返回 `null`。
-     */
-    fun getChannelAbility(channelId: String): CredentialChannelAbility?
 }
 
 /**

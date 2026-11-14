@@ -33,17 +33,6 @@ object FloodgateMessages {
         return render("init-player-failed")
     }
 
-
-    fun registrationDisabled(player: HyperZonePlayer): Component {
-        return render(player, "registration-disabled")
-    }
-
-    fun registrationDisabledByName(playerName: String): Component {
-        return render("registration-disabled",
-            HyperZoneMessagePlaceholder.text("player", playerName)
-        )
-    }
-
     fun createBlocked(player: HyperZonePlayer): Component {
         return render(player, "create-blocked")
     }

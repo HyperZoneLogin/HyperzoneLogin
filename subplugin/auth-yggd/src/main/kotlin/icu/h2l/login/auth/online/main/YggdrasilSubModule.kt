@@ -37,14 +37,13 @@ import icu.h2l.login.auth.online.listener.AuthListener
 import icu.h2l.login.auth.online.listener.YggdrasilProfileLookupListener
 import icu.h2l.login.auth.online.manager.EntryConfigManager
 import icu.h2l.login.auth.online.manager.YggdrasilAuthModule
+import icu.h2l.login.auth.online.util.ChannelIdUtil
 import java.util.*
 
 class YggdrasilSubModule : HyperSubModule {
     lateinit var entryConfigManager: EntryConfigManager
     lateinit var entryTableManager: EntryTableManager
     lateinit var yggdrasilAuthModule: YggdrasilAuthModule
-
-    override val credentialChannelIds: Set<String> = setOf("yggdrasil")
 
     override fun register(api: HyperZoneApi) {
         val proxy = api.proxy
@@ -65,6 +64,10 @@ class YggdrasilSubModule : HyperSubModule {
         proxy.eventManager.register(api, entryTableManager)
 
         entryConfigManager.loadAllConfigs()
+
+        entryConfigManager.getAllConfigs().forEach { (_, entry) ->
+            api.credentialChannelRegistry.registerChannel(ChannelIdUtil.getChannelId(entry.id))
+        }
 
         val userService = HyperZoneUserServiceProvider.get()
         val entryDatabaseHelper = EntryDatabaseHelper(
