@@ -49,9 +49,9 @@ class OfflineSubModule : HyperSubModule {
     lateinit var offlineAuthRepository: OfflineAuthRepository
     lateinit var offlineAuthService: OfflineAuthService
 
-    override val credentialChannelIds: Set<String> = setOf("offline")
-
     override fun register(api: HyperZoneApi) {
+        api.credentialChannelRegistry.registerChannel("offline")
+
         val proxy = api.proxy
         val dataDirectory = api.dataDirectory
         val databaseManager: HyperZoneDatabaseManager = api.databaseManager

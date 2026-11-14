@@ -21,48 +21,28 @@
 
 package icu.h2l.login.profile
 
-import icu.h2l.api.profile.CredentialChannelAbility
 import icu.h2l.api.profile.CredentialChannelRegistry
-import icu.h2l.login.config.AuthConfig
 import java.util.concurrent.ConcurrentHashMap
 
 /**
  * [CredentialChannelRegistry] 的 Velocity 侧实现。
  *
- * 使用 [ConcurrentHashMap] 存储渠道信息，保证并发安全。
+ * 使用 [ConcurrentHashMap] 派生的并发集合存储渠道 ID，保证并发安全。
  * 注册操作是幂等的，重复注册同一渠道 ID 不会产生副作用。
- *
- * @param authConfig 核心 auth 配置，用于计算各渠道的能力（如是否允许注册）。
  */
-class CredentialChannelRegistryImpl(
-    private val authConfig: AuthConfig,
-) : CredentialChannelRegistry {
+class CredentialChannelRegistryImpl : CredentialChannelRegistry {
 
-    private val abilities: MutableMap<String, CredentialChannelAbility> = ConcurrentHashMap()
+    private val channelIds: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
-    override fun registerChannel(channelId: String): CredentialChannelAbility {
-        val ability = buildAbility(channelId)
-        abilities[channelId] = ability
-        return ability
+    override fun registerChannel(channelId: String) {
+        channelIds.add(channelId)
     }
 
     override fun isRegistered(channelId: String): Boolean {
-        return channelId in abilities
+        return channelId in channelIds
     }
 
     override fun getRegisteredChannelIds(): Set<String> {
-        return abilities.keys.toSet()
-    }
-
-    override fun getChannelAbility(channelId: String): CredentialChannelAbility? {
-        return abilities[channelId]
-    }
-
-    private fun buildAbility(channelId: String): CredentialChannelAbility {
-        val canRegister = channelId !in authConfig.disableRegistration
-        return CredentialChannelAbility(
-            channelId = channelId,
-            canRegister = canRegister,
-        )
+        return channelIds.toSet()
     }
 }

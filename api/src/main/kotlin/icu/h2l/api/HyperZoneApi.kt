@@ -60,7 +60,7 @@ interface HyperZoneApi :
     /**
      * 凭证渠道注册表。
      *
-     * 子模块注册时，核心层会将 [HyperSubModule.credentialChannelIds] 中的渠道 ID 自动写入此注册表。
+     * 子模块应在 [HyperSubModule.register] 阶段通过此注册表声明自己使用的凭证渠道 ID。
      * 外部插件也可以通过此入口主动注册自定义凭证渠道。
      */
     val credentialChannelRegistry: CredentialChannelRegistry

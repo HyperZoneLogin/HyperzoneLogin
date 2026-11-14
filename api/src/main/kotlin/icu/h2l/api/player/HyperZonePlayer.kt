@@ -128,7 +128,7 @@ interface HyperZonePlayer {
      * 该值在登录管理器提交凭证时由核心层自动记录；
      * 在凭证提交前（或 [resetVerify] 后）返回 null。
      *
-     * 示例值：`"floodgate"`、`"offline"`、`"yggdrasil"`。
+     * 示例值：`"floodgate"`、`"offline"`、`"yggdrasil:mojang"`。
      */
     val authChannelId: String?
         get() = null

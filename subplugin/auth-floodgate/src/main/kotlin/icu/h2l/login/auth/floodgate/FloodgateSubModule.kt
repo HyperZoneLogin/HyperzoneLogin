@@ -44,9 +44,10 @@ import icu.h2l.login.auth.floodgate.service.FloodgateSessionHolder
 import java.util.*
 
 class FloodgateSubModule : HyperSubModule {
-    override val credentialChannelIds: Set<String> = setOf("floodgate")
 
     override fun register(api: HyperZoneApi) {
+        api.credentialChannelRegistry.registerChannel("floodgate")
+
         HyperZoneModuleMessageResources.copyBundledLocales(api.dataDirectory, "auth-floodgate", javaClass.classLoader)
         val config = FloodgateAuthConfigLoader.load(api.dataDirectory)
         FloodgateDebug.configure(config.debug)

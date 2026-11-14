@@ -19,21 +19,14 @@
  *
  */
 
-package icu.h2l.api.profile
+package icu.h2l.login.auth.online.util
 
-/**
- * 凭证渠道能力描述。
- *
- * 当凭证渠道通过 [CredentialChannelRegistry.registerChannel] 注册时，
- * 核心层会根据当前配置计算出该渠道的能力集合并返回。
- * 子模块可据此决定在各自业务流程中应当开放还是禁止特定操作。
- *
- * @property channelId   对应的凭证渠道唯一标识
- * @property canRegister 该渠道是否允许通过凭证注册（建档）新玩家档案。
- *                       若为 `false`，子模块不应调用 [HyperZoneUserService.create] 等新建档案接口。
- */
-data class CredentialChannelAbility(
-    val channelId: String,
-    val canRegister: Boolean,
-)
+class ChannelIdUtil {
+    companion object {
+        private const val CHANNEL_ID_PREFIX = "yggdrasil"
 
+        fun getChannelId(entryId: String): String {
+            return "$CHANNEL_ID_PREFIX:$entryId"
+        }
+    }
+}

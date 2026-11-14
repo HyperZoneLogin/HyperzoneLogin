@@ -25,6 +25,7 @@ import icu.h2l.api.profile.HyperZoneCredential
 import icu.h2l.api.util.IPropertiesHolder
 import icu.h2l.api.util.PropertiesHolder
 import icu.h2l.login.auth.online.db.EntryDatabaseHelper
+import icu.h2l.login.auth.online.util.ChannelIdUtil
 import java.util.*
 
 class YggdrasilHyperZoneCredential(
@@ -35,7 +36,7 @@ class YggdrasilHyperZoneCredential(
     private val suggestedProfileCreateUuid: UUID?,
     private val knownUserUUID: UUID? = null,
 ) : HyperZoneCredential, IPropertiesHolder by PropertiesHolder() {
-    override val channelId: String = CHANNEL_ID
+    override val channelId: String = ChannelIdUtil.getChannelId(entryId)
     override val credentialId: String = "$entryId:$authenticatedUUID"
 
     init {
@@ -79,8 +80,6 @@ class YggdrasilHyperZoneCredential(
     }
 
     companion object {
-        private const val CHANNEL_ID = "yggdrasil"
-
         public const val YGGDRASIL_ENTRY_ID_PROPERTY = "yggdrasil-entry-id"
     }
 }

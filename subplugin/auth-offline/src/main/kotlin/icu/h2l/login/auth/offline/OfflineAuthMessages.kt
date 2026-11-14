@@ -52,8 +52,6 @@ object OfflineAuthMessages {
     val PROFILE_ATTACH_FAILED_AFTER_LOGIN: Component
         get() = render("common.profile-attach-failed-after-login")
 
-    val REGISTER_DISABLED: Component
-        get() = render("register.disabled")
     val REGISTER_SUCCESS: Component
         get() = render("register.success")
     val REGISTER_FAILED: Component

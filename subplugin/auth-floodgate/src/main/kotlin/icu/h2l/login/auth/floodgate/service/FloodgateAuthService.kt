@@ -24,7 +24,6 @@ package icu.h2l.login.auth.floodgate.service
 import icu.h2l.api.HyperZoneApi
 import icu.h2l.api.db.InGameProfileCandidate
 import icu.h2l.login.auth.floodgate.config.FloodgateDebug
-import icu.h2l.api.profile.CredentialChannelRegistryProvider
 import icu.h2l.api.profile.HyperZoneUserService
 import icu.h2l.api.profile.HyperZoneUserServiceProvider
 import icu.h2l.login.auth.floodgate.FloodgateMessages
@@ -113,24 +112,12 @@ class FloodgateAuthService(
                 xuid = xuid,
                 userName = userName,
                 userUUID = userUUID,
+            ) ?: createAndBindProfileIfAllowed(
+                xuid = xuid,
+                userName = userName,
+                userUUID = userUUID,
+                suggestedProfileCreateUuid = suggestedProfileCreateUuid,
             )
-                ?: run {
-                    val channelAbility = CredentialChannelRegistryProvider.getOrNull()?.getChannelAbility("floodgate")
-                    if (channelAbility?.canRegister == false) {
-                        return CompleteResult(
-                            handled = true,
-                            passed = false,
-                            disconnectOnFailure = false,
-                            userMessage = FloodgateMessages.registrationDisabledByName(playerName)
-                        )
-                    }
-                    createAndBindProfileIfAllowed(
-                        xuid = xuid,
-                        userName = userName,
-                        userUUID = userUUID,
-                        suggestedProfileCreateUuid = suggestedProfileCreateUuid,
-                    )
-                }
 
             if (knownUserUUID == null) {
                 trace("complete blocked channel=$channel player=$playerName: no known profile id")
