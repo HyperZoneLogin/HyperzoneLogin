@@ -25,7 +25,6 @@ import com.velocitypowered.api.proxy.Player
 import com.velocitypowered.api.proxy.ProxyServer
 import icu.h2l.api.event.auth.AuthenticationFailureEvent
 import icu.h2l.api.player.HyperZonePlayerAccessor
-import icu.h2l.api.profile.CredentialChannelRegistryProvider
 import icu.h2l.api.profile.HyperZoneCredentialFlowProvider
 import icu.h2l.api.profile.HyperZoneUserService
 import icu.h2l.login.auth.offline.OfflineAuthMessages
@@ -62,12 +61,6 @@ class OfflineAuthService(
 
     fun register(player: Player, password: String): Result {
         val hyperZonePlayer = playerAccessor.getByPlayer(player)
-
-        // 检查凭证渠道能力：若该渠道已禁用注册，直接返回错误
-        val channelAbility = CredentialChannelRegistryProvider.getOrNull()?.getChannelAbility("offline")
-        if (channelAbility?.canRegister == false) {
-            return Result(false, OfflineAuthMessages.REGISTER_DISABLED)
-        }
 
         val username = hyperZonePlayer.getSubmittedCredentials().filterIsInstance<OfflineHyperZoneCredential>()
             .firstOrNull()?.getRegistrationName() ?: player.username

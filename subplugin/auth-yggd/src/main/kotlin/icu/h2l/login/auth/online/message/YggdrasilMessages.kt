@@ -29,14 +29,6 @@ import net.kyori.adventure.text.Component
 object YggdrasilMessages {
     private const val NAMESPACE = "auth-yggd"
 
-    /**
-     * 返回"注册已被禁用"的原因文本，用于作为 [profileResolveFailed] 的 reason 参数。
-     */
-    fun registrationDisabledReason(player: HyperZonePlayer): String {
-        val component = HyperZoneMessageServiceProvider.get().render(player, "$NAMESPACE.registration-disabled-reason")
-        return net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(component)
-    }
-
     fun authInProgress(player: HyperZonePlayer): Component {
         return render(player, "auth-in-progress")
     }

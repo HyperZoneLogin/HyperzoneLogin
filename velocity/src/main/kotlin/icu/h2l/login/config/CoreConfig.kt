@@ -50,10 +50,6 @@ data class CoreConfig(
     @Comment("config.core.vserver")
     val vServer: VServerConfig = VServerConfig(),
     @JvmField
-    // 认证
-    @Comment("config.core.auth")
-    val auth: AuthConfig = AuthConfig(),
-    @JvmField
     // 消息
     @Comment("config.core.messages")
     val messages: MessagesConfig = MessagesConfig()

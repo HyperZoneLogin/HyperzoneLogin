@@ -25,14 +25,12 @@ import icu.h2l.api.player.HyperZonePlayer
 import icu.h2l.api.db.InGameProfileCandidate
 import icu.h2l.api.log.warn
 import icu.h2l.login.auth.online.config.YggdrasilDebug
-import icu.h2l.api.profile.CredentialChannelRegistryProvider
 import icu.h2l.api.profile.HyperZoneUserService
 import icu.h2l.login.auth.online.config.EntryConfig
 import icu.h2l.login.auth.online.config.YggdrasilConfigLoader
 import icu.h2l.login.auth.online.credential.YggdrasilHyperZoneCredential
 import icu.h2l.login.auth.online.db.EntryDatabaseHelper
 import icu.h2l.login.auth.online.manager.EntryConfigManager
-import icu.h2l.login.auth.online.message.YggdrasilMessages
 import icu.h2l.login.auth.online.record.YggdrasilCredentialPreparation
 import icu.h2l.login.auth.online.record.YggdrasilAuthResult
 import java.util.*
@@ -70,14 +68,6 @@ class YggdrasilCredentialService(
             authenticatedUuid = result.profile.id,
             suggestedProfileCreateUuid = profileResolveUuid
         )
-
-        val channelAbility = CredentialChannelRegistryProvider.getOrNull()?.getChannelAbility("yggdrasil")
-        if (channelAbility?.canRegister == false) {
-            return YggdrasilCredentialPreparation(
-                credentialToSubmit = probeCredential,
-                failureReason = YggdrasilMessages.registrationDisabledReason(handler)
-            )
-        }
 
         if (userService.canCreateUser(probeCredential)) {
             val createdUser = try {
