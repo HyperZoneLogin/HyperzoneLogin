@@ -28,6 +28,8 @@ import com.velocitypowered.proxy.connection.client.ConnectedPlayer
 import icu.h2l.api.HyperZoneApi
 import icu.h2l.api.event.auth.LoginHandleRequestEvent
 import icu.h2l.login.HyperZoneLoginMain
+import util.MockStaticUtil
+import icu.h2l.login.config.CoreConfig
 import icu.h2l.login.database.DatabaseConfig
 import icu.h2l.login.database.helper.BindingCodeDatabaseHelper
 import icu.h2l.login.database.helper.InGameProfileDatabaseHelper
@@ -135,6 +137,7 @@ class OutPreVServerAuthTest {
             session.channel.finishAndReleaseAll()
         }
         sessions.clear()
+        MockStaticUtil.clear()
     }
 
     private fun bootstrapMain(proxyServer: ProxyServer, outPre: OutPreVServerAuth): HyperZoneLoginMain {
@@ -148,7 +151,7 @@ class OutPreVServerAuthTest {
             main.userService = createProfileService(proxyServer)
             main.messageService = MessageService(main.dataDirectory, main.logger)
             main.loginManager = LoginManager(proxyServer, main.userService)
-                setCoreConfig(icu.h2l.login.config.CoreConfig())
+            MockStaticUtil.setCoreConfig(CoreConfig())
         }
     }
 
@@ -201,13 +204,6 @@ class OutPreVServerAuthTest {
             isAccessible = true
         }
         return field.getBoolean(this)
-    }
-
-    private fun setCoreConfig(value: Any) {
-        val field = HyperZoneLoginMain::class.java.getDeclaredField("coreConfig").apply {
-            isAccessible = true
-        }
-        field.set(null, value)
     }
 
     private data class TestSession(
