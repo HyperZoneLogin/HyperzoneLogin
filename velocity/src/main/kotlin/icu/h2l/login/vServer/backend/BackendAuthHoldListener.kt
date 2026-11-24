@@ -41,7 +41,6 @@ import icu.h2l.login.manager.LoginManager
 import icu.h2l.login.message.MessageKeys
 import icu.h2l.login.player.VelocityHyperZonePlayer
 import icu.h2l.login.util.resolveVelocityInitialTargetServerName
-import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -137,6 +136,20 @@ class BackendAuthHoldListener(
         val state = backendHoldStates[player.getChannel()]
         return isOnBackendAuthServer(player, state?.authServerName ?: configuredAuthServerName()) ||
             (state?.hasConnectedToAuthServerOnce == false)
+    }
+
+    /**
+     * 获取等待区服务器的 RegisteredServer 实例。
+     *
+     * 与 [resolveAuthServer] 一样读取实时配置；
+     * 未配置或该服务器未在 Velocity 注册时返回 `null`。
+     */
+    override fun getRegisteredVServer(): RegisteredServer? {
+        val serverName = configuredAuthServerName()
+        if (serverName.isBlank()) {
+            return null
+        }
+        return server.getServer(serverName).orElse(null)
     }
 
     @Subscribe

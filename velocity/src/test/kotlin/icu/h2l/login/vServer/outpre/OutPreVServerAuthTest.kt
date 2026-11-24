@@ -23,11 +23,14 @@ package icu.h2l.login.vServer.outpre
 
 import com.velocitypowered.api.event.EventManager
 import com.velocitypowered.api.proxy.ProxyServer
+import com.velocitypowered.api.proxy.server.RegisteredServer
 import com.velocitypowered.proxy.connection.MinecraftConnection
 import com.velocitypowered.proxy.connection.client.ConnectedPlayer
 import icu.h2l.api.HyperZoneApi
 import icu.h2l.api.event.auth.LoginHandleRequestEvent
 import icu.h2l.login.HyperZoneLoginMain
+import util.MockStaticUtil
+import icu.h2l.login.config.CoreConfig
 import icu.h2l.login.database.DatabaseConfig
 import icu.h2l.login.database.helper.BindingCodeDatabaseHelper
 import icu.h2l.login.database.helper.InGameProfileDatabaseHelper
@@ -48,6 +51,7 @@ import io.netty.channel.embedded.EmbeddedChannel
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.nio.file.Paths
@@ -128,6 +132,15 @@ class OutPreVServerAuthTest {
         assertTrue(outPre.getInitialSession(offlineSession.player) is BridgeWaitingAreaJoinSession)
     }
 
+    @Test
+    fun `getRegisteredVServer is null because the bridge is not a velocity backend connection`() {
+        val outPre = OutPreVServerAuth(mockk<ProxyServer>())
+        OutPreVServerAuth::class.java.getDeclaredField("registeredServer").apply { isAccessible = true }
+            .set(outPre, mockk<RegisteredServer>())
+
+        assertNull(outPre.getRegisteredVServer())
+    }
+
     @AfterEach
     fun cleanupSessions() {
         sessions.forEach { session ->
@@ -135,6 +148,7 @@ class OutPreVServerAuthTest {
             session.channel.finishAndReleaseAll()
         }
         sessions.clear()
+        MockStaticUtil.clear()
     }
 
     private fun bootstrapMain(proxyServer: ProxyServer, outPre: OutPreVServerAuth): HyperZoneLoginMain {
@@ -148,7 +162,7 @@ class OutPreVServerAuthTest {
             main.userService = createProfileService(proxyServer)
             main.messageService = MessageService(main.dataDirectory, main.logger)
             main.loginManager = LoginManager(proxyServer, main.userService)
-                setCoreConfig(icu.h2l.login.config.CoreConfig())
+            MockStaticUtil.setCoreConfig(CoreConfig())
         }
     }
 
@@ -201,13 +215,6 @@ class OutPreVServerAuthTest {
             isAccessible = true
         }
         return field.getBoolean(this)
-    }
-
-    private fun setCoreConfig(value: Any) {
-        val field = HyperZoneLoginMain::class.java.getDeclaredField("coreConfig").apply {
-            isAccessible = true
-        }
-        field.set(null, value)
     }
 
     private data class TestSession(

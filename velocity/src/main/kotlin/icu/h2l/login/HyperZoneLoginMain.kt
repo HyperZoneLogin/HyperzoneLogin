@@ -136,10 +136,7 @@ class HyperZoneLoginMain(
 
     companion object {
         private lateinit var instance: HyperZoneLoginMain
-        // 用内置默认值兜底初始化：测试或其他未执行完整 onEnable 的上下文里，
-        // 访问配置不再抛 UninitializedPropertyAccessException，而是返回安全默认配置。
-        private var coreConfig: CoreConfig = CoreConfig()
-        private var startConfig: StartConfig = StartConfig()
+        private lateinit var coreConfig: CoreConfig
 
         @JvmStatic
         fun getCoreConfig(): CoreConfig = coreConfig
@@ -157,7 +154,7 @@ class HyperZoneLoginMain(
     fun onEnable(event: ProxyInitializeEvent) {
         registerApiLogger()
         // ── 第一步：加载启动前置配置（不受 i18n 影响，硬编码提示）──────────────────────
-        startConfig = StartConfigLoader.load(dataDirectory)
+        val startConfig = StartConfigLoader.load(dataDirectory)
         if (!startConfig.ready) {
             logger.error("================================================================")
             logger.error("  你看起来似乎还没准备好，请先配置 start.conf 再继续使用 HyperZoneLogin")
@@ -224,17 +221,18 @@ class HyperZoneLoginMain(
             activeVServerAdapter = BackendAuthHoldListener(server)
             logger.info("Using backend auth hold server '$configuredFallback'")
         } else {
-            logger.info(
+            logger.error(
                 if (configuredMode == "outpre") {
-                    "Outpre mode is enabled but vserver-outpre.conf authHost/authPort is invalid; running without waiting-area adapter"
+                    "Invalid outpre server configuration. Players won't be authorized."
                 } else {
-                    "Backend mode is enabled but fallbackAuthServer is blank; running without waiting-area adapter"
+                    "Invalid auth server backend configuration. Players won't be authorized."
                 }
             )
         }
 
         HyperChatCommandManagerImpl.bindVServer(proxy, activeVServerAdapter)
         activeVServerAdapter?.let { proxy.eventManager.register(plugin, it) }
+        proxy.eventManager.register(plugin, UnAttachedPlayerListener(plugin))
 
         chatCommandManager.register(
             HyperChatCommandRegistration(

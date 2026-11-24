@@ -22,6 +22,7 @@
 package icu.h2l.login.profile
 
 import com.velocitypowered.api.proxy.ProxyServer
+import icu.h2l.api.HyperZoneApi
 import icu.h2l.api.db.InGameProfile
 import icu.h2l.api.db.User
 import icu.h2l.api.player.ClientLoginIdentity
@@ -30,17 +31,28 @@ import icu.h2l.api.profile.HyperZoneCredential
 import icu.h2l.api.profile.HyperZoneUserService
 import icu.h2l.api.util.IPropertiesHolder
 import icu.h2l.api.util.PropertiesHolder
+import icu.h2l.login.HyperZoneLoginMain
+import util.MockStaticUtil
+import icu.h2l.login.config.MessagesConfig
 import icu.h2l.login.database.helper.BindingCodeStore
 import icu.h2l.login.manager.LoginManager
+import icu.h2l.login.message.MessageService
 import io.mockk.mockk
 import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.logger.slf4j.ComponentLogger
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
+import java.nio.file.Path
 import java.util.*
 
 class UserBindingCodeServiceTest {
+    @TempDir
+    lateinit var dataDirectory: Path
+
     private lateinit var repository: FakeBindingCodeStore
     private lateinit var userService: FakeProfileService
     private lateinit var bindingCodeService: UserBindingCodeService
@@ -48,6 +60,14 @@ class UserBindingCodeServiceTest {
 
     @BeforeEach
     fun setUp() {
+        val logger = ComponentLogger.logger("UserBindingCodeServiceTest")
+        val main = HyperZoneLoginMain(
+            server = mockk<ProxyServer>(relaxed = true),
+            logger = logger,
+            dataDirectory = dataDirectory,
+            plugin = mockk<HyperZoneApi>(relaxed = true),
+        )
+        main.messageService = MessageService(dataDirectory, logger).also { it.load(MessagesConfig()) }
         repository = FakeBindingCodeStore()
         userService = FakeProfileService()
         hyperZonePlayer = FakeHyperZonePlayer()
@@ -56,6 +76,11 @@ class UserBindingCodeServiceTest {
             userService,
             LoginManager(mockk<ProxyServer>(relaxed = true), userService),
         )
+    }
+
+    @AfterEach
+    fun tearDown() {
+        MockStaticUtil.clear()
     }
 
     @Test

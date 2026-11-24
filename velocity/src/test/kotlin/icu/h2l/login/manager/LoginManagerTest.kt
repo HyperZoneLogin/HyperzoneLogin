@@ -24,6 +24,7 @@ package icu.h2l.login.manager
 import com.velocitypowered.api.event.EventManager
 import com.velocitypowered.api.proxy.Player
 import com.velocitypowered.api.proxy.ProxyServer
+import icu.h2l.api.HyperZoneApi
 import icu.h2l.api.db.InGameProfile
 import icu.h2l.api.db.InGameProfileCandidate
 import icu.h2l.api.db.User
@@ -32,21 +33,46 @@ import icu.h2l.api.event.auth.LoginHandleResult
 import icu.h2l.api.player.getChannel
 import icu.h2l.api.profile.HyperZoneCredential
 import icu.h2l.api.profile.HyperZoneUserService
-import icu.h2l.api.profile.HyperZoneUserServiceProvider
+import icu.h2l.login.HyperZoneLoginMain
+import util.MockStaticUtil
+import icu.h2l.login.config.CoreConfig
 import icu.h2l.login.player.VelocityHyperZonePlayer
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import io.mockk.verify
 import io.netty.channel.embedded.EmbeddedChannel
+import net.kyori.adventure.text.logger.slf4j.ComponentLogger
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import java.nio.file.Paths
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.atomic.AtomicBoolean
 
 class LoginManagerTest {
+    @BeforeEach
+    fun setUp() {
+        MockStaticUtil.setCoreConfig(CoreConfig())
+        HyperZoneLoginMain(
+            server = mockk<ProxyServer>(relaxed = true),
+            logger = mockk<ComponentLogger>(relaxed = true),
+            dataDirectory = Paths.get("build", "tmp", "login-manager-test"),
+            plugin = mockk<HyperZoneApi>(relaxed = true),
+        )
+        mockkStatic("icu.h2l.api.player.VelocityPlayerExtensionsKt")
+    }
+
+    @AfterEach
+    fun tearDown() {
+        unmockkStatic("icu.h2l.api.player.VelocityPlayerExtensionsKt")
+        MockStaticUtil.clear()
+    }
+
     @Test
     fun `dispatch returns no claims when no module applies`() {
         val eventManager = mockk<EventManager>()
@@ -56,8 +82,6 @@ class LoginManagerTest {
         val hyperPlayer = mockk<VelocityHyperZonePlayer>(relaxed = true)
         val channel = EmbeddedChannel()
         every { proxyServer.eventManager } returns eventManager
-        HyperZoneUserServiceProvider.bind(userService)
-        mockkStatic("icu.h2l.api.player.VelocityPlayerExtensionsKt")
         every { player.getChannel() } returns channel
         every { hyperPlayer.getProxyPlayerOrNull() } returns player
         every { hyperPlayer.hasAttachedUser() } returns false
@@ -79,8 +103,6 @@ class LoginManagerTest {
         val hyperPlayer = mockk<VelocityHyperZonePlayer>(relaxed = true)
         val channel = EmbeddedChannel()
         every { proxyServer.eventManager } returns eventManager
-        HyperZoneUserServiceProvider.bind(userService)
-        mockkStatic("icu.h2l.api.player.VelocityPlayerExtensionsKt")
         every { player.getChannel() } returns channel
         every { hyperPlayer.getProxyPlayerOrNull() } returns player
         every { hyperPlayer.hasAttachedUser() } returns false
@@ -116,8 +138,6 @@ class LoginManagerTest {
             id = UUID.randomUUID(),
         )
         every { proxyServer.eventManager } returns eventManager
-        HyperZoneUserServiceProvider.bind(userService)
-        mockkStatic("icu.h2l.api.player.VelocityPlayerExtensionsKt")
         every { player.getChannel() } returns channel
         every { hyperPlayer.getProxyPlayerOrNull() } returns player
         every { hyperPlayer.hasAttachedUser() } answers { attached.get() }
@@ -158,8 +178,6 @@ class LoginManagerTest {
         val hyperPlayer = mockk<VelocityHyperZonePlayer>(relaxed = true)
         val channel = EmbeddedChannel()
         every { proxyServer.eventManager } returns eventManager
-        HyperZoneUserServiceProvider.bind(userService)
-        mockkStatic("icu.h2l.api.player.VelocityPlayerExtensionsKt")
         every { player.getChannel() } returns channel
         every { hyperPlayer.getProxyPlayerOrNull() } returns player
         every { hyperPlayer.hasAttachedUser() } returns false
@@ -185,8 +203,6 @@ class LoginManagerTest {
         val hyperPlayer = mockk<VelocityHyperZonePlayer>(relaxed = true)
         val channel = EmbeddedChannel()
         every { proxyServer.eventManager } returns eventManager
-        HyperZoneUserServiceProvider.bind(userService)
-        mockkStatic("icu.h2l.api.player.VelocityPlayerExtensionsKt")
         every { player.getChannel() } returns channel
         every { hyperPlayer.getProxyPlayerOrNull() } returns player
         every { hyperPlayer.hasAttachedUser() } returns false
@@ -231,8 +247,6 @@ class LoginManagerTest {
         )
         val inGameProfile = mockk<InGameProfile>(relaxed = true)
         every { proxyServer.eventManager } returns eventManager
-        HyperZoneUserServiceProvider.bind(userService)
-        mockkStatic("icu.h2l.api.player.VelocityPlayerExtensionsKt")
         every { player.getChannel() } returns channel
         every { hyperPlayer.getProxyPlayerOrNull() } returns player
         every { hyperPlayer.hasAttachedUser() } answers { attached.get() }
@@ -292,8 +306,6 @@ class LoginManagerTest {
             id = userUUID,
         )
         every { proxyServer.eventManager } returns eventManager
-        HyperZoneUserServiceProvider.bind(userService)
-        mockkStatic("icu.h2l.api.player.VelocityPlayerExtensionsKt")
         every { player.getChannel() } returns channel
         every { hyperPlayer.getProxyPlayerOrNull() } returns player
         every { credential.channelId } returns "test"
