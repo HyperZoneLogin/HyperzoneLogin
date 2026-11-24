@@ -23,6 +23,7 @@ package icu.h2l.api.vServer
 
 import com.velocitypowered.api.command.CommandMeta
 import com.velocitypowered.api.proxy.Player
+import com.velocitypowered.api.proxy.server.RegisteredServer
 import icu.h2l.api.command.HyperChatCommandRegistration
 
 /**
@@ -71,6 +72,14 @@ interface HyperZoneVServerAdapter {
      * 而这里要求由具体实现返回“玩家当前是否仍在该等待区实现内部”这一运行态。
      */
     fun isPlayerInWaitingArea(player: Player): Boolean = false
+
+    /**
+     * 获取等待区服务器的 RegisteredServer 实例。
+     *
+     * 如果等待区不经过 Velocity 后端连接，或者没有配置可用的等待区时，返回 `null`。
+     * 一个 Velocity 服务器最多只能配置一个等待区。
+     */
+    fun getRegisteredVServer(): RegisteredServer? = null
 
     /**
      * 向等待区实现注册一条聊天命令。
@@ -129,6 +138,8 @@ interface HyperZoneVServerAdapter {
 
     /**
      * 在玩家完成验证后通知等待区实现做收尾处理。
+     *
+     * 由核心在玩家已 attach 正式 User 之后调用。
      */
     fun onVerified(player: Player) {
     }
@@ -139,4 +150,9 @@ interface HyperZoneVServerProvider {
      * 当前活动中的等待区适配器；若核心未启用等待区实现则返回 `null`。
      */
     val serverAdapter: HyperZoneVServerAdapter?
+
+    /**
+     * 获取等待区服务器的 RegisteredServer 实例。
+     */
+    fun getRegisteredVServer(): RegisteredServer? = serverAdapter?.getRegisteredVServer()
 }

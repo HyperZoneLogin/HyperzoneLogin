@@ -159,6 +159,9 @@ interface HyperZonePlayer {
      * 当前玩家是否已经 attach 到一个 HZL User。
      *
      * 该状态由核心层 User 服务统一维护；认证子模块不应直接改写。
+     *
+     * 对同一连接，该值只会由 `false` 变为 `true`，不会反过来；
+     * 没有 attach 的玩家只能连接到等待区服务器，尝试进入其他服务器会被拒绝。
      */
     fun hasAttachedUser(): Boolean
 

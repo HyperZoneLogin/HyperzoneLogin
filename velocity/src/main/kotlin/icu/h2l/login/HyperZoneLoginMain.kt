@@ -221,17 +221,18 @@ class HyperZoneLoginMain(
             activeVServerAdapter = BackendAuthHoldListener(server)
             logger.info("Using backend auth hold server '$configuredFallback'")
         } else {
-            logger.info(
+            logger.error(
                 if (configuredMode == "outpre") {
-                    "Outpre mode is enabled but vserver-outpre.conf authHost/authPort is invalid; running without waiting-area adapter"
+                    "Invalid outpre server configuration. Players won't be authorized."
                 } else {
-                    "Backend mode is enabled but fallbackAuthServer is blank; running without waiting-area adapter"
+                    "Invalid auth server backend configuration. Players won't be authorized."
                 }
             )
         }
 
         HyperChatCommandManagerImpl.bindVServer(proxy, activeVServerAdapter)
         activeVServerAdapter?.let { proxy.eventManager.register(plugin, it) }
+        proxy.eventManager.register(plugin, UnAttachedPlayerListener(plugin))
 
         chatCommandManager.register(
             HyperChatCommandRegistration(

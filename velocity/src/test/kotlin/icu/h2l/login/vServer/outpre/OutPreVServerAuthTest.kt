@@ -23,6 +23,7 @@ package icu.h2l.login.vServer.outpre
 
 import com.velocitypowered.api.event.EventManager
 import com.velocitypowered.api.proxy.ProxyServer
+import com.velocitypowered.api.proxy.server.RegisteredServer
 import com.velocitypowered.proxy.connection.MinecraftConnection
 import com.velocitypowered.proxy.connection.client.ConnectedPlayer
 import icu.h2l.api.HyperZoneApi
@@ -50,6 +51,7 @@ import io.netty.channel.embedded.EmbeddedChannel
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.nio.file.Paths
@@ -128,6 +130,15 @@ class OutPreVServerAuthTest {
 
         assertTrue(outPre.getInitialSession(onlineSession.player) is BlockingInitialJoinSession)
         assertTrue(outPre.getInitialSession(offlineSession.player) is BridgeWaitingAreaJoinSession)
+    }
+
+    @Test
+    fun `getRegisteredVServer is null because the bridge is not a velocity backend connection`() {
+        val outPre = OutPreVServerAuth(mockk<ProxyServer>())
+        OutPreVServerAuth::class.java.getDeclaredField("registeredServer").apply { isAccessible = true }
+            .set(outPre, mockk<RegisteredServer>())
+
+        assertNull(outPre.getRegisteredVServer())
     }
 
     @AfterEach
