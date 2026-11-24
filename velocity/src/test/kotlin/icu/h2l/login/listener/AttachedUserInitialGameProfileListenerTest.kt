@@ -34,6 +34,7 @@ import icu.h2l.api.db.User
 import icu.h2l.api.event.profile.VerifyInitialGameProfileEvent
 import icu.h2l.api.vServer.HyperZoneVServerAdapter
 import icu.h2l.login.HyperZoneLoginMain
+import util.MockStaticUtil
 import icu.h2l.login.manager.LoginManager
 import icu.h2l.login.manager.HyperZonePlayerManager
 import icu.h2l.login.player.VelocityHyperZonePlayer
@@ -126,6 +127,7 @@ class AttachedUserInitialGameProfileListenerTest {
         sessions.clear()
         transientChannels.forEach(EmbeddedChannel::finishAndReleaseAll)
         transientChannels.clear()
+        MockStaticUtil.clear()
     }
 
     private fun bootstrapMain(): HyperZoneLoginMain {

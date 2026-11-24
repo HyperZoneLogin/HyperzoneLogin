@@ -26,19 +26,32 @@ import icu.h2l.api.profile.HyperZoneCredential
 import icu.h2l.api.profile.InGameProfileConflictException
 import icu.h2l.api.profile.UserMergeHandler
 import icu.h2l.api.profile.UserMergeHandlerRegistry
+import util.MockStaticUtil
+import icu.h2l.login.config.CoreConfig
 import icu.h2l.login.database.helper.BindingCodeDatabaseHelper
 import icu.h2l.login.database.helper.InGameProfileDatabaseHelper
 import icu.h2l.login.database.helper.UserDatabaseHelper
-import icu.h2l.login.database.DatabaseManager
 import icu.h2l.login.profile.VelocityHyperZoneUserService
 import io.mockk.every
 import io.mockk.mockk
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.nio.file.Files
 import java.util.*
 
 class InGameProfileDatabaseTest {
+    @BeforeEach
+    fun setUp() {
+        MockStaticUtil.setCoreConfig(CoreConfig())
+    }
+
+    @AfterEach
+    fun tearDown() {
+        MockStaticUtil.clear()
+    }
+
     @Test
     fun `create profile writes active in-game identity and resolves through it`() {
         withDatabase { context ->

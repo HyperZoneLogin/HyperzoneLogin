@@ -136,10 +136,7 @@ class HyperZoneLoginMain(
 
     companion object {
         private lateinit var instance: HyperZoneLoginMain
-        // 用内置默认值兜底初始化：测试或其他未执行完整 onEnable 的上下文里，
-        // 访问配置不再抛 UninitializedPropertyAccessException，而是返回安全默认配置。
-        private var coreConfig: CoreConfig = CoreConfig()
-        private var startConfig: StartConfig = StartConfig()
+        private lateinit var coreConfig: CoreConfig
 
         @JvmStatic
         fun getCoreConfig(): CoreConfig = coreConfig
@@ -157,7 +154,7 @@ class HyperZoneLoginMain(
     fun onEnable(event: ProxyInitializeEvent) {
         registerApiLogger()
         // ── 第一步：加载启动前置配置（不受 i18n 影响，硬编码提示）──────────────────────
-        startConfig = StartConfigLoader.load(dataDirectory)
+        val startConfig = StartConfigLoader.load(dataDirectory)
         if (!startConfig.ready) {
             logger.error("================================================================")
             logger.error("  你看起来似乎还没准备好，请先配置 start.conf 再继续使用 HyperZoneLogin")
